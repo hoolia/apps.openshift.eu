@@ -1,0 +1,30 @@
+apiVersion: v1
+entries:
+  omniroute:
+  - annotations:
+      charts.openshift.io/name: OmniRoute
+      charts.openshift.io/provider: Hoolia B.V.
+    apiVersion: v2
+    appVersion: 3.8.49
+    created: "2026-10-04T17:15:56.519638134Z"
+    description: Self-hosted AI proxy that routes LLM requests to many providers through
+      one endpoint
+    digest: 9b9191b291a3775a359f86e4a0b82fe897e0b76433ccebe5abef600dfaf7e9c0
+    home: https://apps.openshift.eu
+    icon: https://raw.githubusercontent.com/diegosouzapw/OmniRoute/main/public/favicon.svg
+    keywords:
+    - ai
+    - llm
+    - proxy
+    maintainers:
+    - name: Hoolia B.V.
+      url: https://apps.openshift.eu
+    name: omniroute
+    sources:
+    - https://github.com/diegosouzapw/OmniRoute
+    - https://github.com/hoolia/apps.openshift.eu
+    type: application
+    urls:
+    - https://github.com/hoolia/apps.openshift.eu/releases/download/omniroute-0.2.0/omniroute-0.2.0.tgz
+    version: 0.2.0
+generated: "2026-10-04T17:15:56.518709304Z"
