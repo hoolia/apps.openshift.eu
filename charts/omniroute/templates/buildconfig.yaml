@@ -16,6 +16,8 @@ spec:
     to:
       kind: ImageStreamTag
       name: {{ include "omniroute.fullname" . }}:latest
+  resources:
+    {{- toYaml .Values.build.resources | nindent 4 }}
   triggers:
     - type: ConfigChange
   successfulBuildsHistoryLimit: 3

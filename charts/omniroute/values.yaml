@@ -5,6 +5,14 @@ build:
   gitRepo: https://github.com/diegosouzapw/OmniRoute.git
   gitRef: release/v3.8.49
   dockerfilePath: Dockerfile
+  # npm ci of the upstream build needs more than a project's default limit
+  resources:
+    requests:
+      cpu: 500m
+      memory: 2Gi
+    limits:
+      cpu: "4"
+      memory: 8Gi
 
 image:
   name: omniroute:latest

@@ -23,6 +23,7 @@ The first build takes about ten minutes. Read the address and the first password
 | `secrets.type` | `kubernetes` | `externalSecret` reads the four secrets from a secret store. |
 | `secrets.initialPassword` | empty | First dashboard password. Empty: generated. |
 | `build.gitRef` | `release/v3.8.49` | Upstream release that is built. |
+| `build.resources` | 8Gi memory limit | Resources of the build pod. The upstream build does not fit in 2Gi. |
 
 Secrets left empty are generated at the first install and kept on every upgrade.
 
