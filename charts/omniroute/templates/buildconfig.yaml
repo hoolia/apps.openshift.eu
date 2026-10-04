@@ -1,0 +1,22 @@
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  name: {{ include "omniroute.fullname" . }}
+spec:
+  source:
+    type: Git
+    git:
+      uri: {{ .Values.build.gitRepo }}
+      ref: {{ .Values.build.gitRef }}
+  strategy:
+    type: Docker
+    dockerStrategy:
+      dockerfilePath: {{ .Values.build.dockerfilePath }}
+  output:
+    to:
+      kind: ImageStreamTag
+      name: {{ include "omniroute.fullname" . }}:latest
+  triggers:
+    - type: ConfigChange
+  successfulBuildsHistoryLimit: 3
+  failedBuildsHistoryLimit: 3

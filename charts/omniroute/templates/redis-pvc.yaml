@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "omniroute.fullname" . }}-redis
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.redis.persistence.size }}
+{{- if .Values.redis.persistence.storageClassName }}
+  storageClassName: {{ .Values.redis.persistence.storageClassName }}
+{{- end }}

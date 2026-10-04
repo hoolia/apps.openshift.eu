@@ -1,0 +1,62 @@
+fullnameOverride: omniroute
+
+# Docker strategy builds the last stage of the upstream Dockerfile
+build:
+  gitRepo: https://github.com/diegosouzapw/OmniRoute.git
+  gitRef: release/v3.8.49
+  dockerfilePath: Dockerfile
+
+image:
+  name: omniroute:latest
+
+replicaCount: 1
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 768Mi
+  limits:
+    cpu: "2"
+    memory: 2Gi
+
+persistence:
+  size: 5Gi
+  # empty: the default StorageClass of the cluster
+  storageClassName: ""
+
+route:
+  # empty: OpenShift assigns a host under the default application domain
+  hostname: ""
+
+redis:
+  image: redis:8.6.2-alpine
+  persistence:
+    size: 1Gi
+    storageClassName: ""
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+secrets:
+  # kubernetes: Secret from the values below. externalSecret: from a secret store
+  type: kubernetes
+  # password of the first dashboard login; empty: generated
+  initialPassword: ""
+  # machine-to-machine secrets; empty: generated once and kept on upgrade
+  jwtSecret: ""
+  apiKeySecret: ""
+  storageEncryptionKey: ""
+  externalSecret:
+    storeKind: ClusterSecretStore
+    storeName: ""
+    refreshInterval: 1h
+    # one vault item per key; the value is read from the item's password
+    items:
+      JWT_SECRET: omniroute-jwt-secret
+      API_KEY_SECRET: omniroute-api-key-secret
+      INITIAL_PASSWORD: omniroute-initial-password
+      STORAGE_ENCRYPTION_KEY: omniroute-storage-encryption-key

@@ -1,0 +1,21 @@
+name: Lint and test charts
+on:
+  pull_request:
+  push:
+    branches:
+    - main
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    - uses: azure/setup-helm@v4
+    - name: Install gitleaks
+      run: |
+        curl -sSL "$(curl -sSL https://api.github.com/repos/gitleaks/gitleaks/releases/latest | jq -r '.assets[] | select(.name | test("linux_x64.tar.gz$")) | .browser_download_url')" | sudo tar -xz -C /usr/local/bin gitleaks
+    - name: Check charts
+      run: ci/check.sh
+    - name: Scan history for secrets
+      run: gitleaks detect --source . --redact

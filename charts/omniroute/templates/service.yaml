@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "omniroute.fullname" . }}
+spec:
+  selector:
+    app: {{ include "omniroute.fullname" . }}
+  ports:
+  - name: http
+    port: 20128
+    targetPort: http

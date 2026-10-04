@@ -1,0 +1,119 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "omniroute.fullname" . }}
+  annotations:
+    image.openshift.io/triggers: |
+      [{"from":{"kind":"ImageStreamTag","name":"{{ include "omniroute.fullname" . }}:latest"},
+        "fieldPath":"spec.template.spec.containers[?(@.name==\"omniroute\")].image",
+        "paused":false}]
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ include "omniroute.fullname" . }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: {{ include "omniroute.fullname" . }}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: {{ include "omniroute.fullname" . }}-data
+      initContainers:
+      - name: wait-for-redis
+        image: {{ .Values.redis.image }}
+        command:
+        - sh
+        - -c
+        - |
+          until redis-cli -h {{ include "omniroute.fullname" . }}-redis ping; do
+            echo "waiting for redis..."
+            sleep 2
+          done
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+      containers:
+      - name: omniroute
+        image: {{ .Values.image.name }}
+        ports:
+        - containerPort: 20128
+          name: http
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+        env:
+        - name: NODE_ENV
+          value: production
+        - name: PORT
+          value: "20128"
+        - name: DASHBOARD_PORT
+          value: "20128"
+        - name: API_HOST
+          value: 0.0.0.0
+        - name: HOSTNAME
+          value: 0.0.0.0
+        - name: DATA_DIR
+          value: /app/data
+        - name: CONTAINER_HOST
+          value: docker
+        - name: AUTH_COOKIE_SECURE
+          value: "true"
+        - name: REDIS_URL
+          value: redis://{{ include "omniroute.fullname" . }}-redis:6379
+        {{- if .Values.route.hostname }}
+        - name: NEXT_PUBLIC_BASE_URL
+          value: https://{{ .Values.route.hostname }}
+        {{- end }}
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "omniroute.fullname" . }}-secret
+              key: JWT_SECRET
+        - name: API_KEY_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "omniroute.fullname" . }}-secret
+              key: API_KEY_SECRET
+        - name: INITIAL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "omniroute.fullname" . }}-secret
+              key: INITIAL_PASSWORD
+        - name: STORAGE_ENCRYPTION_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "omniroute.fullname" . }}-secret
+              key: STORAGE_ENCRYPTION_KEY
+        volumeMounts:
+        - name: data
+          mountPath: /app/data
+        readinessProbe:
+          httpGet:
+            path: /api/monitoring/health
+            port: 20128
+          initialDelaySeconds: 15
+          periodSeconds: 15
+          failureThreshold: 3
+        livenessProbe:
+          httpGet:
+            path: /api/monitoring/health
+            port: 20128
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          failureThreshold: 3
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
