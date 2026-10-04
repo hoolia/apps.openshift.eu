@@ -6,7 +6,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 2024.06.46
-    created: "2026-10-04T20:20:04.682371031Z"
+    created: "2026-10-04T20:21:33.534687408Z"
     dependencies:
     - alias: upstream
       name: mailu
@@ -33,13 +33,48 @@ entries:
     urls:
     - https://github.com/hoolia/apps.openshift.eu/releases/download/mailu-0.1.0/mailu-0.1.0.tgz
     version: 0.1.0
+  nextcloud:
+  - annotations:
+      charts.openshift.io/name: Nextcloud
+      charts.openshift.io/provider: Hoolia B.V.
+    apiVersion: v2
+    appVersion: 33.0.8
+    created: "2026-10-04T20:21:32.762869816Z"
+    dependencies:
+    - name: nextcloud
+      repository: https://nextcloud.github.io/helm/
+      version: 9.1.4
+    - condition: mailu.enabled
+      name: mailu
+      repository: https://apps.openshift.eu
+      version: 0.1.0
+    description: Nextcloud files, calendar and contacts with OnlyOffice document editing
+      and a MariaDB database
+    digest: 63ab6225daa6c9c562471268a36206e2333b2d0513beba8f2fa175e46488f41a
+    home: https://apps.openshift.eu
+    icon: https://raw.githubusercontent.com/nextcloud/server/master/core/img/logo/logo.svg
+    keywords:
+    - files
+    - collaboration
+    - office
+    maintainers:
+    - name: Hoolia B.V.
+      url: https://apps.openshift.eu
+    name: nextcloud
+    sources:
+    - https://github.com/nextcloud/helm
+    - https://github.com/hoolia/apps.openshift.eu
+    type: application
+    urls:
+    - https://github.com/hoolia/apps.openshift.eu/releases/download/nextcloud-0.1.0/nextcloud-0.1.0.tgz
+    version: 0.1.0
   omniroute:
   - annotations:
       charts.openshift.io/name: OmniRoute
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 3.8.49
-    created: "2026-10-04T20:20:05.472075609Z"
+    created: "2026-10-04T20:21:34.607570709Z"
     description: Self-hosted AI proxy that routes LLM requests to many providers through
       one endpoint
     digest: 66a1c2cda85e1a7c4064009c785dac097383498ee45eb28d4fa92523b66288db
@@ -65,7 +100,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 3.8.49
-    created: "2026-10-04T20:20:06.324645798Z"
+    created: "2026-10-04T20:21:35.421817162Z"
     description: Self-hosted AI proxy that routes LLM requests to many providers through
       one endpoint
     digest: 0b81b8abf1dec23a30410c71bc9cc5aa9b88075f5593577e63709c4b884c2cc6
@@ -91,7 +126,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 3.8.49
-    created: "2026-10-04T20:20:07.183663062Z"
+    created: "2026-10-04T20:21:36.249835125Z"
     description: Self-hosted AI proxy that routes LLM requests to many providers through
       one endpoint
     digest: 61fdc2ed6882612630d8da3914814eafdde0d58e1b397ac6f483237e572f500c
@@ -117,7 +152,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 3.8.49
-    created: "2026-10-04T20:20:07.995786144Z"
+    created: "2026-10-04T20:21:37.020098826Z"
     description: Self-hosted AI proxy that routes LLM requests to many providers through
       one endpoint
     digest: bdb19c8d5b028e55c462d885935ecc49a5ed3868b6a99899c68b4048d60e736b
@@ -138,4 +173,4 @@ entries:
     urls:
     - https://github.com/hoolia/apps.openshift.eu/releases/download/omniroute-0.2.0/omniroute-0.2.0.tgz
     version: 0.2.0
-generated: "2026-10-04T20:20:07.994647013Z"
+generated: "2026-10-04T20:21:37.019223262Z"
