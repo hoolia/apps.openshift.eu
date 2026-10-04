@@ -1,0 +1,34 @@
+{{- if .Values.database.enabled }}
+apiVersion: k8s.mariadb.com/v1alpha1
+kind: MariaDB
+metadata:
+  name: nextcloud-mariadb
+spec:
+  image: {{ .Values.database.image }}
+  replicas: {{ .Values.database.replicas }}
+  rootPasswordSecretKeyRef:
+    name: nextcloud-credentials
+    key: mariadb-root-password
+    generate: false
+  username: nextcloud
+  passwordSecretKeyRef:
+    name: nextcloud-credentials
+    key: mariadb-password
+    generate: false
+  database: nextcloud
+  port: 3306
+  storage:
+    size: {{ .Values.database.storage.size }}
+    {{- if .Values.database.storage.storageClassName }}
+    storageClassName: {{ .Values.database.storage.storageClassName }}
+    {{- end }}
+  podDisruptionBudget:
+    maxUnavailable: 1
+  metrics:
+    enabled: {{ .Values.database.metrics.enabled }}
+  resources:
+    {{- toYaml .Values.database.resources | nindent 4 }}
+  myCnf: |
+    [mariadb]
+    max_connect_errors = 1000000
+{{- end }}

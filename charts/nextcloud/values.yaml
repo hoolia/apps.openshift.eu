@@ -1,0 +1,208 @@
+# The hostname of Nextcloud is nextcloud.nextcloud.host, further down.
+
+ingress:
+  # ClusterIssuer that signs the certificates of both hostnames
+  clusterIssuer: letsencrypt
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: 1G
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+
+secrets:
+  # kubernetes: Secrets from the values below. externalSecret: from a secret store
+  type: kubernetes
+  adminUsername: admin
+  # password of the first administrator; empty: generated
+  adminPassword: ""
+  # machine-to-machine secrets; empty: generated once and kept on upgrade
+  mariadbPassword: ""
+  mariadbRootPassword: ""
+  onlyofficeJwtSecret: ""
+  externalSecret:
+    storeKind: ClusterSecretStore
+    storeName: ""
+    refreshInterval: 1h
+    # vault item per key; the value is read from the item's password
+    items:
+      nextcloud-password: nextcloud-admin
+      mariadb-password: nextcloud-mariadb
+      mariadb-root-password: nextcloud-mariadb-root
+      jwt-secret: nextcloud-onlyoffice-jwt
+
+# Outgoing mail server; empty: Nextcloud sends no mail
+smtp:
+  host: ""
+
+database:
+  enabled: true
+  image: docker.io/mariadb:11.4.10
+  replicas: 1
+  metrics:
+    enabled: false
+  storage:
+    size: 5Gi
+    # empty: the default StorageClass of the cluster
+    storageClassName: ""
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+onlyoffice:
+  enabled: true
+  # empty: office-<hostname of Nextcloud>
+  host: ""
+  image: docker.io/onlyoffice/documentserver:8.2
+  resources:
+    requests:
+      cpu: 250m
+      memory: 768Mi
+    limits:
+      cpu: "2"
+      memory: 4Gi
+
+# Mail server in the same project; its values are those of the mailu chart
+mailu:
+  enabled: true
+
+hpa:
+  enabled: false
+  minPods: 1
+  maxPods: 5
+  cpuThreshold: 60
+
+# Values of the upstream Nextcloud chart
+nextcloud:
+  # the templates of this chart refer to these object names
+  fullnameOverride: nextcloud
+  image:
+    flavor: apache
+    tag: 33.0.8-apache
+  replicaCount: 1
+  nextcloud:
+    host: nextcloud.example.org
+    existingSecret:
+      enabled: true
+      secretName: nextcloud-credentials
+      usernameKey: nextcloud-username
+      passwordKey: nextcloud-password
+      smtpHostKey: smtp-host
+    # the image starts as root and drops to www-data itself
+    securityContext:
+      runAsUser: 0
+    # one replica on a ReadWriteOnce volume
+    strategy:
+      type: Recreate
+    extraEnv:
+    - name: APACHE_BODY_LIMIT
+      value: "0"
+    - name: PHP_UPLOAD_LIMIT
+      value: 1G
+    - name: PHP_MEMORY_LIMIT
+      value: 1G
+    - name: OVERWRITEPROTOCOL
+      value: https
+    configs:
+      logging.config.php: |-
+        <?php
+        $CONFIG = array(
+          'loglevel' => 2,
+        );
+      trusted-proxies.config.php: |-
+        <?php
+        $CONFIG = array(
+          'trusted_proxies' => ['10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16'],
+        );
+    defaultConfigs:
+      redis.config.php: false
+      smtp.config.php: false
+    phpConfigs:
+      upload-max-filesize.ini: |-
+        upload_max_filesize 1G
+        post_max_size 1G
+        max_input_time 3600
+        max_execution_time 3600
+        opcache.memory_consumption=256
+  phpClientHttpsFix:
+    enabled: true
+    protocol: https
+  # the Ingress is templated by this chart
+  ingress:
+    enabled: false
+  internalDatabase:
+    enabled: false
+  externalDatabase:
+    enabled: true
+    type: mysql
+    host: nextcloud-mariadb
+    database: nextcloud
+    existingSecret:
+      enabled: true
+      secretName: nextcloud-credentials
+      usernameKey: mariadb-username
+      passwordKey: mariadb-password
+  mariadb:
+    enabled: false
+  postgresql:
+    enabled: false
+  redis:
+    enabled: false
+  collabora:
+    enabled: false
+  metrics:
+    enabled: false
+  cronjob:
+    enabled: true
+    securityContext:
+      runAsUser: 0
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+  imaginary:
+    enabled: true
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 1000
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+  persistence:
+    enabled: true
+    accessMode: ReadWriteOnce
+    size: 10Gi
+    nextcloudData:
+      enabled: true
+      accessMode: ReadWriteOnce
+      # the space for user files
+      size: 25Gi
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+  startupProbe:
+    enabled: true
+    initialDelaySeconds: 60
+    periodSeconds: 10
+    timeoutSeconds: 10
+    failureThreshold: 60
+  livenessProbe:
+    enabled: true
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 10
+    failureThreshold: 5
+  readinessProbe:
+    enabled: true
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 10
+    failureThreshold: 5

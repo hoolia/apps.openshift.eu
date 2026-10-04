@@ -34,7 +34,7 @@ Read the webmail address and the password of the first account (`admin@<domain>`
 | `upstream.persistence.storageClass` | empty | Empty: the default StorageClass. |
 | `secrets.type` | `kubernetes` | `externalSecret` reads the four secrets from a secret store. |
 | `secrets.initialAdminPassword` | empty | Password of the first admin account. Empty: generated. |
-| `mailService.type` | `LoadBalancer` | Type of the public Service for the mail protocols. |
+| `mailService.type` | `ClusterIP` | `LoadBalancer` gives the mail protocols a public address. |
 | `mailService.annotations` | `{}` | Annotations of that Service, for example the address pool. |
 | `mailService.ports.*` | mail ports on | Ports of that Service. `http` and `https` are off. |
 | `egressService.enabled` | `false` | Second public address, used as the source of outgoing mail. |

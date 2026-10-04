@@ -1,0 +1,49 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "nextcloud": {
+      "type": "object",
+      "properties": {
+        "nextcloud": {
+          "type": "object",
+          "properties": {
+            "host": {"type": "string", "title": "Hostname", "description": "Hostname of Nextcloud"}
+          }
+        },
+        "persistence": {
+          "type": "object",
+          "properties": {
+            "nextcloudData": {
+              "type": "object",
+              "properties": {
+                "size": {"type": "string", "title": "Space for user files"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "onlyoffice": {
+      "type": "object",
+      "properties": {
+        "enabled": {"type": "boolean", "title": "Document editing with OnlyOffice"},
+        "host": {"type": "string", "title": "Hostname of OnlyOffice", "description": "Leave empty for office-<hostname of Nextcloud>"}
+      }
+    },
+    "secrets": {
+      "type": "object",
+      "properties": {
+        "type": {"type": "string", "enum": ["kubernetes", "externalSecret"], "title": "Secret source"},
+        "adminUsername": {"type": "string", "title": "Administrator name"},
+        "adminPassword": {"type": "string", "title": "Administrator password", "description": "Leave empty to generate one"}
+      }
+    },
+    "smtp": {
+      "type": "object",
+      "properties": {
+        "host": {"type": "string", "title": "Outgoing mail server"}
+      }
+    }
+  }
+}

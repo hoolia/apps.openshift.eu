@@ -1,0 +1,29 @@
+apiVersion: v2
+name: nextcloud
+description: Nextcloud files, calendar and contacts with OnlyOffice document editing and a MariaDB database
+type: application
+version: 0.1.0
+appVersion: "33.0.8"
+home: https://apps.openshift.eu
+icon: https://raw.githubusercontent.com/nextcloud/server/master/core/img/logo/logo.svg
+keywords:
+- files
+- collaboration
+- office
+sources:
+- https://github.com/nextcloud/helm
+- https://github.com/hoolia/apps.openshift.eu
+maintainers:
+- name: Hoolia B.V.
+  url: https://apps.openshift.eu
+annotations:
+  charts.openshift.io/name: Nextcloud
+  charts.openshift.io/provider: Hoolia B.V.
+dependencies:
+- name: nextcloud
+  version: 9.1.4
+  repository: https://nextcloud.github.io/helm/
+- name: mailu
+  version: 0.1.0
+  repository: https://apps.openshift.eu
+  condition: mailu.enabled
