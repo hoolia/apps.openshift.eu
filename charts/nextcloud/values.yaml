@@ -1,13 +1,12 @@
 # The hostname of Nextcloud is nextcloud.nextcloud.host, further down.
 
-ingress:
-  # ClusterIssuer that signs the certificates of both hostnames
-  clusterIssuer: letsencrypt
+route:
   annotations:
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
-    nginx.ingress.kubernetes.io/proxy-body-size: 1G
-    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
-    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    # certificate of both hostnames, issued by cert-manager
+    cert-manager.io/issuer-kind: ClusterIssuer
+    cert-manager.io/issuer-name: letsencrypt
+    # large uploads and long document sessions
+    haproxy.router.openshift.io/timeout: 3600s
 
 secrets:
   # kubernetes: Secrets from the values below. externalSecret: from a secret store
@@ -130,7 +129,7 @@ nextcloud:
   phpClientHttpsFix:
     enabled: true
     protocol: https
-  # the Ingress is templated by this chart
+  # the Route is templated by this chart
   ingress:
     enabled: false
   internalDatabase:

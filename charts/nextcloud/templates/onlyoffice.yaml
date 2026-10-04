@@ -83,32 +83,27 @@ spec:
     app.kubernetes.io/name: onlyoffice
     app.kubernetes.io/instance: onlyoffice
 ---
-apiVersion: networking.k8s.io/v1
-kind: Ingress
+apiVersion: route.openshift.io/v1
+kind: Route
 metadata:
   name: onlyoffice
   labels:
     app.kubernetes.io/name: onlyoffice
     app.kubernetes.io/instance: onlyoffice
+  {{- with .Values.route.annotations }}
   annotations:
-    cert-manager.io/cluster-issuer: {{ .Values.ingress.clusterIssuer }}
-    {{- with .Values.ingress.annotations }}
     {{- toYaml . | nindent 4 }}
-    {{- end }}
+  {{- end }}
 spec:
+  host: {{ include "wrapper.onlyofficeHost" . }}
+  port:
+    targetPort: http
   tls:
-  - hosts:
-    - {{ include "wrapper.onlyofficeHost" . }}
-    secretName: onlyoffice-tls
-  rules:
-  - host: {{ include "wrapper.onlyofficeHost" . }}
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: onlyoffice
-            port:
-              name: http
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+  to:
+    kind: Service
+    name: onlyoffice
+    weight: 100
+  wildcardPolicy: None
 {{- end }}
