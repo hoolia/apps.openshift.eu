@@ -25,7 +25,10 @@ Read the address and the first password:
 | `image.tag` | chart appVersion | Upstream image tag. |
 | `build.enabled` | `false` | Build the image from source in your project instead. Takes about an hour and 8Gi of memory. |
 
-Secrets left empty are generated at the first install and kept on every upgrade.
+Secrets left empty are generated at the first install and kept on every upgrade with
+`helm upgrade`. A tool that renders the chart without access to the cluster, such as
+Argo CD or `helm template`, cannot read the existing Secret and generates new values on
+every render: set all four secrets there.
 
 ## Delivery instructions
 
