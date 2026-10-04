@@ -1,0 +1,14 @@
+{{- $ports := (include "mailu-wrapper.frontPorts" . | fromYaml).ports }}
+{{- $numbers := list }}
+{{- range $ports }}
+{{- if not (has (int .port) (list 80 443)) }}
+{{- $numbers = append $numbers (toString .port) }}
+{{- end }}
+{{- end }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "mailu-wrapper.fullname" . }}-ports
+data:
+  # mail ports the front pod listens on, same as the public Service
+  PORTS: {{ join "," $numbers | quote }}

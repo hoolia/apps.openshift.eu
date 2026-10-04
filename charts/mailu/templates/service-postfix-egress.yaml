@@ -1,0 +1,19 @@
+{{- if .Values.egressService.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "mailu-wrapper.fullname" . }}-postfix-egress
+  {{- with .Values.egressService.annotations }}
+  annotations: {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Local
+  selector: {{- include "mailu-wrapper.selector" (dict "context" . "component" "postfix") | nindent 4 }}
+  ports:
+  # a Service needs a port; nothing listens on it
+  - name: egress-only
+    port: 9
+    targetPort: 9
+    protocol: TCP
+{{- end }}

@@ -1,0 +1,386 @@
+secrets:
+  # kubernetes: Secret from the values below. externalSecret: from a secret store
+  type: kubernetes
+  # password of the first admin account; empty: generated
+  initialAdminPassword: ""
+  # machine-to-machine secrets; empty: generated once and kept on upgrade
+  secretKey: ""
+  apiToken: ""
+  roundcubeKey: ""
+  externalSecret:
+    storeKind: ClusterSecretStore
+    storeName: ""
+    refreshInterval: 1h
+    # one vault item per key; the value is read from the item's password
+    items:
+      secret-key: mailu-secret-key
+      initial-account-password: mailu-initial-account-password
+      api-token: mailu-api-token
+      roundcube-db-password: mailu-roundcube-db-password
+
+# Public Service for the mail protocols
+mailService:
+  # LoadBalancer gives the mail ports a public address
+  type: ClusterIP
+  externalTrafficPolicy: Local
+  # for example the address pool annotation of the load balancer
+  annotations: {}
+  ports:
+    smtp: true
+    smtps: true
+    submission: true
+    imap: true
+    imaps: true
+    pop3: true
+    pop3s: true
+    manageSieve: true
+    # webmail on the mail address itself, next to the Route
+    http: false
+    https: false
+
+# Second public address, used only as the source of outgoing mail
+egressService:
+  enabled: false
+  annotations: {}
+
+# Webmail and admin interface
+route:
+  enabled: true
+  # empty: OpenShift assigns a host under the default application domain
+  hostname: ""
+
+# Certificate for the mail protocols, for the hostnames of the mail server.
+# Disabled: a certificate of the cluster's internal service CA is used.
+certificate:
+  enabled: false
+  issuerName: ""
+  issuerKind: ClusterIssuer
+  renewBefore: 720h
+
+networkPolicy:
+  enabled: true
+
+# ServiceMonitors, alert rules and the NetworkPolicy for the scraper
+monitoring:
+  enabled: false
+  # label of the namespaces that may scrape
+  namespaceLabels:
+    network.openshift.io/policy-group: monitoring
+
+rspamd:
+  # sender domains that skip greylisting
+  greylistWhitelistDomains:
+  - anthropic.com
+  - amazonses.com
+  - bol.com
+  - canva.com
+  - ebay.com
+  - odoo.com
+
+# Web page to copy mailboxes from another mail server
+imapsync:
+  enabled: false
+  replicaCount: 1
+  image:
+    repository: gilleslamiral/imapsync
+    tag: latest
+    pullPolicy: Always
+  nginx:
+    image:
+      repository: nginxinc/nginx-unprivileged
+      tag: stable-alpine
+      pullPolicy: IfNotPresent
+  route:
+    # empty: OpenShift assigns a host under the default application domain
+    hostname: ""
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      cpu: "1"
+      memory: 512Mi
+
+global:
+  database:
+    roundcube:
+      existingSecret: mailu-secrets
+      existingSecretPasswordKey: roundcube-db-password
+
+# Values of the upstream chart mailu, included under the alias upstream
+upstream:
+  nameOverride: mailu
+  fullnameOverride: mailu
+
+  domain: example.org
+  hostnames:
+  - mail.example.org
+
+  # all four secrets live in one Secret, made by this chart
+  existingSecret: mailu-secrets
+  initialAccount:
+    enabled: true
+    username: admin
+    domain: example.org
+    existingSecret: mailu-secrets
+    existingSecretPasswordKey: initial-account-password
+    mode: create
+  api:
+    enabled: true
+    existingSecret: mailu-secrets
+    existingSecretTokenKey: api-token
+
+  # networks that count as internal: pods and services of the cluster
+  subnet: 10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
+
+  ingress:
+    enabled: false
+    # TLS on the mail ports, plain HTTP on port 80 for the Route
+    tlsFlavorOverride: mail
+    realIpFrom: 10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
+
+  persistence:
+    size: 20Gi
+    # empty: the default StorageClass of the cluster
+    storageClass: ""
+
+  clamav:
+    enabled: false
+
+  front:
+    # root needs a fixed UID, else the pod gets a random one
+    containerSecurityContext: &root
+      enabled: true
+      runAsUser: 0
+      runAsNonRoot: false
+    hostPort:
+      enabled: false
+    # replaced by the Service of this chart
+    externalService:
+      enabled: false
+    # listening ports follow mailService.ports
+    extraEnvVarsCM: '{{ include "mailu.names.fullname" . }}-ports'
+    extraVolumes:
+    - name: dovecot-override
+      configMap:
+        name: '{{ include "mailu.names.fullname" . }}-front-dovecot'
+    extraVolumeMounts:
+    - name: dovecot-override
+      mountPath: /overrides/dovecot/proxy.conf
+      subPath: proxy.conf
+    resources:
+      requests:
+        cpu: 50m
+        memory: 256Mi
+      limits:
+        cpu: "1"
+        memory: 1536Mi
+
+  admin:
+    containerSecurityContext: *root
+    extraEnvVarsCM: '{{ include "mailu.names.fullname" . }}-ports'
+    # one ReadWriteOnce volume: never two admin pods at once
+    updateStrategy:
+      type: Recreate
+    # all pods that share the volume run on one node
+    affinity:
+      podAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchLabels:
+              app.kubernetes.io/instance: '{{ .Release.Name }}'
+            matchExpressions:
+            - key: app.kubernetes.io/component
+              operator: In
+              values:
+              - admin
+              - dovecot
+              - postfix
+              - rspamd
+              - webmail
+          topologyKey: kubernetes.io/hostname
+    extraEnvVars:
+    - name: SUBNET
+      value: '{{ .Values.subnet }}'
+    # the cluster DNS does not validate DNSSEC; skip that startup check
+    initContainers:
+    - name: patch-startup
+      image: '{{ .Values.imageRegistry }}/{{ .Values.admin.image.repository }}:{{ default (include "mailu.version" .) .Values.admin.image.tag }}'
+      command:
+      - /bin/sh
+      - -c
+      - cp /start.py /shared/start.py && sed -i '/test_DNS()/d' /shared/start.py
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+        limits:
+          cpu: 200m
+          memory: 128Mi
+      volumeMounts:
+      - name: startup-script
+        mountPath: /shared
+    extraVolumeMounts:
+    - name: startup-script
+      mountPath: /start.py
+      subPath: start.py
+    extraVolumes:
+    - name: startup-script
+      emptyDir: {}
+    resources:
+      requests:
+        cpu: 50m
+        memory: 256Mi
+      limits:
+        cpu: "1"
+        memory: 1Gi
+
+  dovecot:
+    containerSecurityContext: *root
+    extraEnv:
+    - name: SKIP_CHOWN
+      value: "1"
+    overrides:
+      dovecot.conf: |
+        service imap-login {
+          chroot =
+        }
+        service pop3-login {
+          chroot =
+        }
+        service managesieve-login {
+          chroot =
+        }
+        service anvil {
+          chroot =
+        }
+        metric auth_success {
+          filter = event=auth_request_finished AND success=yes
+        }
+        metric auth_failures {
+          filter = event=auth_request_finished AND NOT success=yes
+        }
+        metric imap_command {
+          filter = event=imap_command_finished
+          group_by = cmd_name tagged_reply_state
+        }
+        metric mail_delivery {
+          filter = event=mail_delivery_finished
+          group_by = duration:exponential:1:5:10
+        }
+        service stats {
+          inet_listener http {
+            port = 9900
+          }
+        }
+    affinity: &followAdmin
+      podAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchLabels:
+              app.kubernetes.io/component: admin
+              app.kubernetes.io/instance: '{{ .Release.Name }}'
+          topologyKey: kubernetes.io/hostname
+    resources:
+      requests:
+        cpu: 50m
+        memory: 256Mi
+      limits:
+        cpu: "1"
+        memory: 1Gi
+
+  postfix:
+    containerSecurityContext: *root
+    updateStrategy:
+      type: Recreate
+    affinity: *followAdmin
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: "1"
+        memory: 512Mi
+
+  rspamd:
+    containerSecurityContext: *root
+    affinity: *followAdmin
+    extraVolumes:
+    - name: override-d
+      configMap:
+        name: '{{ include "mailu.names.fullname" . }}-rspamd-override-d'
+    extraVolumeMounts:
+    # DKIM keys of the admin interface, on the shared volume
+    - name: data
+      mountPath: /dkim
+      subPath: dkim
+    - name: override-d
+      mountPath: /etc/rspamd/override.d/dkim_signing.conf
+      subPath: dkim_signing.conf
+    - name: override-d
+      mountPath: /etc/rspamd/override.d/force_actions.conf
+      subPath: force_actions.conf
+    - name: override-d
+      mountPath: /etc/rspamd/override.d/whitelist.conf
+      subPath: whitelist.conf
+    - name: override-d
+      mountPath: /etc/rspamd/override.d/local_subnet.map
+      subPath: local_subnet.map
+    - name: override-d
+      mountPath: /etc/rspamd/override.d/greylist.conf
+      subPath: greylist.conf
+    - name: override-d
+      mountPath: /etc/rspamd/override.d/greylist-whitelist-domains.map
+      subPath: greylist-whitelist-domains.map
+    resources:
+      requests:
+        cpu: 100m
+        memory: 384Mi
+      limits:
+        cpu: "1"
+        memory: 1Gi
+
+  webmail:
+    containerSecurityContext: *root
+    updateStrategy:
+      type: Recreate
+    affinity: *followAdmin
+    resources:
+      requests:
+        cpu: 50m
+        memory: 256Mi
+      limits:
+        cpu: "1"
+        memory: 768Mi
+
+  oletools:
+    containerSecurityContext: *root
+    resources:
+      requests:
+        cpu: 25m
+        memory: 64Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
+
+  tika:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 512Mi
+      limits:
+        cpu: "1"
+        memory: 2Gi
+
+  redis:
+    master:
+      persistence:
+        size: 1Gi
+        storageClass: ""
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
+        limits:
+          cpu: 500m
+          memory: 256Mi

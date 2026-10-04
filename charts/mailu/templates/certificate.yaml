@@ -1,0 +1,18 @@
+{{- if .Values.certificate.enabled }}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "mailu-wrapper.fullname" . }}-certificates
+spec:
+  secretName: {{ include "mailu-wrapper.fullname" . }}-certificates
+  commonName: {{ first .Values.upstream.hostnames }}
+  dnsNames:
+  {{- range .Values.upstream.hostnames }}
+  - {{ . }}
+  {{- end }}
+  issuerRef:
+    name: {{ required "certificate.issuerName is required" .Values.certificate.issuerName }}
+    kind: {{ .Values.certificate.issuerKind }}
+    group: cert-manager.io
+  renewBefore: {{ .Values.certificate.renewBefore }}
+{{- end }}

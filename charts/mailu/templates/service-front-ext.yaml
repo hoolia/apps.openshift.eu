@@ -1,0 +1,24 @@
+{{- $ports := (include "mailu-wrapper.frontPorts" . | fromYaml).ports }}
+{{- $annotations := deepCopy .Values.mailService.annotations }}
+{{- if not .Values.certificate.enabled }}
+{{- $_ := set $annotations "service.beta.openshift.io/serving-cert-secret-name" (printf "%s-certificates" (include "mailu-wrapper.fullname" .)) }}
+{{- end }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "mailu-wrapper.fullname" . }}-front-ext
+  {{- with $annotations }}
+  annotations: {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.mailService.type }}
+  {{- if ne .Values.mailService.type "ClusterIP" }}
+  externalTrafficPolicy: {{ .Values.mailService.externalTrafficPolicy }}
+  {{- end }}
+  selector: {{- include "mailu-wrapper.selector" (dict "context" . "component" "front") | nindent 4 }}
+  ports:
+  {{- range $ports }}
+  - name: {{ .name }}
+    port: {{ .port }}
+    protocol: TCP
+  {{- end }}

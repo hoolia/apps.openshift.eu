@@ -1,0 +1,64 @@
+{{- if .Values.monitoring.enabled }}
+{{- $fullname := include "mailu-wrapper.fullname" . }}
+{{- $ns := .Release.Namespace }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ $fullname }}
+spec:
+  groups:
+  - name: mailu
+    rules:
+    - alert: MailuRspamdDown
+      expr: up{namespace="{{ $ns }}",job="{{ $fullname }}-rspamd"} == 0
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: Mailu rspamd is unreachable
+        description: rspamd has not answered metrics scrapes for 5m - outbound mail is not filtered or DKIM-signed.
+    - alert: MailuDovecotDown
+      expr: up{namespace="{{ $ns }}",job="{{ $fullname }}-dovecot-metrics"} == 0
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: Mailu dovecot is unreachable
+        description: dovecot has not answered metrics scrapes for 5m - IMAP, POP3 and LMTP delivery are likely affected.
+    - alert: MailuRspamdReadOnly
+      expr: rspamd_read_only{namespace="{{ $ns }}"} == 1
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: Mailu rspamd is in read-only mode
+        description: rspamd_read_only is 1 - rspamd has an internal fault and does not scan or sign mail normally.
+    - alert: MailuRspamdRejectingMail
+      expr: rate(rspamd_actions_total{namespace="{{ $ns }}",type="reject"}[15m]) > 0
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: Mailu rspamd is rejecting mail
+        description: "{{ `{{ $value | humanize }}` }} rejects/s over 15m - check the rspamd logs for the matching rule."
+    - alert: MailuDovecotAuthFailureRatio
+      expr: |
+        rate(dovecot_auth_failures_total{namespace="{{ $ns }}"}[15m])
+        /
+        (rate(dovecot_auth_failures_total{namespace="{{ $ns }}"}[15m]) + rate(dovecot_auth_success_total{namespace="{{ $ns }}"}[15m]))
+        > 0.5
+      for: 15m
+      labels:
+        severity: warning
+      annotations:
+        summary: Mailu dovecot auth failure ratio above 50%
+        description: More than half of the IMAP and POP3 logins fail over 15m - a broken auth backend or a password-guessing attempt.
+    - alert: MailuRspamdSlowScans
+      expr: rspamd_scan_time_average{namespace="{{ $ns }}"} > 5
+      for: 15m
+      labels:
+        severity: warning
+      annotations:
+        summary: Mailu rspamd average scan time above 5s
+        description: "{{ `{{ $value | humanize }}` }}s average scan time - check for a slow RBL, DNS or Lua module."
+{{- end }}

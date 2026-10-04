@@ -7,6 +7,9 @@ fail=0
 for c in charts/*/; do
   c=${c%/}
   n=$(basename "$c")
+  if grep -q '^dependencies:' "$c/Chart.yaml" && [ ! -d "$c/charts" ]; then
+    helm dependency build "$c" >/dev/null || { echo "FAIL $n: helm dependency build"; fail=1; continue; }
+  fi
   helm lint "$c" >/dev/null || { echo "FAIL $n: helm lint"; fail=1; }
   for mode in kubernetes externalSecret; do
     args="--set secrets.type=$mode"

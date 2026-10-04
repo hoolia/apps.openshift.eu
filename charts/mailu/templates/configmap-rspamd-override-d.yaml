@@ -1,0 +1,45 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "mailu-wrapper.fullname" . }}-rspamd-override-d
+data:
+  dkim_signing.conf: |
+    use_vault = false;
+    try_fallback = true;
+    path = "/dkim/$domain.$selector.key";
+  force_actions.conf: |
+    rules {
+      ANTISPOOF_AUTH_FAILED {
+        action = "no action";
+      }
+      ANTISPOOF_DMARC_ENFORCE_LOCAL {
+        action = "no action";
+      }
+      ANTISPOOF_NOAUTH {
+        action = "no action";
+      }
+    }
+  whitelist.conf: |
+    rules {
+      BLACKLIST_ANTISPOOF {
+        whitelist = "/etc/rspamd/override.d/local_subnet.map";
+      }
+    }
+  local_subnet.map: |
+    {{- range splitList "," .Values.upstream.subnet }}
+    {{ . | trim }}
+    {{- end }}
+  greylist.conf: |
+    expire = 1d;
+    timeout = 5min;
+    key_prefix = "rg";
+    max_data_len = 10k;
+    message = "Try again later";
+    action = "soft reject";
+    ipv4_mask = 19;
+    ipv6_mask = 64;
+    whitelist_domains_url = "/etc/rspamd/override.d/greylist-whitelist-domains.map";
+  greylist-whitelist-domains.map: |
+    {{- range .Values.rspamd.greylistWhitelistDomains }}
+    {{ . }}
+    {{- end }}

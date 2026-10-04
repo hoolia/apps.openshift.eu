@@ -1,0 +1,65 @@
+{{- if .Values.monitoring.enabled }}
+{{- $fullname := include "mailu-wrapper.fullname" . }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fullname }}-dovecot-metrics
+  labels: {{- include "mailu-wrapper.selector" (dict "context" . "component" "dovecot-metrics") | nindent 4 }}
+spec:
+  selector: {{- include "mailu-wrapper.selector" (dict "context" . "component" "dovecot") | nindent 4 }}
+  ports:
+  - name: metrics
+    port: 9900
+    protocol: TCP
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ $fullname }}-dovecot-metrics
+spec:
+  selector:
+    matchLabels: {{- include "mailu-wrapper.selector" (dict "context" . "component" "dovecot-metrics") | nindent 6 }}
+  endpoints:
+  - port: metrics
+    path: /metrics
+    scheme: http
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ $fullname }}-rspamd
+spec:
+  selector:
+    matchLabels: {{- include "mailu-wrapper.selector" (dict "context" . "component" "rspamd") | nindent 6 }}
+  endpoints:
+  - port: rspamd-http
+    path: /metrics
+    scheme: http
+    params:
+      password:
+      - mailu
+    relabelings:
+    - action: labeldrop
+      regex: __param_password
+{{- if .Values.networkPolicy.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $fullname }}-allow-monitoring
+spec:
+  podSelector:
+    matchLabels: {{- include "mailu-wrapper.selector" (dict "context" .) | nindent 6 }}
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels: {{- toYaml .Values.monitoring.namespaceLabels | nindent 10 }}
+    ports:
+    - port: 11334
+      protocol: TCP
+    - port: 9900
+      protocol: TCP
+{{- end }}
+{{- end }}
