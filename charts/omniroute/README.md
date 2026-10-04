@@ -3,15 +3,15 @@
 ## Purpose
 
 OmniRoute is a self-hosted AI proxy: one endpoint that routes LLM requests to the
-providers you configure in its dashboard. The chart builds the image from the upstream
-source in your project and runs it with a Redis instance and two volumes.
+providers you configure in its dashboard. The chart runs the upstream image with a Redis
+instance and two volumes.
 
 ## Install
 
     helm repo add grncloud https://apps.openshift.eu
     helm install omniroute grncloud/omniroute
 
-The first build takes about ten minutes. Read the address and the first password:
+Read the address and the first password:
 
     oc get route omniroute -o jsonpath='https://{.spec.host}{"\n"}'
     oc get secret omniroute-secret -o jsonpath='{.data.INITIAL_PASSWORD}' | base64 -d
@@ -22,8 +22,8 @@ The first build takes about ten minutes. Read the address and the first password
 | `persistence.size` | `5Gi` | Size of the data volume. |
 | `secrets.type` | `kubernetes` | `externalSecret` reads the four secrets from a secret store. |
 | `secrets.initialPassword` | empty | First dashboard password. Empty: generated. |
-| `build.gitRef` | `release/v3.8.49` | Upstream release that is built. |
-| `build.resources` | 8Gi memory limit | Resources of the build pod. The upstream build does not fit in 2Gi. |
+| `image.tag` | chart appVersion | Upstream image tag. |
+| `build.enabled` | `false` | Build the image from source in your project instead. Takes about an hour and 8Gi of memory. |
 
 Secrets left empty are generated at the first install and kept on every upgrade.
 

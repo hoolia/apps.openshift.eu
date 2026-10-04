@@ -2,11 +2,13 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ include "omniroute.fullname" . }}
+  {{- if .Values.build.enabled }}
   annotations:
     image.openshift.io/triggers: |
       [{"from":{"kind":"ImageStreamTag","name":"{{ include "omniroute.fullname" . }}:latest"},
         "fieldPath":"spec.template.spec.containers[?(@.name==\"omniroute\")].image",
         "paused":false}]
+  {{- end }}
 spec:
   replicas: {{ .Values.replicaCount }}
   selector:
@@ -47,7 +49,11 @@ spec:
             drop: ["ALL"]
       containers:
       - name: omniroute
-        image: {{ .Values.image.name }}
+        {{- if .Values.build.enabled }}
+        image: {{ include "omniroute.fullname" . }}:latest
+        {{- else }}
+        image: {{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}
+        {{- end }}
         ports:
         - containerPort: 20128
           name: http

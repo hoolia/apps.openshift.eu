@@ -24,4 +24,5 @@ portable to an arbitrary Kubernetes cluster.
 - `README.md` has the sections Purpose, Install and Delivery instructions.
 - `ci/check.sh` passes.
 
-A chart is released when the `version` in its `Chart.yaml` changes on `main`.
+A chart is released when the `version` in its `Chart.yaml` changes on `main`. While the
+release workflow cannot run, `ci/release.sh <chart>` produces the same release by hand.
