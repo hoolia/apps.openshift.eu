@@ -6,7 +6,33 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 3.8.49
-    created: "2026-10-04T19:09:51.151101382Z"
+    created: "2026-10-04T19:27:10.869571185Z"
+    description: Self-hosted AI proxy that routes LLM requests to many providers through
+      one endpoint
+    digest: 66a1c2cda85e1a7c4064009c785dac097383498ee45eb28d4fa92523b66288db
+    home: https://apps.openshift.eu
+    icon: https://raw.githubusercontent.com/diegosouzapw/OmniRoute/main/public/favicon.svg
+    keywords:
+    - ai
+    - llm
+    - proxy
+    maintainers:
+    - name: Hoolia B.V.
+      url: https://apps.openshift.eu
+    name: omniroute
+    sources:
+    - https://github.com/diegosouzapw/OmniRoute
+    - https://github.com/hoolia/apps.openshift.eu
+    type: application
+    urls:
+    - https://github.com/hoolia/apps.openshift.eu/releases/download/omniroute-0.3.1/omniroute-0.3.1.tgz
+    version: 0.3.1
+  - annotations:
+      charts.openshift.io/name: OmniRoute
+      charts.openshift.io/provider: Hoolia B.V.
+    apiVersion: v2
+    appVersion: 3.8.49
+    created: "2026-10-04T19:27:11.555164528Z"
     description: Self-hosted AI proxy that routes LLM requests to many providers through
       one endpoint
     digest: 0b81b8abf1dec23a30410c71bc9cc5aa9b88075f5593577e63709c4b884c2cc6
@@ -32,7 +58,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 3.8.49
-    created: "2026-10-04T18:05:52.97639908Z"
+    created: "2026-10-04T19:27:12.357723456Z"
     description: Self-hosted AI proxy that routes LLM requests to many providers through
       one endpoint
     digest: 61fdc2ed6882612630d8da3914814eafdde0d58e1b397ac6f483237e572f500c
@@ -58,10 +84,10 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 3.8.49
-    created: "2026-10-04T17:15:56.519638134Z"
+    created: "2026-10-04T19:27:13.249400881Z"
     description: Self-hosted AI proxy that routes LLM requests to many providers through
       one endpoint
-    digest: 9b9191b291a3775a359f86e4a0b82fe897e0b76433ccebe5abef600dfaf7e9c0
+    digest: bdb19c8d5b028e55c462d885935ecc49a5ed3868b6a99899c68b4048d60e736b
     home: https://apps.openshift.eu
     icon: https://raw.githubusercontent.com/diegosouzapw/OmniRoute/main/public/favicon.svg
     keywords:
@@ -79,4 +105,4 @@ entries:
     urls:
     - https://github.com/hoolia/apps.openshift.eu/releases/download/omniroute-0.2.0/omniroute-0.2.0.tgz
     version: 0.2.0
-generated: "2026-10-04T19:09:51.150075415Z"
+generated: "2026-10-04T19:27:13.248441313Z"
