@@ -1,4 +1,4 @@
-{{- if .Values.taskprocessing.enabled }}
+{{- if include "wrapper.workerEnabled" . }}
 {{- $nc := .Values.nextcloud }}
 apiVersion: apps/v1
 kind: Deployment
@@ -29,9 +29,11 @@ spec:
         command:
         - sh
         - -c
-        # the worker starts when Nextcloud is installed and leaves at its timeout
+        # Nextcloud serves after its setup script: the apps are installed then
         - |
-          until php occ status 2>/dev/null | grep -q 'installed: true'; do sleep 10; done
+          until curl -fs {{ include "wrapper.internalUrl" . }}/status.php | grep -q '"installed":true'; do
+            echo "waiting for Nextcloud"; sleep 10
+          done
           exec php occ taskprocessing:worker --timeout=3600 --interval=1
         env:
         - name: OVERWRITEPROTOCOL

@@ -1,17 +1,49 @@
 {{- $host := include "wrapper.host" . }}
+{{- $set := .Values.settings }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: nextcloud-setup
 data:
+  # Nextcloud checks the header on its own web server, behind the Route
+  hsts.conf: |
+    # written by the chart
+    {{- if .Values.hsts.enabled }}
+    Header always set Strict-Transport-Security "{{ .Values.hsts.header }}"
+    {{- end }}
   # runs at every start of Nextcloud; every step can be repeated
   setup.sh: |
     #!/bin/sh
     cd /var/www/html
     s=/run/secrets/setup
     app() { php occ app:install "$1" || php occ app:enable "$1"; }
-    set_app() { php occ config:app:set "$1" "$2" --value="$3"; }
-    php occ config:system:set trusted_domains 9 --value=nextcloud
+    set_sys() { php occ config:system:set "$@" >/dev/null || echo "setup: system $1 not set"; }
+    set_app() { php occ config:app:set "$1" "$2" --value="$3" >/dev/null || echo "setup: $1 $2 not set"; }
+    set_secret() { php occ config:app:set "$1" "$2" --type=string --lazy --sensitive -n --value="$3" >/dev/null || echo "setup: $1 $2 not set"; }
+    set_sys trusted_domains 9 --value=nextcloud
+    {{- if ne (toString $set.maintenanceWindowStart) "" }}
+    set_sys maintenance_window_start --type=integer --value={{ $set.maintenanceWindowStart }}
+    {{- end }}
+    {{- with $set.defaultPhoneRegion }}
+    set_sys default_phone_region --value={{ . }}
+    {{- end }}
+    {{- if $set.repairOnUpgrade }}
+    v=$(php -r 'require "version.php"; echo implode(".", $OC_Version);')
+    if [ ! -e "data/.chart-repair-$v" ]; then
+      php occ db:add-missing-indices >/dev/null
+      php occ db:add-missing-columns >/dev/null
+      php occ db:add-missing-primary-keys >/dev/null
+      php occ maintenance:repair --include-expensive >/dev/null && touch "data/.chart-repair-$v"
+    fi
+    {{- end }}
+    {{- if .Values.onlyoffice.enabled }}
+    app onlyoffice
+    set_app onlyoffice DocumentServerUrl "https://{{ include "wrapper.onlyofficeHost" . }}/"
+    set_app onlyoffice DocumentServerInternalUrl "http://onlyoffice/"
+    set_app onlyoffice StorageUrl "{{ include "wrapper.internalUrl" . }}/"
+    set_app onlyoffice jwt_secret "$(cat $s/jwt-secret)"
+    set_app onlyoffice jwt_header Authorization
+    {{- end }}
     {{- if .Values.notifyPush.enabled }}
     app notify_push
     set_app notify_push base_endpoint "https://{{ $host }}/push"
@@ -19,7 +51,7 @@ data:
     {{- if .Values.whiteboard.enabled }}
     app whiteboard
     set_app whiteboard collabBackendUrl "https://{{ $host }}/whiteboard"
-    set_app whiteboard jwt_secret_key "$(cat $s/whiteboard-jwt-secret)"
+    set_secret whiteboard jwt_secret_key "$(cat $s/whiteboard-jwt-secret)"
     {{- end }}
     {{- if .Values.talk.enabled }}
     app spreed
@@ -31,6 +63,23 @@ data:
     {{- end }}
     {{- if .Values.talk.recording.enabled }}
     set_app spreed recording_servers "{\"servers\":[{\"server\":\"https://{{ $host }}/apps/talk/recording\",\"verify\":true}],\"secret\":\"$(cat $s/recording-secret)\"}"
+    {{- end }}
+    {{- end }}
+    {{- if .Values.ai.enabled }}
+    {{- $ai := .Values.ai }}
+    app assistant
+    set_app assistant assistant_enabled 1
+    app integration_openai
+    set_app integration_openai url "{{ required "ai.url is required when ai.enabled" $ai.url }}"
+    set_secret integration_openai api_key "$(cat $s/ai-api-key)"
+    {{- range $key, $model := dict "default_completion_model_id" $ai.models.completion "default_image_model_id" $ai.models.image "default_stt_model_id" $ai.models.speechToText "default_tts_model_id" $ai.models.textToSpeech }}
+    {{- if $model }}
+    set_app integration_openai {{ $key }} "{{ $model }}"
+    {{- end }}
+    {{- end }}
+    {{- $p := $ai.providers }}
+    {{- range $key, $on := dict "chat_endpoint_enabled" $p.chat "llm_provider_enabled" $p.text "translation_provider_enabled" $p.translation "analyze_image_provider_enabled" $p.imageAnalysis "t2i_provider_enabled" $p.imageGeneration "stt_provider_enabled" $p.speechToText "tts_provider_enabled" $p.textToSpeech }}
+    set_app integration_openai {{ $key }} {{ ternary 1 0 $on }}
     {{- end }}
     {{- end }}
     {{- if .Values.monitoring.enabled }}

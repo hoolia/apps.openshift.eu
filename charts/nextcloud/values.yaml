@@ -8,7 +8,16 @@ route:
     # large uploads and long document sessions
     haproxy.router.openshift.io/timeout: 3600s
 
-# Strict-Transport-Security header on every Route of this chart
+# Settings the setup script applies at every start of Nextcloud
+settings:
+  # hour (UTC) at which the heavy daily jobs start; empty: not set
+  maintenanceWindowStart: 1
+  # country code for phone numbers without one, such as NL; empty: not set
+  defaultPhoneRegion: ""
+  # once per version: missing database indices and expensive repair steps
+  repairOnUpgrade: true
+
+# Strict-Transport-Security header of Nextcloud and of every Route
 hsts:
   enabled: true
   header: max-age=31536000;includeSubDomains;preload
@@ -35,6 +44,8 @@ secrets:
   signalingBlockKey: ""
   recordingSecret: ""
   turnSecret: ""
+  # key of the AI endpoint; never generated, required when ai.enabled
+  aiApiKey: ""
   externalSecret:
     storeKind: ClusterSecretStore
     storeName: ""
@@ -54,6 +65,7 @@ secrets:
       signaling-blockkey: nextcloud-signaling-blockkey
       recording-secret: nextcloud-talk-recording
       turn-secret: nextcloud-turn
+      ai-api-key: nextcloud-ai
 
 # Outgoing mail server; empty: Nextcloud sends no mail
 smtp:
@@ -167,7 +179,9 @@ talk:
     enabled: true
     # public DNS name of the TURN server; empty: turn-<hostname of Nextcloud>
     host: ""
-    # public address behind the DNS name; required for calls across networks
+    # true: LoadBalancer Service with a public address and its DNS record
+    public: false
+    # public address; empty with public: read from the DNS name at pod start
     externalIP: ""
     # empty: the DNS name of the TURN server
     realm: ""
@@ -178,7 +192,7 @@ talk:
       min: 49160
       max: 49359
     service:
-      # LoadBalancer requests a public address; ClusterIP serves no one outside
+      # public: true makes this LoadBalancer
       type: ClusterIP
       # for example the address pool of the load balancer
       annotations: {}
@@ -209,6 +223,27 @@ talk:
       limits:
         cpu: "2"
         memory: 2Gi
+
+# Assistant on an OpenAI-compatible API; also runs the worker and Redis
+ai:
+  enabled: false
+  # address of the API, ending in /v1; required when enabled
+  url: ""
+  # default model per kind; empty: the choice of the app
+  models:
+    completion: ""
+    image: ""
+    speechToText: ""
+    textToSpeech: ""
+  # switch off what the endpoint does not serve
+  providers:
+    chat: true
+    text: true
+    translation: true
+    imageAnalysis: true
+    imageGeneration: false
+    speechToText: false
+    textToSpeech: false
 
 # Exporters, ServiceMonitors and alert rules
 monitoring:
@@ -289,6 +324,9 @@ nextcloud:
     strategy:
       type: Recreate
     extraEnv:
+    # a writable place for the font cache
+    - name: XDG_CACHE_HOME
+      value: /tmp/.cache
     - name: APACHE_BODY_LIMIT
       value: "0"
     - name: PHP_UPLOAD_LIMIT
@@ -326,10 +364,19 @@ nextcloud:
         - secret:
             name: nextcloud-metrics
             optional: true
+        - secret:
+            name: onlyoffice-credentials
+            optional: true
+        - secret:
+            name: nextcloud-ai
+            optional: true
     extraVolumeMounts:
     - name: setup
       mountPath: /docker-entrypoint-hooks.d/before-starting/00-chart.sh
       subPath: setup.sh
+    - name: setup
+      mountPath: /etc/apache2/conf-enabled/hsts.conf
+      subPath: hsts.conf
     - name: setup-secrets
       mountPath: /run/secrets/setup
       readOnly: true
@@ -384,6 +431,11 @@ nextcloud:
   cronjob:
     enabled: true
     sidecar:
+      # cron starts after the first installation
+      command:
+      - sh
+      - -c
+      - until grep -qs "'installed' => true" config/config.php; do sleep 10; done; exec /cron.sh
       securityContext:
         runAsUser: 0
       resources:

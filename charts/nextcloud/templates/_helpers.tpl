@@ -39,7 +39,12 @@ cluster, else a new random one.
 
 {{/* Redis runs when a component that needs it is on. */}}
 {{- define "wrapper.cacheEnabled" -}}
-{{- if or .Values.cache.enabled .Values.notifyPush.enabled .Values.whiteboard.enabled .Values.taskprocessing.enabled -}}true{{- end -}}
+{{- if or .Values.cache.enabled .Values.notifyPush.enabled .Values.whiteboard.enabled (include "wrapper.workerEnabled" .) -}}true{{- end -}}
+{{- end -}}
+
+{{/* The worker runs when it is switched on or the AI integration needs it. */}}
+{{- define "wrapper.workerEnabled" -}}
+{{- if or .Values.taskprocessing.enabled .Values.ai.enabled -}}true{{- end -}}
 {{- end -}}
 
 {{- define "wrapper.nextcloudImage" -}}

@@ -8,7 +8,11 @@
         "nextcloud": {
           "type": "object",
           "properties": {
-            "host": {"type": "string", "title": "Hostname", "description": "Hostname of Nextcloud"}
+            "host": {
+              "type": "string",
+              "title": "Hostname",
+              "description": "Hostname of Nextcloud"
+            }
           }
         },
         "persistence": {
@@ -17,7 +21,10 @@
             "nextcloudData": {
               "type": "object",
               "properties": {
-                "size": {"type": "string", "title": "Space for user files"}
+                "size": {
+                  "type": "string",
+                  "title": "Space for user files"
+                }
               }
             }
           }
@@ -27,76 +34,152 @@
     "onlyoffice": {
       "type": "object",
       "properties": {
-        "enabled": {"type": "boolean", "title": "Document editing with OnlyOffice"},
-        "host": {"type": "string", "title": "Hostname of OnlyOffice", "description": "Leave empty for office-<hostname of Nextcloud>"}
+        "enabled": {
+          "type": "boolean",
+          "title": "Document editing with OnlyOffice"
+        },
+        "host": {
+          "type": "string",
+          "title": "Hostname of OnlyOffice",
+          "description": "Leave empty for office-<hostname of Nextcloud>"
+        }
       }
     },
     "secrets": {
       "type": "object",
       "properties": {
-        "type": {"type": "string", "enum": ["kubernetes", "externalSecret"], "title": "Secret source"},
-        "adminUsername": {"type": "string", "title": "Administrator name"},
-        "adminPassword": {"type": "string", "title": "Administrator password", "description": "Leave empty to generate one"}
+        "type": {
+          "type": "string",
+          "enum": [
+            "kubernetes",
+            "externalSecret"
+          ],
+          "title": "Secret source"
+        },
+        "adminUsername": {
+          "type": "string",
+          "title": "Administrator name"
+        },
+        "adminPassword": {
+          "type": "string",
+          "title": "Administrator password",
+          "description": "Leave empty to generate one"
+        },
+        "aiApiKey": {
+          "type": "string",
+          "title": "API key of the AI endpoint",
+          "description": "Required when AI is enabled"
+        }
       }
     },
     "smtp": {
       "type": "object",
       "properties": {
-        "host": {"type": "string", "title": "Outgoing mail server"}
+        "host": {
+          "type": "string",
+          "title": "Outgoing mail server"
+        }
       }
     },
     "hsts": {
       "type": "object",
       "properties": {
-        "enabled": {"type": "boolean", "title": "Strict-Transport-Security header"}
+        "enabled": {
+          "type": "boolean",
+          "title": "Strict-Transport-Security header"
+        }
       }
     },
     "notifyPush": {
       "type": "object",
       "properties": {
-        "enabled": {"type": "boolean", "title": "Push server for the clients"}
+        "enabled": {
+          "type": "boolean",
+          "title": "Push server for the clients"
+        }
       }
     },
     "whiteboard": {
       "type": "object",
       "properties": {
-        "enabled": {"type": "boolean", "title": "Whiteboard backend"}
+        "enabled": {
+          "type": "boolean",
+          "title": "Whiteboard backend"
+        }
       }
     },
     "taskprocessing": {
       "type": "object",
       "properties": {
-        "enabled": {"type": "boolean", "title": "Task-processing worker"}
+        "enabled": {
+          "type": "boolean",
+          "title": "Task-processing worker"
+        }
       }
     },
     "talk": {
       "type": "object",
       "properties": {
-        "enabled": {"type": "boolean", "title": "Nextcloud Talk", "description": "Calls across networks need a public address for the TURN server"},
+        "enabled": {
+          "type": "boolean",
+          "title": "Nextcloud Talk",
+          "description": "Calls across networks need a public address for the TURN server"
+        },
         "signaling": {
           "type": "object",
           "properties": {
-            "host": {"type": "string", "title": "Hostname of the signaling server", "description": "Leave empty for signaling-<hostname of Nextcloud>"}
+            "host": {
+              "type": "string",
+              "title": "Hostname of the signaling server",
+              "description": "Leave empty for signaling-<hostname of Nextcloud>"
+            }
           }
         },
         "turn": {
           "type": "object",
           "properties": {
-            "host": {"type": "string", "title": "DNS name of the TURN server", "description": "Leave empty for turn-<hostname of Nextcloud>"},
-            "externalIP": {"type": "string", "title": "Public address of the TURN server"},
+            "host": {
+              "type": "string",
+              "title": "DNS name of the TURN server",
+              "description": "Leave empty for turn-<hostname of Nextcloud>"
+            },
+            "externalIP": {
+              "type": "string",
+              "title": "Public address of the TURN server"
+            },
             "service": {
               "type": "object",
               "properties": {
-                "type": {"type": "string", "enum": ["ClusterIP", "LoadBalancer"], "title": "Service type of the TURN server"},
-                "annotations": {"type": "object", "title": "Annotations of the TURN Service", "additionalProperties": {"type": "string"}}
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "ClusterIP",
+                    "LoadBalancer"
+                  ],
+                  "title": "Service type of the TURN server"
+                },
+                "annotations": {
+                  "type": "object",
+                  "title": "Annotations of the TURN Service",
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                }
               }
+            },
+            "public": {
+              "type": "boolean",
+              "title": "Public address for the TURN server"
             }
           }
         },
         "recording": {
           "type": "object",
           "properties": {
-            "enabled": {"type": "boolean", "title": "Call recording"}
+            "enabled": {
+              "type": "boolean",
+              "title": "Call recording"
+            }
           }
         }
       }
@@ -104,15 +187,68 @@
     "backup": {
       "type": "object",
       "properties": {
-        "enabled": {"type": "boolean", "title": "Database backup to object storage"},
-        "storageClassName": {"type": "string", "title": "StorageClass of the bucket claim"},
-        "schedule": {"type": "string", "title": "Backup schedule (cron)", "description": "Leave empty for one backup at once"}
+        "enabled": {
+          "type": "boolean",
+          "title": "Database backup to object storage"
+        },
+        "storageClassName": {
+          "type": "string",
+          "title": "StorageClass of the bucket claim"
+        },
+        "schedule": {
+          "type": "string",
+          "title": "Backup schedule (cron)",
+          "description": "Leave empty for one backup at once"
+        }
       }
     },
     "monitoring": {
       "type": "object",
       "properties": {
-        "enabled": {"type": "boolean", "title": "Monitoring", "description": "Enabled by the platform team"}
+        "enabled": {
+          "type": "boolean",
+          "title": "Monitoring"
+        }
+      }
+    },
+    "ai": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "title": "AI assistant"
+        },
+        "url": {
+          "type": "string",
+          "title": "Address of the OpenAI-compatible API",
+          "description": "Ends in /v1"
+        },
+        "models": {
+          "type": "object",
+          "properties": {
+            "completion": {
+              "type": "string",
+              "title": "Default text model"
+            }
+          }
+        }
+      }
+    },
+    "settings": {
+      "type": "object",
+      "properties": {
+        "maintenanceWindowStart": {
+          "type": [
+            "integer",
+            "string"
+          ],
+          "title": "Maintenance window start (hour, UTC)"
+        },
+        "defaultPhoneRegion": {
+          "type": "string",
+          "title": "Default phone region",
+          "description": "Country code such as NL; empty leaves it unset"
+        }
       }
     }
   }

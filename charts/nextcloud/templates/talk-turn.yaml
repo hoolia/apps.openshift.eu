@@ -1,6 +1,11 @@
 {{- if and .Values.talk.enabled .Values.talk.turn.enabled }}
 {{- $turn := .Values.talk.turn }}
 {{- $host := include "wrapper.turnHost" . }}
+{{- $type := ternary "LoadBalancer" $turn.service.type $turn.public }}
+{{- $annotations := deepCopy $turn.service.annotations }}
+{{- if $turn.public }}
+{{- $_ := set $annotations "external-dns.alpha.kubernetes.io/hostname" $host }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -22,6 +27,32 @@ spec:
       - name: coturn
         image: {{ $turn.image }}
         imagePullPolicy: IfNotPresent
+        command:
+        - sh
+        - -c
+        {{- if $turn.externalIP }}
+        - exec turnserver "$@" --external-ip={{ $turn.externalIP }}
+        {{- else if $turn.public }}
+        # the public address is that of the DNS name; a change restarts coturn
+        - |
+          resolve() { getent ahostsv4 {{ $host }} | awk '{print $1; exit}'; }
+          trap 'kill $pid 2>/dev/null; exit 0' TERM INT
+          while true; do
+            ip=$(resolve)
+            if [ -z "$ip" ]; then echo "waiting for {{ $host }}"; sleep 10; continue; fi
+            echo "external address $ip, pod address $POD_IP"
+            turnserver "$@" --external-ip=$ip/$POD_IP &
+            pid=$!
+            while kill -0 $pid 2>/dev/null; do
+              sleep 60 & wait $!
+              new=$(resolve)
+              if [ -n "$new" ] && [ "$new" != "$ip" ]; then echo "address changed to $new"; kill $pid; fi
+            done
+          done
+        {{- else }}
+        - exec turnserver "$@"
+        {{- end }}
+        - turnserver
         args:
         - -n
         - --log-file=stdout
@@ -36,9 +67,6 @@ spec:
         - --listening-port={{ $turn.port }}
         - --min-port={{ $turn.relayPorts.min }}
         - --max-port={{ $turn.relayPorts.max }}
-        {{- with $turn.externalIP }}
-        - --external-ip={{ . }}
-        {{- end }}
         {{- if $turn.tls.enabled }}
         - --tls-listening-port={{ $turn.tls.port }}
         - --cert=/tls/tls.crt
@@ -53,6 +81,10 @@ spec:
             secretKeyRef:
               name: nextcloud-talk
               key: turn-secret
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
         ports:
         - name: turn-tcp
           containerPort: {{ $turn.port }}
@@ -102,13 +134,13 @@ metadata:
   name: nextcloud-turn
   labels:
     {{- include "wrapper.labels" "nextcloud-turn" | nindent 4 }}
-  {{- with $turn.service.annotations }}
+  {{- with $annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
   {{- end }}
 spec:
-  type: {{ $turn.service.type }}
-  {{- if ne $turn.service.type "ClusterIP" }}
+  type: {{ $type }}
+  {{- if ne $type "ClusterIP" }}
   externalTrafficPolicy: {{ $turn.service.externalTrafficPolicy }}
   {{- end }}
   ports:
@@ -138,6 +170,34 @@ spec:
   {{- end }}
   selector:
     {{- include "wrapper.labels" "nextcloud-turn" | nindent 4 }}
+{{- if ne $type "ClusterIP" }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: nextcloud-turn
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "wrapper.labels" "nextcloud-turn" | nindent 6 }}
+  policyTypes:
+  - Ingress
+  ingress:
+  - ports:
+    - port: {{ $turn.port }}
+      protocol: TCP
+    - port: {{ $turn.port }}
+      protocol: UDP
+    {{- if $turn.tls.enabled }}
+    - port: {{ $turn.tls.port }}
+      protocol: TCP
+    - port: {{ $turn.tls.port }}
+      protocol: UDP
+    {{- end }}
+    - port: {{ $turn.relayPorts.min }}
+      endPort: {{ $turn.relayPorts.max }}
+      protocol: UDP
+{{- end }}
 {{- if $turn.tls.enabled }}
 ---
 apiVersion: cert-manager.io/v1
