@@ -238,7 +238,8 @@ backup:
   schedule: 0 2 * * *
   maxRetention: 720h
   s3:
-    # empty: the name and the address the bucket claim reports
+    # empty: a generated name and the address the bucket claim reports;
+    # set both for a renderer without cluster access, such as Argo CD
     bucket: ""
     endpoint: ""
     region: us-east-1

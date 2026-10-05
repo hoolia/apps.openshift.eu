@@ -6,7 +6,11 @@ kind: ObjectBucketClaim
 metadata:
   name: {{ $claim }}
 spec:
+  {{- if $b.s3.bucket }}
+  bucketName: {{ $b.s3.bucket }}
+  {{- else }}
   generateBucketName: {{ $claim }}
+  {{- end }}
   storageClassName: {{ required "backup.storageClassName is required" $b.storageClassName }}
 {{- $found := lookup "v1" "ConfigMap" .Release.Namespace $claim }}
 {{- $data := dict }}
