@@ -6,7 +6,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 1.5.8
-    created: "2026-10-05T04:00:49.040201003Z"
+    created: "2026-10-05T04:01:14.590746905Z"
     dependencies:
     - alias: upstream
       name: bifrost
@@ -38,7 +38,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 2024.06.46
-    created: "2026-10-05T04:00:53.062418532Z"
+    created: "2026-10-05T04:01:18.373443516Z"
     dependencies:
     - alias: upstream
       name: mailu
@@ -65,13 +65,41 @@ entries:
     urls:
     - https://github.com/hoolia/apps.openshift.eu/releases/download/mailu-0.1.0/mailu-0.1.0.tgz
     version: 0.1.0
+  n8n:
+  - annotations:
+      charts.openshift.io/name: n8n
+      charts.openshift.io/provider: Hoolia B.V.
+    apiVersion: v2
+    appVersion: 2.41.6
+    created: "2026-10-05T04:01:08.933233975Z"
+    description: n8n workflow automation with a PostgreSQL database and optional queue
+      mode
+    digest: bd1f1078f822fcd4e73bbf953ca547a34c00a8ae0432d4a172594c01b3c8d0b3
+    home: https://apps.openshift.eu
+    icon: https://avatars.githubusercontent.com/u/45487711?s=200
+    keywords:
+    - workflow
+    - automation
+    - integration
+    - ai
+    maintainers:
+    - name: Hoolia B.V.
+      url: https://apps.openshift.eu
+    name: n8n
+    sources:
+    - https://github.com/n8n-io/n8n
+    - https://github.com/hoolia/apps.openshift.eu
+    type: application
+    urls:
+    - https://github.com/hoolia/apps.openshift.eu/releases/download/n8n-0.1.0/n8n-0.1.0.tgz
+    version: 0.1.0
   nextcloud:
   - annotations:
       charts.openshift.io/name: Nextcloud
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 33.0.8
-    created: "2026-10-05T04:00:44.500653388Z"
+    created: "2026-10-05T04:01:10.783025368Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -105,7 +133,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 33.0.8
-    created: "2026-10-05T04:00:45.478382182Z"
+    created: "2026-10-05T04:01:11.755248548Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -139,7 +167,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 33.0.8
-    created: "2026-10-05T04:00:47.096727066Z"
+    created: "2026-10-05T04:01:12.70170898Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -173,7 +201,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 33.0.8
-    created: "2026-10-05T04:00:48.131118495Z"
+    created: "2026-10-05T04:01:13.76036399Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -207,7 +235,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 33.0.8
-    created: "2026-10-05T04:00:51.049019972Z"
+    created: "2026-10-05T04:01:16.383335829Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -241,7 +269,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 33.0.8
-    created: "2026-10-05T04:00:52.107341715Z"
+    created: "2026-10-05T04:01:17.323805762Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -276,7 +304,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 3.94.2
-    created: "2026-10-05T04:00:49.920429026Z"
+    created: "2026-10-05T04:01:15.485676342Z"
     description: Sonatype Nexus Repository for Maven, npm, container images and other
       package formats
     digest: 73704fdf9c3e5aacd7aec74591520c01dec3696b4e241b1daec83bbe3b9fd15b
@@ -303,7 +331,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 3.8.49
-    created: "2026-10-05T04:00:53.806706726Z"
+    created: "2026-10-05T04:01:19.108702091Z"
     description: Self-hosted AI proxy that routes LLM requests to many providers through
       one endpoint
     digest: 66a1c2cda85e1a7c4064009c785dac097383498ee45eb28d4fa92523b66288db
@@ -329,7 +357,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 3.8.49
-    created: "2026-10-05T04:00:54.832778478Z"
+    created: "2026-10-05T04:01:20.114910958Z"
     description: Self-hosted AI proxy that routes LLM requests to many providers through
       one endpoint
     digest: 0b81b8abf1dec23a30410c71bc9cc5aa9b88075f5593577e63709c4b884c2cc6
@@ -355,7 +383,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 3.8.49
-    created: "2026-10-05T04:00:55.63863595Z"
+    created: "2026-10-05T04:01:20.954683796Z"
     description: Self-hosted AI proxy that routes LLM requests to many providers through
       one endpoint
     digest: 61fdc2ed6882612630d8da3914814eafdde0d58e1b397ac6f483237e572f500c
@@ -381,7 +409,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 3.8.49
-    created: "2026-10-05T04:00:56.527503366Z"
+    created: "2026-10-05T04:01:22.05549218Z"
     description: Self-hosted AI proxy that routes LLM requests to many providers through
       one endpoint
     digest: bdb19c8d5b028e55c462d885935ecc49a5ed3868b6a99899c68b4048d60e736b
@@ -408,7 +436,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 1.37.3
-    created: "2026-10-05T04:00:43.58701923Z"
+    created: "2026-10-05T04:01:09.763011221Z"
     description: Vaultwarden password manager, a server for the Bitwarden apps and
       browser extensions
     digest: 63951a3c56acb2ef2e8fffbcb9a270e4dbe51bd7c948666a46a54b7ba81de83a
@@ -430,4 +458,4 @@ entries:
     urls:
     - https://github.com/hoolia/apps.openshift.eu/releases/download/vaultwarden-0.1.0/vaultwarden-0.1.0.tgz
     version: 0.1.0
-generated: "2026-10-05T04:00:56.526649218Z"
+generated: "2026-10-05T04:01:22.053782934Z"
