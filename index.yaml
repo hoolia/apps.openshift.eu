@@ -6,7 +6,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 1.5.8
-    created: "2026-10-05T02:27:01.636405572Z"
+    created: "2026-10-05T02:38:30.827281247Z"
     dependencies:
     - alias: upstream
       name: bifrost
@@ -38,7 +38,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 2024.06.46
-    created: "2026-10-05T02:27:04.901515884Z"
+    created: "2026-10-05T02:38:34.290582247Z"
     dependencies:
     - alias: upstream
       name: mailu
@@ -71,7 +71,41 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 33.0.8
-    created: "2026-10-05T02:26:59.912844984Z"
+    created: "2026-10-05T02:38:28.173924768Z"
+    dependencies:
+    - name: nextcloud
+      repository: https://nextcloud.github.io/helm/
+      version: 9.1.4
+    - condition: mailu.enabled
+      name: mailu
+      repository: https://apps.openshift.eu
+      version: 0.1.0
+    description: Nextcloud files, calendar and contacts with OnlyOffice document editing,
+      Talk, whiteboard, push and a MariaDB database with backup
+    digest: 02d6e477c5d6959545191cd8b6a407d07b07d76e7479517769c0aca2aab71903
+    home: https://apps.openshift.eu
+    icon: https://raw.githubusercontent.com/nextcloud/server/master/core/img/logo/logo.svg
+    keywords:
+    - files
+    - collaboration
+    - office
+    maintainers:
+    - name: Hoolia B.V.
+      url: https://apps.openshift.eu
+    name: nextcloud
+    sources:
+    - https://github.com/nextcloud/helm
+    - https://github.com/hoolia/apps.openshift.eu
+    type: application
+    urls:
+    - https://github.com/hoolia/apps.openshift.eu/releases/download/nextcloud-0.3.2/nextcloud-0.3.2.tgz
+    version: 0.3.2
+  - annotations:
+      charts.openshift.io/name: Nextcloud
+      charts.openshift.io/provider: Hoolia B.V.
+    apiVersion: v2
+    appVersion: 33.0.8
+    created: "2026-10-05T02:38:29.042862884Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -105,7 +139,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 33.0.8
-    created: "2026-10-05T02:27:00.892874756Z"
+    created: "2026-10-05T02:38:29.9927378Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -139,7 +173,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 33.0.8
-    created: "2026-10-05T02:27:03.248101388Z"
+    created: "2026-10-05T02:38:32.479001284Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -173,7 +207,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 33.0.8
-    created: "2026-10-05T02:27:04.143117068Z"
+    created: "2026-10-05T02:38:33.492192568Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -208,7 +242,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 3.94.2
-    created: "2026-10-05T02:27:02.369957273Z"
+    created: "2026-10-05T02:38:31.562963674Z"
     description: Sonatype Nexus Repository for Maven, npm, container images and other
       package formats
     digest: 73704fdf9c3e5aacd7aec74591520c01dec3696b4e241b1daec83bbe3b9fd15b
@@ -235,7 +269,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 3.8.49
-    created: "2026-10-05T02:27:05.729071586Z"
+    created: "2026-10-05T02:38:35.079278287Z"
     description: Self-hosted AI proxy that routes LLM requests to many providers through
       one endpoint
     digest: 66a1c2cda85e1a7c4064009c785dac097383498ee45eb28d4fa92523b66288db
@@ -261,7 +295,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 3.8.49
-    created: "2026-10-05T02:27:06.439271033Z"
+    created: "2026-10-05T02:38:35.978705531Z"
     description: Self-hosted AI proxy that routes LLM requests to many providers through
       one endpoint
     digest: 0b81b8abf1dec23a30410c71bc9cc5aa9b88075f5593577e63709c4b884c2cc6
@@ -287,7 +321,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 3.8.49
-    created: "2026-10-05T02:27:07.180486938Z"
+    created: "2026-10-05T02:38:36.763650033Z"
     description: Self-hosted AI proxy that routes LLM requests to many providers through
       one endpoint
     digest: 61fdc2ed6882612630d8da3914814eafdde0d58e1b397ac6f483237e572f500c
@@ -313,7 +347,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 3.8.49
-    created: "2026-10-05T02:27:07.910584781Z"
+    created: "2026-10-05T02:38:37.537340083Z"
     description: Self-hosted AI proxy that routes LLM requests to many providers through
       one endpoint
     digest: bdb19c8d5b028e55c462d885935ecc49a5ed3868b6a99899c68b4048d60e736b
@@ -334,4 +368,4 @@ entries:
     urls:
     - https://github.com/hoolia/apps.openshift.eu/releases/download/omniroute-0.2.0/omniroute-0.2.0.tgz
     version: 0.2.0
-generated: "2026-10-05T02:27:07.90965886Z"
+generated: "2026-10-05T02:38:37.536472997Z"
