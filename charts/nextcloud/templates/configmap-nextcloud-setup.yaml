@@ -11,15 +11,38 @@ data:
     {{- if .Values.hsts.enabled }}
     Header always set Strict-Transport-Security "{{ .Values.hsts.header }}"
     {{- end }}
-  # runs at every start of Nextcloud; every step can be repeated
+  # runs at every start of Nextcloud; a step that fails or hangs is skipped
   setup.sh: |
     #!/bin/sh
     cd /var/www/html
     s=/run/secrets/setup
-    app() { php occ app:install "$1" || php occ app:enable "$1"; }
-    set_sys() { php occ config:system:set "$@" >/dev/null || echo "setup: system $1 not set"; }
-    set_app() { php occ config:app:set "$1" "$2" --value="$3" >/dev/null || echo "setup: $1 $2 not set"; }
-    set_secret() { php occ config:app:set "$1" "$2" --type=string --lazy --sensitive -n --value="$3" >/dev/null || echo "setup: $1 $2 not set"; }
+    end=$(( $(date +%s) + {{ int $set.setupTimeout }} ))
+    log() { echo "setup: $*"; }
+    # run <seconds> <label> <command>: never longer than the time that is left
+    run() {
+      max=$1; label=$2; shift 2
+      left=$(( end - $(date +%s) ))
+      if [ "$left" -le 0 ]; then log "skipped, out of time: $label"; return 1; fi
+      if [ "$left" -lt "$max" ]; then max=$left; fi
+      timeout -k 5 "$max" "$@" >/dev/null 2>&1 && return 0
+      log "skipped, exit $?: $label"
+      return 1
+    }
+    app() { run 120 "app $1" sh -c 'php occ app:install "$0" || php occ app:enable "$0"' "$1"; }
+    set_sys() { run 30 "system setting $1" php occ config:system:set "$@"; }
+    set_app() { run 30 "setting $1 $2" php occ config:app:set "$1" "$2" --value="$3"; }
+    set_secret() { run 30 "setting $1 $2" php occ config:app:set "$1" "$2" --type=string --lazy --sensitive -n --value="$3"; }
+    # a lock nobody releases makes every write wait: give the file a new inode
+    lock='$f = @fopen("config/config.php", "r+"); if (!$f) exit(0);
+      for ($i = 0; $i < 10; $i++) { if (flock($f, LOCK_EX | LOCK_NB)) exit(0); sleep(2); } exit(1);'
+    if ! timeout -k 5 40 php -r "$lock"; then
+      if cp -p config/config.php config/config.php.bak && cp -p config/config.php config/config.php.new \
+        && mv config/config.php.new config/config.php; then
+        log "config.php could not be locked: replaced by a copy, old file is config.php.bak"
+      else
+        log "config.php could not be locked and could not be replaced"
+      fi
+    fi
     set_sys trusted_domains 9 --value=nextcloud
     {{- if ne (toString $set.maintenanceWindowStart) "" }}
     set_sys maintenance_window_start --type=integer --value={{ $set.maintenanceWindowStart }}
@@ -28,12 +51,12 @@ data:
     set_sys default_phone_region --value={{ . }}
     {{- end }}
     {{- if $set.repairOnUpgrade }}
-    v=$(php -r 'require "version.php"; echo implode(".", $OC_Version);')
-    if [ ! -e "data/.chart-repair-$v" ]; then
-      php occ db:add-missing-indices >/dev/null
-      php occ db:add-missing-columns >/dev/null
-      php occ db:add-missing-primary-keys >/dev/null
-      php occ maintenance:repair --include-expensive >/dev/null && touch "data/.chart-repair-$v"
+    v=$(timeout 10 php -r 'require "version.php"; echo implode(".", $OC_Version);')
+    if [ -n "$v" ] && [ ! -e "data/.chart-repair-$v" ]; then
+      run 120 "missing indices" php occ db:add-missing-indices
+      run 120 "missing columns" php occ db:add-missing-columns
+      run 120 "missing primary keys" php occ db:add-missing-primary-keys
+      run 600 "expensive repair" php occ maintenance:repair --include-expensive && touch "data/.chart-repair-$v"
     fi
     {{- end }}
     {{- if .Values.onlyoffice.enabled }}

@@ -16,6 +16,8 @@ settings:
   defaultPhoneRegion: ""
   # once per version: missing database indices and expensive repair steps
   repairOnUpgrade: true
+  # seconds the setup script may take; the steps left over wait for a restart
+  setupTimeout: 300
 
 # Strict-Transport-Security header of Nextcloud and of every Route
 hsts:
@@ -431,11 +433,11 @@ nextcloud:
   cronjob:
     enabled: true
     sidecar:
-      # cron starts after the first installation
+      # cron starts when Nextcloud serves: after installation, upgrade and setup
       command:
       - sh
       - -c
-      - until grep -qs "'installed' => true" config/config.php; do sleep 10; done; exec /cron.sh
+      - until curl -fs -m 5 http://localhost/status.php | grep -q '"installed":true'; do sleep 10; done; exec /cron.sh
       securityContext:
         runAsUser: 0
       resources:

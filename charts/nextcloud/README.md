@@ -33,6 +33,7 @@ password:
 | `settings.maintenanceWindowStart` | `1` | Hour (UTC) at which the heavy daily jobs start. Empty: not set. |
 | `settings.defaultPhoneRegion` | empty | Country code for phone numbers without one, such as `NL`. Empty: not set. |
 | `settings.repairOnUpgrade` | `true` | Once per Nextcloud version: add missing database indices and run the expensive repair steps. |
+| `settings.setupTimeout` | `300` | Seconds the setup script may take at a start. A step that fails or does not finish is skipped and logged as `setup: skipped`; it runs again at the next start. |
 | `cache.enabled` | `true` | Redis for file locking and cache. Always runs when notify_push, the whiteboard or the worker is on. |
 | `notifyPush.enabled` | `true` | Push server for the desktop and mobile clients, under `/push`. |
 | `whiteboard.enabled` | `true` | Backend of the whiteboard app, under `/whiteboard`. |
