@@ -1,12 +1,44 @@
 apiVersion: v1
 entries:
+  bifrost:
+  - annotations:
+      charts.openshift.io/name: Bifrost
+      charts.openshift.io/provider: Hoolia B.V.
+    apiVersion: v2
+    appVersion: 1.5.8
+    created: "2026-10-05T01:52:51.375974184Z"
+    dependencies:
+    - alias: upstream
+      name: bifrost
+      repository: https://maximhq.github.io/bifrost/helm-charts
+      version: 2.1.23
+    description: Bifrost LLM gateway with one OpenAI-compatible endpoint for many
+      model providers, virtual keys and budgets
+    digest: 9106e87b3bf10b59dc92c3a22fbc6bcd21f1c278b90b91762462e99b99a56cfe
+    home: https://apps.openshift.eu
+    icon: https://avatars.githubusercontent.com/u/100696606?s=200
+    keywords:
+    - ai
+    - llm
+    - gateway
+    maintainers:
+    - name: Hoolia B.V.
+      url: https://apps.openshift.eu
+    name: bifrost
+    sources:
+    - https://github.com/maximhq/bifrost
+    - https://github.com/hoolia/apps.openshift.eu
+    type: application
+    urls:
+    - https://github.com/hoolia/apps.openshift.eu/releases/download/bifrost-0.1.0/bifrost-0.1.0.tgz
+    version: 0.1.0
   mailu:
   - annotations:
       charts.openshift.io/name: Mailu
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 2024.06.46
-    created: "2026-10-05T01:44:53.276312978Z"
+    created: "2026-10-05T01:52:55.248922217Z"
     dependencies:
     - alias: upstream
       name: mailu
@@ -39,7 +71,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 33.0.8
-    created: "2026-10-05T01:44:50.994773637Z"
+    created: "2026-10-05T01:52:53.222362619Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -73,7 +105,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 33.0.8
-    created: "2026-10-05T01:44:52.138704186Z"
+    created: "2026-10-05T01:52:54.284437831Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -108,7 +140,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 3.94.2
-    created: "2026-10-05T01:44:49.479422534Z"
+    created: "2026-10-05T01:52:52.264914743Z"
     description: Sonatype Nexus Repository for Maven, npm, container images and other
       package formats
     digest: 73704fdf9c3e5aacd7aec74591520c01dec3696b4e241b1daec83bbe3b9fd15b
@@ -135,7 +167,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 3.8.49
-    created: "2026-10-05T01:44:54.582979113Z"
+    created: "2026-10-05T01:52:56.166577668Z"
     description: Self-hosted AI proxy that routes LLM requests to many providers through
       one endpoint
     digest: 66a1c2cda85e1a7c4064009c785dac097383498ee45eb28d4fa92523b66288db
@@ -161,7 +193,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 3.8.49
-    created: "2026-10-05T01:44:55.56485366Z"
+    created: "2026-10-05T01:52:57.049700521Z"
     description: Self-hosted AI proxy that routes LLM requests to many providers through
       one endpoint
     digest: 0b81b8abf1dec23a30410c71bc9cc5aa9b88075f5593577e63709c4b884c2cc6
@@ -187,7 +219,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 3.8.49
-    created: "2026-10-05T01:44:56.56648334Z"
+    created: "2026-10-05T01:52:57.871141886Z"
     description: Self-hosted AI proxy that routes LLM requests to many providers through
       one endpoint
     digest: 61fdc2ed6882612630d8da3914814eafdde0d58e1b397ac6f483237e572f500c
@@ -213,7 +245,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 3.8.49
-    created: "2026-10-05T01:44:57.488840604Z"
+    created: "2026-10-05T01:52:58.663610708Z"
     description: Self-hosted AI proxy that routes LLM requests to many providers through
       one endpoint
     digest: bdb19c8d5b028e55c462d885935ecc49a5ed3868b6a99899c68b4048d60e736b
@@ -234,4 +266,4 @@ entries:
     urls:
     - https://github.com/hoolia/apps.openshift.eu/releases/download/omniroute-0.2.0/omniroute-0.2.0.tgz
     version: 0.2.0
-generated: "2026-10-05T01:44:57.487786818Z"
+generated: "2026-10-05T01:52:58.662473733Z"
