@@ -1,0 +1,102 @@
+gitlab:
+  # GitLab chart version; must be one the installed operator supports
+  chartVersion: 10.3.1
+  # ce: Community Edition. ee: Enterprise Edition, free tier without a license
+  edition: ce
+  webservice:
+    # Puma worker processes; 0 runs a single process and saves memory
+    workerProcesses: 2
+    resources:
+      requests:
+        cpu: 300m
+        memory: 2Gi
+      limits:
+        memory: 4Gi
+  sidekiq:
+    concurrency: 10
+    resources:
+      requests:
+        cpu: 200m
+        memory: 1500Mi
+      limits:
+        memory: 3Gi
+  gitaly:
+    # volume of the Git repositories
+    size: 20Gi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+  toolbox:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 256Mi
+  # merged over the values this chart gives the GitLab chart
+  extraValues: {}
+
+# empty: the default StorageClass of the cluster
+storageClassName: ""
+
+objectStorage:
+  # bucket for uploads, artifacts, packages and LFS; empty: generated name,
+  # and GitLab is created by a second helm upgrade once the bucket exists
+  bucket: ""
+  # object StorageClass of the bucket claim; empty: none is set
+  storageClassName: ""
+  region: us-east-1
+  # image with kubectl that converts the bucket credentials for GitLab
+  jobImage: registry.gitlab.com/gitlab-org/build/cng/kubectl:v19.3.1
+
+postgres:
+  instances: 1
+  # empty: the default PostgreSQL image of the operator
+  imageName: ""
+  storage:
+    size: 10Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+
+valkey:
+  image: docker.io/valkey/valkey:8.1
+  size: 1Gi
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+ssh:
+  # Git over SSH; needs a TCP address for the Service gitlab-gitlab-shell
+  enabled: false
+
+route:
+  # hostname of GitLab; GitLab builds every link and clone address from it
+  hostname: ""
+  # certificate issued by cert-manager
+  annotations:
+    cert-manager.io/issuer-kind: ClusterIssuer
+    cert-manager.io/issuer-name: letsencrypt
+
+secrets:
+  # kubernetes: Secret from the values below. externalSecret: from a secret store
+  type: kubernetes
+  # password of the user root at the first start; empty: generated
+  rootPassword: ""
+  # password of the cache; empty: generated once and kept
+  valkeyPassword: ""
+  externalSecret:
+    storeKind: ClusterSecretStore
+    storeName: ""
+    refreshInterval: 1h
+    # vault item per key; the value is read from the item's password
+    items:
+      root-password: gitlab-root
+      valkey-password: gitlab-valkey

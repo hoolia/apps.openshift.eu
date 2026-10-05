@@ -1,0 +1,29 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: gitlab-postgres
+  labels:
+    app.kubernetes.io/name: gitlab
+    app.kubernetes.io/component: database
+spec:
+  instances: {{ .Values.postgres.instances }}
+  {{- if .Values.postgres.imageName }}
+  imageName: {{ .Values.postgres.imageName }}
+  {{- end }}
+  # a disruption budget on a single instance would block every node drain
+  enablePDB: {{ gt (int .Values.postgres.instances) 1 }}
+  bootstrap:
+    initdb:
+      database: gitlabhq_production
+      owner: gitlab
+      postInitApplicationSQL:
+      - CREATE EXTENSION IF NOT EXISTS pg_trgm
+      - CREATE EXTENSION IF NOT EXISTS btree_gist
+      - CREATE EXTENSION IF NOT EXISTS plpgsql
+  storage:
+    size: {{ .Values.postgres.storage.size }}
+    {{- if .Values.storageClassName }}
+    storageClass: {{ .Values.storageClassName }}
+    {{- end }}
+  resources:
+    {{- toYaml .Values.postgres.resources | nindent 4 }}

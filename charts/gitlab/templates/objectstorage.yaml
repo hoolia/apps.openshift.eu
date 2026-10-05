@@ -1,0 +1,130 @@
+apiVersion: objectbucket.io/v1alpha1
+kind: ObjectBucketClaim
+metadata:
+  name: gitlab-objects
+spec:
+  {{- if .Values.objectStorage.bucket }}
+  bucketName: {{ .Values.objectStorage.bucket }}
+  {{- else }}
+  generateBucketName: gitlab-objects
+  {{- end }}
+  {{- if .Values.objectStorage.storageClassName }}
+  storageClassName: {{ .Values.objectStorage.storageClassName }}
+  {{- end }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gitlab-object-storage
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: gitlab-object-storage
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "create", "patch", "update"]
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: gitlab-object-storage
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: gitlab-object-storage
+subjects:
+- kind: ServiceAccount
+  name: gitlab-object-storage
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gitlab-object-storage
+data:
+  connection.sh: |
+    set -eu
+    until kubectl get secret gitlab-objects >/dev/null 2>&1; do
+      echo "waiting for the bucket"
+      sleep 5
+    done
+    get() { kubectl get "$1" gitlab-objects -o "jsonpath={.data.$2}"; }
+    host=$(get configmap BUCKET_HOST)
+    port=$(get configmap BUCKET_PORT)
+    scheme=https
+    [ "$port" != 80 ] || scheme=http
+    umask 077
+    key=$(get secret AWS_ACCESS_KEY_ID | base64 -d)
+    secret=$(get secret AWS_SECRET_ACCESS_KEY | base64 -d)
+    cat > /tmp/connection <<EOF
+    provider: AWS
+    region: {{ .Values.objectStorage.region }}
+    aws_access_key_id: "$key"
+    aws_secret_access_key: "$secret"
+    endpoint: "$scheme://$host:$port"
+    path_style: true
+    EOF
+    cat > /tmp/s3cfg <<EOF
+    [default]
+    access_key = $key
+    secret_key = $secret
+    bucket_location = {{ .Values.objectStorage.region }}
+    host_base = $host:$port
+    host_bucket = $host:$port
+    use_https = $([ $scheme = https ] && echo True || echo False)
+    EOF
+    kubectl create secret generic gitlab-object-storage \
+      --from-file=connection=/tmp/connection --from-file=s3cfg=/tmp/s3cfg \
+      --dry-run=client -o yaml | kubectl apply -f -
+---
+# GitLab reads the bucket credentials in its own format: convert them once
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: gitlab-object-storage
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  backoffLimit: 6
+  template:
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: gitlab-object-storage
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: connection
+        image: {{ .Values.objectStorage.jobImage }}
+        command: ["sh", "/scripts/connection.sh"]
+        env:
+        - name: HOME
+          value: /tmp
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+        volumeMounts:
+        - name: scripts
+          mountPath: /scripts
+        - name: tmp
+          mountPath: /tmp
+        resources:
+          requests:
+            cpu: 10m
+            memory: 64Mi
+          limits:
+            cpu: 500m
+            memory: 256Mi
+      volumes:
+      - name: scripts
+        configMap:
+          name: gitlab-object-storage
+      - name: tmp
+        emptyDir: {}

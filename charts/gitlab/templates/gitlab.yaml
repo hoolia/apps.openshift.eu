@@ -1,0 +1,155 @@
+{{- define "instance.bucket" -}}
+{{- $bucket := .Values.objectStorage.bucket -}}
+{{- if not $bucket -}}
+{{- $found := lookup "v1" "ConfigMap" .Release.Namespace "gitlab-objects" -}}
+{{- if $found }}{{- $bucket = get $found.data "BUCKET_NAME" }}{{- end -}}
+{{- end -}}
+{{- $bucket -}}
+{{- end -}}
+{{- define "instance.values" -}}
+{{- $bucket := include "instance.bucket" . -}}
+{{- $host := .Values.route.hostname | default "gitlab.example.com" -}}
+certmanager:
+  install: false
+installCertmanager: false
+prometheus:
+  install: false
+gitlab-runner:
+  install: false
+nginx-ingress:
+  enabled: false
+postgresql:
+  install: false
+redis:
+  install: false
+  master:
+    serviceAccount:
+      name: gitlab-app-nonroot
+registry:
+  enabled: false
+global:
+  edition: {{ .Values.gitlab.edition }}
+  hosts:
+    domain: {{ $host }}
+    https: true
+    gitlab:
+      name: {{ $host }}
+      https: true
+    ssh: {{ $host }}
+  ingress:
+    enabled: false
+    configureCertmanager: false
+  gatewayApi:
+    enabled: false
+    installEnvoy: false
+    configureCertmanager: false
+  kas:
+    enabled: false
+  registry:
+    enabled: false
+  appConfig:
+    object_store:
+      enabled: true
+      proxy_download: true
+      connection:
+        secret: gitlab-object-storage
+        key: connection
+    {{- range $type, $prefix := dict "artifacts" "artifacts" "lfs" "lfs" "uploads" "uploads" "packages" "packages" "externalDiffs" "external-diffs" "terraformState" "terraform-state" "ciSecureFiles" "ci-secure-files" "dependencyProxy" "dependency-proxy" }}
+    {{ $type }}:
+      bucket: {{ $bucket }}/{{ $prefix }}
+    {{- end }}
+  initialRootPassword:
+    secret: gitlab-credentials
+    key: root-password
+  psql:
+    host: gitlab-postgres-rw
+    port: 5432
+    database: gitlabhq_production
+    username: gitlab
+    password:
+      secret: gitlab-postgres-app
+      key: password
+  redis:
+    host: gitlab-valkey
+    port: 6379
+    auth:
+      enabled: true
+      secret: gitlab-credentials
+      key: valkey-password
+gitlab:
+  webservice:
+    minReplicas: 1
+    maxReplicas: 1
+    workerProcesses: {{ .Values.gitlab.webservice.workerProcesses }}
+    ingress:
+      enabled: false
+    resources:
+      {{- toYaml .Values.gitlab.webservice.resources | nindent 6 }}
+  sidekiq:
+    minReplicas: 1
+    maxReplicas: 1
+    concurrency: {{ .Values.gitlab.sidekiq.concurrency }}
+    resources:
+      {{- toYaml .Values.gitlab.sidekiq.resources | nindent 6 }}
+  gitaly:
+    persistence:
+      size: {{ .Values.gitlab.gitaly.size }}
+      {{- if .Values.storageClassName }}
+      storageClass: {{ .Values.storageClassName }}
+      {{- end }}
+    resources:
+      {{- toYaml .Values.gitlab.gitaly.resources | nindent 6 }}
+  toolbox:
+    backups:
+      objectStorage:
+        config:
+          secret: gitlab-object-storage
+          key: s3cfg
+    resources:
+      {{- toYaml .Values.gitlab.toolbox.resources | nindent 6 }}
+  gitlab-shell:
+    enabled: {{ .Values.ssh.enabled }}
+    minReplicas: 1
+    maxReplicas: 1
+    service:
+      type: ClusterIP
+  gitlab-exporter:
+    enabled: false
+{{- end }}
+{{- if include "instance.bucket" . }}
+apiVersion: apps.gitlab.com/v1beta1
+kind: GitLab
+metadata:
+  name: gitlab
+  labels:
+    app.kubernetes.io/name: gitlab
+spec:
+  chart:
+    version: {{ .Values.gitlab.chartVersion | quote }}
+    values:
+      {{- $base := include "instance.values" . | fromYaml }}
+      {{- mustMergeOverwrite $base (deepCopy .Values.gitlab.extraValues) | toYaml | nindent 6 }}
+---
+{{- end }}
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: gitlab
+  {{- if and .Values.route.hostname .Values.route.annotations }}
+  annotations:
+    {{- toYaml .Values.route.annotations | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.route.hostname }}
+  host: {{ .Values.route.hostname }}
+  {{- end }}
+  port:
+    targetPort: http-workhorse
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+  to:
+    kind: Service
+    name: gitlab-webservice-default
+    weight: 100
+  wildcardPolicy: None

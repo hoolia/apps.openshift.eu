@@ -1,0 +1,46 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "route": {
+      "type": "object",
+      "properties": {
+        "hostname": {"type": "string", "title": "Hostname", "description": "GitLab builds every link and clone address from it"}
+      }
+    },
+    "objectStorage": {
+      "type": "object",
+      "properties": {
+        "bucket": {"type": "string", "title": "Bucket name", "description": "Unique in the object store; leave empty for a generated name"},
+        "storageClassName": {"type": "string", "title": "Object storage class"}
+      }
+    },
+    "gitlab": {
+      "type": "object",
+      "properties": {
+        "chartVersion": {"type": "string", "title": "GitLab chart version"},
+        "edition": {"type": "string", "enum": ["ce", "ee"], "title": "Edition"},
+        "gitaly": {
+          "type": "object",
+          "properties": {
+            "size": {"type": "string", "title": "Repository volume size"}
+          }
+        }
+      }
+    },
+    "ssh": {
+      "type": "object",
+      "properties": {
+        "enabled": {"type": "boolean", "title": "Git over SSH", "description": "Needs a TCP address from the platform team"}
+      }
+    },
+    "secrets": {
+      "type": "object",
+      "properties": {
+        "type": {"type": "string", "enum": ["kubernetes", "externalSecret"], "title": "Secret source"},
+        "rootPassword": {"type": "string", "title": "Initial root password", "description": "Leave empty to generate one"},
+        "valkeyPassword": {"type": "string", "title": "Cache password", "description": "Leave empty to generate one"}
+      }
+    }
+  }
+}

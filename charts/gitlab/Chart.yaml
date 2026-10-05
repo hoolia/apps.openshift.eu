@@ -1,0 +1,23 @@
+apiVersion: v2
+name: gitlab
+description: GitLab instance for source code, merge requests and pipelines, run by the GitLab operator
+type: application
+version: 0.1.0
+appVersion: "19.3.1"
+home: https://apps.openshift.eu
+icon: https://avatars.githubusercontent.com/u/1086321?s=200
+keywords:
+- git
+- devops
+- ci
+- gitlab
+sources:
+- https://gitlab.com/gitlab-org/cloud-native/gitlab-operator
+- https://gitlab.com/gitlab-org/charts/gitlab
+- https://github.com/hoolia/apps.openshift.eu
+maintainers:
+- name: Hoolia B.V.
+  url: https://apps.openshift.eu
+annotations:
+  charts.openshift.io/name: GitLab
+  charts.openshift.io/provider: Hoolia B.V.

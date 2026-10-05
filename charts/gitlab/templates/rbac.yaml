@@ -1,0 +1,32 @@
+# service accounts the operator expects in the project of the instance
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gitlab-app-nonroot
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gitlab-manager
+---
+# the operator's Job that generates the internal secrets runs as gitlab-manager
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: gitlab-manager
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "list", "create", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: gitlab-manager
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: gitlab-manager
+subjects:
+- kind: ServiceAccount
+  name: gitlab-manager
