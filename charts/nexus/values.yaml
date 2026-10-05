@@ -1,0 +1,42 @@
+image:
+  repository: docker.io/sonatype/nexus3
+  # empty: the appVersion of the chart
+  tag: ""
+
+# Java memory; keep heap plus direct memory below the memory limit
+jvm:
+  heap: 1200m
+  directMemory: 1g
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 2Gi
+  limits:
+    cpu: "2"
+    memory: 4Gi
+
+persistence:
+  size: 20Gi
+  # empty: the default StorageClass of the cluster
+  storageClassName: ""
+
+route:
+  # empty: OpenShift assigns a host under the default application domain
+  hostname: ""
+  # used when a hostname is set; certificate issued by cert-manager
+  annotations:
+    cert-manager.io/issuer-kind: ClusterIssuer
+    cert-manager.io/issuer-name: letsencrypt
+
+secrets:
+  # kubernetes: Secret from the value below. externalSecret: from a secret store
+  type: kubernetes
+  # password of the admin account at the first start; empty: generated
+  adminPassword: ""
+  externalSecret:
+    storeKind: ClusterSecretStore
+    storeName: ""
+    refreshInterval: 1h
+    # vault item; the value is read from the item's password
+    item: nexus-admin
