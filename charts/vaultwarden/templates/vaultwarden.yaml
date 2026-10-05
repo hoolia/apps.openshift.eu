@@ -1,0 +1,183 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: vaultwarden-data
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.persistence.size }}
+{{- if .Values.persistence.storageClassName }}
+  storageClassName: {{ .Values.persistence.storageClassName }}
+{{- end }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vaultwarden
+  labels:
+    app.kubernetes.io/name: vaultwarden
+spec:
+  replicas: 1
+  # the data volume is ReadWriteOnce: the old pod must release it first
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: vaultwarden
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: vaultwarden
+      {{- if not .Values.route.hostname }}
+      annotations:
+        checksum/scripts: {{ include (print $.Template.BasePath "/route-host.yaml") . | sha256sum }}
+      {{- end }}
+    spec:
+      {{- if .Values.route.hostname }}
+      automountServiceAccountToken: false
+      {{- else }}
+      serviceAccountName: vaultwarden
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: vaultwarden
+        image: {{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}
+        {{- if not .Values.route.hostname }}
+        # no hostname given: take the address from the Route
+        command: ["/bin/sh", "/scripts/start.sh"]
+        {{- end }}
+        ports:
+        - name: http
+          containerPort: 8080
+        env:
+        - name: ROCKET_ADDRESS
+          value: 0.0.0.0
+        - name: ROCKET_PORT
+          value: "8080"
+        - name: DATA_FOLDER
+          value: /data
+        # the router passes the client address in this header
+        - name: IP_HEADER
+          value: X-Forwarded-For
+        {{- if .Values.route.hostname }}
+        - name: DOMAIN
+          value: https://{{ .Values.route.hostname }}
+        {{- end }}
+        - name: SIGNUPS_ALLOWED
+          value: {{ .Values.signups.allowed | quote }}
+        - name: INVITATIONS_ALLOWED
+          value: "true"
+        {{- if .Values.signups.domains }}
+        - name: SIGNUPS_DOMAINS_WHITELIST
+          value: {{ .Values.signups.domains | quote }}
+        {{- end }}
+        - name: ADMIN_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: vaultwarden-credentials
+              key: admin-token
+        {{- if .Values.smtp.host }}
+        - name: SMTP_HOST
+          value: {{ .Values.smtp.host | quote }}
+        - name: SMTP_PORT
+          value: {{ .Values.smtp.port | quote }}
+        - name: SMTP_SECURITY
+          value: {{ .Values.smtp.security | quote }}
+        - name: SMTP_FROM
+          value: {{ .Values.smtp.from | quote }}
+        - name: SMTP_FROM_NAME
+          value: {{ .Values.smtp.fromName | quote }}
+        {{- if .Values.smtp.username }}
+        - name: SMTP_USERNAME
+          value: {{ .Values.smtp.username | quote }}
+        - name: SMTP_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: vaultwarden-credentials
+              key: smtp-password
+        {{- end }}
+        {{- end }}
+        {{- with .Values.extraEnv }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+        volumeMounts:
+        - name: data
+          mountPath: /data
+        {{- if not .Values.route.hostname }}
+        - name: scripts
+          mountPath: /scripts
+        {{- end }}
+        startupProbe:
+          httpGet:
+            path: /alive
+            port: http
+          periodSeconds: 5
+          failureThreshold: 60
+        readinessProbe:
+          httpGet:
+            path: /alive
+            port: http
+          periodSeconds: 15
+          timeoutSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /alive
+            port: http
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 6
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: vaultwarden-data
+      {{- if not .Values.route.hostname }}
+      - name: scripts
+        configMap:
+          name: vaultwarden-scripts
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vaultwarden
+spec:
+  selector:
+    app.kubernetes.io/name: vaultwarden
+  ports:
+  - name: http
+    port: 8080
+    targetPort: http
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: vaultwarden
+  {{- if and .Values.route.hostname .Values.route.annotations }}
+  annotations:
+    {{- toYaml .Values.route.annotations | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.route.hostname }}
+  host: {{ .Values.route.hostname }}
+  {{- end }}
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+  to:
+    kind: Service
+    name: vaultwarden
+    weight: 100
+  wildcardPolicy: None

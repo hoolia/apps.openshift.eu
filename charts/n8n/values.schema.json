@@ -1,0 +1,42 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "route": {
+      "type": "object",
+      "properties": {
+        "hostname": {"type": "string", "title": "Hostname", "description": "Leave empty for a generated hostname"}
+      }
+    },
+    "persistence": {
+      "type": "object",
+      "properties": {
+        "size": {"type": "string", "title": "Data volume size"},
+        "storageClassName": {"type": "string", "title": "Storage class"}
+      }
+    },
+    "timezone": {"type": "string", "title": "Time zone", "description": "Time zone of schedules, for example Europe/Amsterdam"},
+    "database": {
+      "type": "object",
+      "properties": {
+        "instances": {"type": "integer", "minimum": 1, "title": "Database instances", "description": "2 or more adds a standby"},
+        "size": {"type": "string", "title": "Database volume size"},
+        "storageClassName": {"type": "string", "title": "Database storage class"}
+      }
+    },
+    "queue": {
+      "type": "object",
+      "properties": {
+        "enabled": {"type": "boolean", "title": "Queue mode", "description": "Run executions on separate workers"},
+        "workers": {"type": "integer", "minimum": 1, "title": "Workers"}
+      }
+    },
+    "secrets": {
+      "type": "object",
+      "properties": {
+        "type": {"type": "string", "enum": ["kubernetes", "externalSecret"], "title": "Secret source"},
+        "encryptionKey": {"type": "string", "title": "Encryption key", "description": "Leave empty to generate one. Never change it afterwards"}
+      }
+    }
+  }
+}

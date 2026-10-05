@@ -1,0 +1,22 @@
+apiVersion: v2
+name: n8n
+description: n8n workflow automation with a PostgreSQL database and optional queue mode
+type: application
+version: 0.1.0
+appVersion: "2.41.6"
+home: https://apps.openshift.eu
+icon: https://avatars.githubusercontent.com/u/45487711?s=200
+keywords:
+- workflow
+- automation
+- integration
+- ai
+sources:
+- https://github.com/n8n-io/n8n
+- https://github.com/hoolia/apps.openshift.eu
+maintainers:
+- name: Hoolia B.V.
+  url: https://apps.openshift.eu
+annotations:
+  charts.openshift.io/name: n8n
+  charts.openshift.io/provider: Hoolia B.V.

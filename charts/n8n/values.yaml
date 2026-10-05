@@ -1,0 +1,83 @@
+image:
+  repository: docker.io/n8nio/n8n
+  # empty: the appVersion of the chart
+  tag: ""
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 384Mi
+  limits:
+    cpu: "2"
+    memory: 2Gi
+
+# settings, binary data and community nodes of n8n
+persistence:
+  size: 5Gi
+  # empty: the default StorageClass of the cluster
+  storageClassName: ""
+
+route:
+  # empty: OpenShift assigns a host under the default application domain
+  hostname: ""
+  # used when a hostname is set; certificate issued by cert-manager
+  annotations:
+    cert-manager.io/issuer-kind: ClusterIssuer
+    cert-manager.io/issuer-name: letsencrypt
+
+timezone: Europe/Amsterdam
+
+# further settings of n8n as environment variables, also given to workers
+extraEnv: []
+
+# PostgreSQL cluster of the CloudNativePG operator
+database:
+  instances: 1
+  size: 5Gi
+  # empty: the default StorageClass of the cluster
+  storageClassName: ""
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+# queue mode: workers run the executions, a Redis store holds the queue
+queue:
+  enabled: false
+  workers: 1
+  concurrency: 10
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+  redis:
+    image: docker.io/valkey/valkey:8.1-alpine
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
+
+secrets:
+  # kubernetes: Secret from the values below. externalSecret: from a secret store
+  type: kubernetes
+  # key that encrypts stored credentials; empty: generated once and kept
+  encryptionKey: ""
+  # password of the queue store; empty: generated once and kept
+  redisPassword: ""
+  externalSecret:
+    storeKind: ClusterSecretStore
+    storeName: ""
+    refreshInterval: 1h
+    # vault item per key; the value is read from the item's password
+    items:
+      encryption-key: n8n-encryption-key
+      redis-password: n8n-redis

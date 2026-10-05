@@ -1,0 +1,61 @@
+image:
+  repository: docker.io/vaultwarden/server
+  # empty: the appVersion of the chart
+  tag: ""
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    cpu: "1"
+    memory: 512Mi
+
+# SQLite database, attachments and keys live on this volume
+persistence:
+  size: 5Gi
+  # empty: the default StorageClass of the cluster
+  storageClassName: ""
+
+route:
+  # empty: OpenShift assigns a host under the default application domain
+  hostname: ""
+  # used when a hostname is set; certificate issued by cert-manager
+  annotations:
+    cert-manager.io/issuer-kind: ClusterIssuer
+    cert-manager.io/issuer-name: letsencrypt
+
+signups:
+  # false: only addresses invited on the admin page can register
+  allowed: false
+  # comma separated mail domains that may always register; empty: none
+  domains: ""
+
+# outgoing mail; empty host: no mail, invitations work without it
+smtp:
+  host: ""
+  port: 587
+  # starttls, force_tls or off
+  security: starttls
+  from: ""
+  fromName: Vaultwarden
+  username: ""
+
+# further settings of Vaultwarden as environment variables
+extraEnv: []
+
+secrets:
+  # kubernetes: Secret from the values below. externalSecret: from a secret store
+  type: kubernetes
+  # token of the /admin page, plain or an Argon2 PHC string; empty: generated
+  adminToken: ""
+  # password of the smtp user; only used when smtp.host is set
+  smtpPassword: ""
+  externalSecret:
+    storeKind: ClusterSecretStore
+    storeName: ""
+    refreshInterval: 1h
+    # vault item per key; the value is read from the item's password
+    items:
+      admin-token: vaultwarden-admin-token
+      smtp-password: vaultwarden-smtp

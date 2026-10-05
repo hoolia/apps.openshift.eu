@@ -1,0 +1,22 @@
+apiVersion: v2
+name: vaultwarden
+description: Vaultwarden password manager, a server for the Bitwarden apps and browser extensions
+type: application
+version: 0.1.0
+appVersion: "1.37.3"
+home: https://apps.openshift.eu
+icon: https://raw.githubusercontent.com/dani-garcia/vaultwarden/main/resources/vaultwarden-icon.svg
+keywords:
+- password-manager
+- bitwarden
+- vault
+- secrets
+sources:
+- https://github.com/dani-garcia/vaultwarden
+- https://github.com/hoolia/apps.openshift.eu
+maintainers:
+- name: Hoolia B.V.
+  url: https://apps.openshift.eu
+annotations:
+  charts.openshift.io/name: Vaultwarden
+  charts.openshift.io/provider: Hoolia B.V.

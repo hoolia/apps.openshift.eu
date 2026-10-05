@@ -1,0 +1,44 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "route": {
+      "type": "object",
+      "properties": {
+        "hostname": {"type": "string", "title": "Hostname", "description": "Leave empty for a generated hostname"}
+      }
+    },
+    "persistence": {
+      "type": "object",
+      "properties": {
+        "size": {"type": "string", "title": "Data volume size"},
+        "storageClassName": {"type": "string", "title": "Storage class"}
+      }
+    },
+    "signups": {
+      "type": "object",
+      "properties": {
+        "allowed": {"type": "boolean", "title": "Open registration", "description": "Off: only addresses invited on the admin page can register"},
+        "domains": {"type": "string", "title": "Mail domains that may register", "description": "Comma separated"}
+      }
+    },
+    "smtp": {
+      "type": "object",
+      "properties": {
+        "host": {"type": "string", "title": "Mail server", "description": "Leave empty to run without mail"},
+        "port": {"type": "integer", "title": "Mail server port"},
+        "security": {"type": "string", "enum": ["starttls", "force_tls", "off"], "title": "Mail encryption"},
+        "from": {"type": "string", "title": "Sender address"},
+        "username": {"type": "string", "title": "Mail user"}
+      }
+    },
+    "secrets": {
+      "type": "object",
+      "properties": {
+        "type": {"type": "string", "enum": ["kubernetes", "externalSecret"], "title": "Secret source"},
+        "adminToken": {"type": "string", "title": "Admin page token", "description": "Leave empty to generate one"},
+        "smtpPassword": {"type": "string", "title": "Mail password"}
+      }
+    }
+  }
+}

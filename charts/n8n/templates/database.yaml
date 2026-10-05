@@ -1,0 +1,19 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: n8n-db
+spec:
+  instances: {{ .Values.database.instances }}
+  # a disruption budget on a single instance would block every node drain
+  enablePDB: {{ gt (int .Values.database.instances) 1 }}
+  bootstrap:
+    initdb:
+      database: n8n
+      owner: n8n
+  storage:
+    size: {{ .Values.database.size }}
+    {{- if .Values.database.storageClassName }}
+    storageClass: {{ .Values.database.storageClassName }}
+    {{- end }}
+  resources:
+    {{- toYaml .Values.database.resources | nindent 4 }}

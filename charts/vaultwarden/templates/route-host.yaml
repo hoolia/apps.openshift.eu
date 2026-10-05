@@ -1,0 +1,50 @@
+{{- if not .Values.route.hostname }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: vaultwarden
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: vaultwarden-route
+rules:
+- apiGroups: ["route.openshift.io"]
+  resources: ["routes"]
+  resourceNames: ["vaultwarden"]
+  verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: vaultwarden-route
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: vaultwarden-route
+subjects:
+- kind: ServiceAccount
+  name: vaultwarden
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vaultwarden-scripts
+data:
+  start.sh: |
+    #!/bin/sh
+    sa=/var/run/secrets/kubernetes.io/serviceaccount
+    api=https://kubernetes.default.svc/apis/route.openshift.io/v1
+    url=$api/namespaces/$(cat $sa/namespace)/routes/vaultwarden
+    for try in 1 2 3 4 5 6 7 8 9 10 11 12; do
+      host=$(curl -s --cacert $sa/ca.crt -H "Authorization: Bearer $(cat $sa/token)" "$url" |
+        sed -n 's/.*"host": *"\([^"]*\)".*/\1/p' | head -n 1)
+      [ -n "$host" ] && break
+      sleep 5
+    done
+    if [ -n "$host" ]; then
+      export DOMAIN="https://$host"
+      echo "DOMAIN taken from the Route: $DOMAIN"
+    fi
+    exec /start.sh
+{{- end }}

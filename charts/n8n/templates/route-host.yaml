@@ -1,0 +1,68 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: n8n-scripts
+data:
+  start.sh: |
+    #!/bin/sh
+    if [ -z "$N8N_HOST" ]; then
+      for try in 1 2 3 4 5 6 7 8 9 10 11 12; do
+        N8N_HOST=$(node /scripts/route-host.js)
+        [ -n "$N8N_HOST" ] && break
+        sleep 5
+      done
+      [ -n "$N8N_HOST" ] && echo "address taken from the Route: $N8N_HOST"
+    fi
+    if [ -n "$N8N_HOST" ]; then
+      export N8N_HOST
+      export N8N_WEBHOOK_URL="https://$N8N_HOST/"
+      export N8N_EDITOR_BASE_URL="https://$N8N_HOST/"
+    fi
+    exec n8n "$@"
+  route-host.js: |
+    const fs = require('fs');
+    const https = require('https');
+    const sa = '/var/run/secrets/kubernetes.io/serviceaccount';
+    const ns = fs.readFileSync(sa + '/namespace', 'utf8');
+    const req = https.get({
+      host: 'kubernetes.default.svc',
+      path: '/apis/route.openshift.io/v1/namespaces/' + ns + '/routes/n8n',
+      ca: fs.readFileSync(sa + '/ca.crt'),
+      headers: { Authorization: 'Bearer ' + fs.readFileSync(sa + '/token', 'utf8') },
+    }, (res) => {
+      let body = '';
+      res.on('data', (chunk) => { body += chunk; });
+      res.on('end', () => {
+        try { process.stdout.write(JSON.parse(body).spec.host || ''); } catch (e) { }
+      });
+    });
+    req.on('error', () => { });
+{{- if not .Values.route.hostname }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: n8n
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: n8n-route
+rules:
+- apiGroups: ["route.openshift.io"]
+  resources: ["routes"]
+  resourceNames: ["n8n"]
+  verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: n8n-route
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: n8n-route
+subjects:
+- kind: ServiceAccount
+  name: n8n
+{{- end }}
