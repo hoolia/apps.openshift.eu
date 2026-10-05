@@ -28,6 +28,9 @@ apiVersion: k8s.mariadb.com/v1alpha1
 kind: Backup
 metadata:
   name: {{ $claim }}
+  annotations:
+    # a scheduled backup is not a rollout in progress
+    argocd.argoproj.io/ignore-healthcheck: "true"
 spec:
   mariaDbRef:
     name: nextcloud-mariadb
