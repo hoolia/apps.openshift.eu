@@ -1,0 +1,26 @@
+apiVersion: v2
+name: bifrost
+description: Bifrost LLM gateway with one OpenAI-compatible endpoint for many model providers, virtual keys and budgets
+type: application
+version: 0.1.0
+appVersion: "1.5.8"
+home: https://apps.openshift.eu
+icon: https://avatars.githubusercontent.com/u/100696606?s=200
+keywords:
+- ai
+- llm
+- gateway
+sources:
+- https://github.com/maximhq/bifrost
+- https://github.com/hoolia/apps.openshift.eu
+maintainers:
+- name: Hoolia B.V.
+  url: https://apps.openshift.eu
+annotations:
+  charts.openshift.io/name: Bifrost
+  charts.openshift.io/provider: Hoolia B.V.
+dependencies:
+- name: bifrost
+  version: 2.1.23
+  repository: https://maximhq.github.io/bifrost/helm-charts
+  alias: upstream

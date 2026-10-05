@@ -1,0 +1,20 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "route": {
+      "type": "object",
+      "properties": {
+        "hostname": {"type": "string", "title": "Hostname", "description": "Leave empty for a generated hostname"}
+      }
+    },
+    "secrets": {
+      "type": "object",
+      "properties": {
+        "type": {"type": "string", "enum": ["kubernetes", "externalSecret"], "title": "Secret source"},
+        "adminUsername": {"type": "string", "title": "Dashboard user"},
+        "adminPassword": {"type": "string", "title": "Dashboard password", "description": "Leave empty to generate one"}
+      }
+    }
+  }
+}
