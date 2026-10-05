@@ -1,0 +1,113 @@
+{{- if and .Values.talk.enabled .Values.talk.recording.enabled }}
+{{- $rec := .Values.talk.recording }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nextcloud-talk-recording
+  labels:
+    {{- include "wrapper.labels" "nextcloud-talk-recording" | nindent 4 }}
+spec:
+  accessModes:
+  - ReadWriteOnce
+  {{- with $rec.storage.storageClassName }}
+  storageClassName: {{ . }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ $rec.storage.size }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nextcloud-talk-recording
+  labels:
+    {{- include "wrapper.labels" "nextcloud-talk-recording" | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "wrapper.labels" "nextcloud-talk-recording" | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "wrapper.labels" "nextcloud-talk-recording" | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 122
+      containers:
+      - name: recording
+        image: {{ $rec.image }}
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: NC_DOMAIN
+          value: {{ include "wrapper.host" . | quote }}
+        - name: HPB_DOMAIN
+          value: {{ include "wrapper.signalingHost" . | quote }}
+        - name: HPB_PROTOCOL
+          value: https
+        - name: TZ
+          value: {{ $rec.timezone | quote }}
+        - name: INTERNAL_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: nextcloud-talk
+              key: signaling-internal-secret
+        - name: RECORDING_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: nextcloud-talk
+              key: recording-secret
+        ports:
+        - name: recording
+          containerPort: 1234
+          protocol: TCP
+        readinessProbe:
+          exec:
+            command: [/healthcheck.sh]
+          initialDelaySeconds: 10
+          periodSeconds: 30
+          timeoutSeconds: 30
+          failureThreshold: 3
+        livenessProbe:
+          exec:
+            command: [/healthcheck.sh]
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 30
+          failureThreshold: 3
+        resources:
+          {{- toYaml $rec.resources | nindent 10 }}
+        # the image is built for this UID
+        securityContext:
+          runAsUser: 122
+          runAsGroup: 122
+          {{- include "wrapper.restricted" . | nindent 10 }}
+        volumeMounts:
+        - name: recordings
+          mountPath: /tmp
+      volumes:
+      - name: recordings
+        persistentVolumeClaim:
+          claimName: nextcloud-talk-recording
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nextcloud-talk-recording
+  labels:
+    {{- include "wrapper.labels" "nextcloud-talk-recording" | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+  - name: recording
+    port: 1234
+    targetPort: recording
+    protocol: TCP
+  selector:
+    {{- include "wrapper.labels" "nextcloud-talk-recording" | nindent 4 }}
+---
+{{ include "wrapper.pathRoute" (dict "root" . "name" "nextcloud-talk-recording" "path" "/apps/talk/recording" "port" "recording") }}
+{{- end }}

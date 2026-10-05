@@ -1,0 +1,185 @@
+{{- if .Values.monitoring.enabled }}
+{{- $m := .Values.monitoring }}
+{{- $url := include "wrapper.internalUrl" . }}
+{{- $exporters := list (dict "name" "nextcloud-exporter" "image" $m.nextcloudExporterImage "port" 9205 "probe" "/") }}
+{{- if include "wrapper.cacheEnabled" . }}
+{{- $exporters = append $exporters (dict "name" "nextcloud-redis-exporter" "image" $m.redisExporterImage "port" 9121 "probe" "/health") }}
+{{- end }}
+{{- $exporters = append $exporters (dict "name" "nextcloud-blackbox-exporter" "image" $m.blackboxExporterImage "port" 9115 "probe" "/health") }}
+{{- range $e := $exporters }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $e.name }}
+  labels:
+    {{- include "wrapper.labels" $e.name | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "wrapper.labels" $e.name | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "wrapper.labels" $e.name | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - name: exporter
+        image: {{ $e.image }}
+        imagePullPolicy: IfNotPresent
+        {{- if eq $e.name "nextcloud-exporter" }}
+        env:
+        - name: NEXTCLOUD_SERVER
+          value: {{ $url }}
+        - name: NEXTCLOUD_INFO_APPS
+          value: "true"
+        - name: NEXTCLOUD_AUTH_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: nextcloud-metrics
+              key: metrics-token
+        {{- else if eq $e.name "nextcloud-redis-exporter" }}
+        env:
+        - name: REDIS_ADDR
+          value: redis://nextcloud-redis:6379
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: nextcloud-redis
+              key: redis-password
+        {{- else }}
+        args:
+        - --config.file=/etc/blackbox/config.yml
+        volumeMounts:
+        - name: config
+          mountPath: /etc/blackbox
+          readOnly: true
+        {{- end }}
+        ports:
+        - name: metrics
+          containerPort: {{ $e.port }}
+          protocol: TCP
+        livenessProbe:
+          httpGet:
+            path: {{ $e.probe }}
+            port: metrics
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: {{ $e.probe }}
+            port: metrics
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          {{- toYaml $m.resources | nindent 10 }}
+        securityContext:
+          {{- include "wrapper.restricted" $ | nindent 10 }}
+      {{- if eq $e.name "nextcloud-blackbox-exporter" }}
+      volumes:
+      - name: config
+        configMap:
+          name: nextcloud-blackbox-exporter
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $e.name }}
+  labels:
+    {{- include "wrapper.labels" $e.name | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+  - name: metrics
+    port: {{ $e.port }}
+    targetPort: metrics
+    protocol: TCP
+  selector:
+    {{- include "wrapper.labels" $e.name | nindent 4 }}
+{{- end }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nextcloud-blackbox-exporter
+data:
+  config.yml: |
+    modules:
+      http_2xx:
+        prober: http
+        timeout: 10s
+        http:
+          valid_status_codes: [200, 301, 302, 303, 307, 308]
+          method: GET
+          no_follow_redirects: true
+      nextcloud_maintenance:
+        prober: http
+        timeout: 10s
+        http:
+          method: GET
+          fail_if_body_matches_regexp:
+          - '"maintenance"\s*:\s*true'
+{{- $monitors := list (dict "name" "nextcloud-exporter" "interval" $m.interval) }}
+{{- if include "wrapper.cacheEnabled" . }}
+{{- $monitors = append $monitors (dict "name" "nextcloud-redis-exporter" "interval" $m.interval) }}
+{{- end }}
+{{- if .Values.notifyPush.enabled }}
+{{- $monitors = append $monitors (dict "name" "nextcloud-notify-push" "interval" $m.interval) }}
+{{- end }}
+{{- if .Values.talk.enabled }}
+{{- $monitors = append $monitors (dict "name" "nextcloud-nats" "interval" $m.interval) }}
+{{- $monitors = append $monitors (dict "name" "nextcloud-signaling" "interval" $m.interval "port" "http") }}
+{{- end }}
+{{- range $sm := $monitors }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ $sm.name }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "wrapper.labels" $sm.name | nindent 6 }}
+  endpoints:
+  - port: {{ $sm.port | default "metrics" }}
+    path: /metrics
+    interval: {{ $sm.interval }}
+{{- end }}
+{{- $probes := list (dict "job" "blackbox-nextcloud-status" "module" "nextcloud_maintenance" "target" (printf "%s/status.php" $url)) }}
+{{- $probes = append $probes (dict "job" "blackbox-nextcloud-http" "module" "http_2xx" "target" (printf "%s/" $url)) }}
+{{- if .Values.onlyoffice.enabled }}
+{{- $probes = append $probes (dict "job" "blackbox-onlyoffice" "module" "http_2xx" "target" "http://onlyoffice/healthcheck") }}
+{{- end }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: nextcloud-blackbox-exporter
+spec:
+  selector:
+    matchLabels:
+      {{- include "wrapper.labels" "nextcloud-blackbox-exporter" | nindent 6 }}
+  endpoints:
+  {{- range $p := $probes }}
+  - port: metrics
+    path: /probe
+    interval: 60s
+    scrapeTimeout: 15s
+    params:
+      module:
+      - {{ $p.module }}
+      target:
+      - {{ $p.target }}
+    relabelings:
+    - action: replace
+      sourceLabels:
+      - __param_target
+      targetLabel: instance
+    - action: replace
+      targetLabel: job
+      replacement: {{ $p.job }}
+  {{- end }}
+{{- end }}

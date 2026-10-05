@@ -1,0 +1,81 @@
+{{- if include "wrapper.cacheEnabled" . }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nextcloud-redis
+  labels:
+    {{- include "wrapper.labels" "nextcloud-redis" | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "wrapper.labels" "nextcloud-redis" | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "wrapper.labels" "nextcloud-redis" | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - name: redis
+        image: {{ .Values.cache.image }}
+        imagePullPolicy: IfNotPresent
+        command:
+        - sh
+        - -c
+        - exec redis-server --requirepass "$REDIS_PASSWORD" --save "" --appendonly no --maxmemory {{ .Values.cache.maxMemory }} --maxmemory-policy allkeys-lru
+        env:
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: nextcloud-redis
+              key: redis-password
+        - name: REDISCLI_AUTH
+          valueFrom:
+            secretKeyRef:
+              name: nextcloud-redis
+              key: redis-password
+        ports:
+        - name: redis
+          containerPort: 6379
+          protocol: TCP
+        readinessProbe:
+          exec:
+            command: [redis-cli, ping]
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        livenessProbe:
+          exec:
+            command: [redis-cli, ping]
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          failureThreshold: 5
+        resources:
+          {{- toYaml .Values.cache.resources | nindent 10 }}
+        securityContext:
+          {{- include "wrapper.restricted" . | nindent 10 }}
+        volumeMounts:
+        - name: data
+          mountPath: /data
+      volumes:
+      - name: data
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nextcloud-redis
+  labels:
+    {{- include "wrapper.labels" "nextcloud-redis" | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+  - name: redis
+    port: 6379
+    targetPort: redis
+    protocol: TCP
+  selector:
+    {{- include "wrapper.labels" "nextcloud-redis" | nindent 4 }}
+{{- end }}

@@ -90,7 +90,7 @@ metadata:
   labels:
     app.kubernetes.io/name: onlyoffice
     app.kubernetes.io/instance: onlyoffice
-  {{- with .Values.route.annotations }}
+  {{- with include "wrapper.routeAnnotations" (dict "root" .) | fromYaml }}
   annotations:
     {{- toYaml . | nindent 4 }}
   {{- end }}

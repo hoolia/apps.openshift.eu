@@ -1,0 +1,60 @@
+{{- if and .Values.backup.enabled .Values.database.enabled }}
+{{- $b := .Values.backup }}
+{{- $claim := "nextcloud-mariadb-backup" }}
+apiVersion: objectbucket.io/v1alpha1
+kind: ObjectBucketClaim
+metadata:
+  name: {{ $claim }}
+spec:
+  generateBucketName: {{ $claim }}
+  storageClassName: {{ required "backup.storageClassName is required" $b.storageClassName }}
+{{- $found := lookup "v1" "ConfigMap" .Release.Namespace $claim }}
+{{- $data := dict }}
+{{- if $found }}{{- $data = $found.data }}{{- end }}
+{{- $bucket := $b.s3.bucket | default (get $data "BUCKET_NAME") }}
+{{- $endpoint := $b.s3.endpoint }}
+{{- if and (not $endpoint) (get $data "BUCKET_HOST") }}
+{{- $port := get $data "BUCKET_PORT" | default "443" }}
+{{- if and (not $b.s3.tls.enabled) (eq $port "443") }}{{- $port = "80" }}{{- end }}
+{{- $endpoint = printf "%s:%s" (get $data "BUCKET_HOST") $port }}
+{{- end }}
+{{- if and $bucket $endpoint }}
+---
+apiVersion: k8s.mariadb.com/v1alpha1
+kind: Backup
+metadata:
+  name: {{ $claim }}
+spec:
+  mariaDbRef:
+    name: nextcloud-mariadb
+    waitForIt: true
+  {{- with $b.schedule }}
+  schedule:
+    cron: {{ . | quote }}
+    suspend: false
+  {{- end }}
+  maxRetention: {{ $b.maxRetention }}
+  storage:
+    s3:
+      bucket: {{ $bucket }}
+      prefix: mariadb
+      endpoint: {{ $endpoint }}
+      region: {{ $b.s3.region }}
+      tls:
+        enabled: {{ $b.s3.tls.enabled }}
+        {{- with $b.s3.tls.caSecretKeyRef }}
+        caSecretKeyRef:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+      accessKeyIdSecretKeyRef:
+        name: {{ $claim }}
+        key: AWS_ACCESS_KEY_ID
+      secretAccessKeySecretKeyRef:
+        name: {{ $claim }}
+        key: AWS_SECRET_ACCESS_KEY
+  backoffLimit: 5
+  restartPolicy: OnFailure
+  resources:
+    {{- toYaml $b.resources | nindent 4 }}
+{{- end }}
+{{- end }}

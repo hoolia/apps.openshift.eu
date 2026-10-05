@@ -1,0 +1,39 @@
+{{- $host := include "wrapper.host" . }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nextcloud-setup
+data:
+  # runs at every start of Nextcloud; every step can be repeated
+  setup.sh: |
+    #!/bin/sh
+    cd /var/www/html
+    s=/run/secrets/setup
+    app() { php occ app:install "$1" || php occ app:enable "$1"; }
+    set_app() { php occ config:app:set "$1" "$2" --value="$3"; }
+    php occ config:system:set trusted_domains 9 --value=nextcloud
+    {{- if .Values.notifyPush.enabled }}
+    app notify_push
+    set_app notify_push base_endpoint "https://{{ $host }}/push"
+    {{- end }}
+    {{- if .Values.whiteboard.enabled }}
+    app whiteboard
+    set_app whiteboard collabBackendUrl "https://{{ $host }}/whiteboard"
+    set_app whiteboard jwt_secret_key "$(cat $s/whiteboard-jwt-secret)"
+    {{- end }}
+    {{- if .Values.talk.enabled }}
+    app spreed
+    set_app spreed signaling_servers "{\"servers\":[{\"server\":\"https://{{ include "wrapper.signalingHost" . }}/\",\"verify\":true}],\"secret\":\"$(cat $s/signaling-secret)\"}"
+    {{- if .Values.talk.turn.enabled }}
+    {{- $turn := printf "%s:%v" (include "wrapper.turnHost" .) .Values.talk.turn.port }}
+    set_app spreed stun_servers "[\"{{ $turn }}\"]"
+    set_app spreed turn_servers "[{\"schemes\":\"turn\",\"server\":\"{{ $turn }}\",\"secret\":\"$(cat $s/turn-secret)\",\"protocols\":\"udp,tcp\"}]"
+    {{- end }}
+    {{- if .Values.talk.recording.enabled }}
+    set_app spreed recording_servers "{\"servers\":[{\"server\":\"https://{{ $host }}/apps/talk/recording\",\"verify\":true}],\"secret\":\"$(cat $s/recording-secret)\"}"
+    {{- end }}
+    {{- end }}
+    {{- if .Values.monitoring.enabled }}
+    set_app serverinfo token "$(cat $s/metrics-token)"
+    {{- end }}
+    exit 0

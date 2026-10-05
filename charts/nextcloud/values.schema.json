@@ -44,6 +44,76 @@
       "properties": {
         "host": {"type": "string", "title": "Outgoing mail server"}
       }
+    },
+    "hsts": {
+      "type": "object",
+      "properties": {
+        "enabled": {"type": "boolean", "title": "Strict-Transport-Security header"}
+      }
+    },
+    "notifyPush": {
+      "type": "object",
+      "properties": {
+        "enabled": {"type": "boolean", "title": "Push server for the clients"}
+      }
+    },
+    "whiteboard": {
+      "type": "object",
+      "properties": {
+        "enabled": {"type": "boolean", "title": "Whiteboard backend"}
+      }
+    },
+    "taskprocessing": {
+      "type": "object",
+      "properties": {
+        "enabled": {"type": "boolean", "title": "Task-processing worker"}
+      }
+    },
+    "talk": {
+      "type": "object",
+      "properties": {
+        "enabled": {"type": "boolean", "title": "Nextcloud Talk", "description": "Calls across networks need a public address for the TURN server"},
+        "signaling": {
+          "type": "object",
+          "properties": {
+            "host": {"type": "string", "title": "Hostname of the signaling server", "description": "Leave empty for signaling-<hostname of Nextcloud>"}
+          }
+        },
+        "turn": {
+          "type": "object",
+          "properties": {
+            "host": {"type": "string", "title": "DNS name of the TURN server", "description": "Leave empty for turn-<hostname of Nextcloud>"},
+            "externalIP": {"type": "string", "title": "Public address of the TURN server"},
+            "service": {
+              "type": "object",
+              "properties": {
+                "type": {"type": "string", "enum": ["ClusterIP", "LoadBalancer"], "title": "Service type of the TURN server"},
+                "annotations": {"type": "object", "title": "Annotations of the TURN Service", "additionalProperties": {"type": "string"}}
+              }
+            }
+          }
+        },
+        "recording": {
+          "type": "object",
+          "properties": {
+            "enabled": {"type": "boolean", "title": "Call recording"}
+          }
+        }
+      }
+    },
+    "backup": {
+      "type": "object",
+      "properties": {
+        "enabled": {"type": "boolean", "title": "Database backup to object storage"},
+        "storageClassName": {"type": "string", "title": "StorageClass of the bucket claim"},
+        "schedule": {"type": "string", "title": "Backup schedule (cron)", "description": "Leave empty for one backup at once"}
+      }
+    },
+    "monitoring": {
+      "type": "object",
+      "properties": {
+        "enabled": {"type": "boolean", "title": "Monitoring", "description": "Enabled by the platform team"}
+      }
     }
   }
 }

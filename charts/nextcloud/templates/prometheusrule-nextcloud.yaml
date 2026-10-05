@@ -1,0 +1,200 @@
+{{- if .Values.monitoring.enabled }}
+{{- $ns := printf "namespace=%q" .Release.Namespace }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: nextcloud
+spec:
+  groups:
+  - name: nextcloud
+    rules:
+    - alert: NextcloudMaintenanceMode
+      expr: rate(nextcloud_scrape_errors_total{cause="maintenance",{{ $ns }}}[5m]) > 0
+      for: 2m
+      labels:
+        severity: warning
+      annotations:
+        summary: Nextcloud is in maintenance mode
+        description: An upgrade or a manual maintenance mode may be stuck.
+    - alert: NextcloudDown
+      expr: |
+        nextcloud_up{ {{- $ns }}} == 0
+        unless rate(nextcloud_scrape_errors_total{cause="maintenance",{{ $ns }}}[5m]) > 0
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: Nextcloud is unreachable
+        description: nextcloud_up is 0 for 5 minutes outside maintenance mode.
+    - alert: NextcloudLowDiskSpace
+      expr: nextcloud_free_space_bytes{ {{- $ns }}} < {{ int64 .Values.monitoring.freeSpaceBytes }}
+      for: 30m
+      labels:
+        severity: warning
+      annotations:
+        summary: Nextcloud is low on space for user files
+        description: '{{ `{{ $value | humanize1024 }}` }}B is free on the data volume.'
+    - alert: NextcloudUpdateAvailable
+      expr: nextcloud_system_update_available{ {{- $ns }}} > 0
+      for: 1h
+      labels:
+        severity: info
+      annotations:
+        summary: Nextcloud update available
+        description: A new version of Nextcloud is available.
+    - alert: NextcloudAppsUpdatesAvailable
+      expr: nextcloud_apps_updates_available_total{ {{- $ns }}} > 0
+      for: 24h
+      labels:
+        severity: info
+      annotations:
+        summary: Nextcloud apps have updates
+        description: '{{ `{{ $value }}` }} app update(s) are pending.'
+    - alert: NextcloudExporterAbsent
+      expr: absent(nextcloud_up{ {{- $ns }}})
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: The Nextcloud exporter is not scraped
+        description: The metric nextcloud_up has disappeared.
+  - name: nextcloud-probes
+    rules:
+    - alert: NextcloudInMaintenance
+      expr: |
+        probe_success{job="blackbox-nextcloud-status",{{ $ns }}} == 0
+        and probe_http_status_code{job="blackbox-nextcloud-status",{{ $ns }}} == 200
+      for: 2m
+      labels:
+        severity: warning
+      annotations:
+        summary: Nextcloud is in maintenance mode
+        description: status.php reports maintenance mode.
+    - alert: NextcloudHTTPDown
+      expr: probe_success{job="blackbox-nextcloud-http",{{ $ns }}} == 0
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: Nextcloud does not answer HTTP requests
+        description: The probe of the Nextcloud Service fails.
+    {{- if .Values.onlyoffice.enabled }}
+    - alert: OnlyOfficeDown
+      expr: probe_success{job="blackbox-onlyoffice",{{ $ns }}} == 0
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: The OnlyOffice document server is not healthy
+        description: The healthcheck of OnlyOffice fails; document editing is broken.
+    {{- end }}
+  - name: nextcloud-components
+    rules:
+    - alert: NextcloudComponentUnavailable
+      expr: kube_deployment_status_replicas_unavailable{ {{- $ns }}} > 0
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: 'Deployment {{ `{{ $labels.deployment }}` }} has unavailable replicas'
+        description: '{{ `{{ $value }}` }} replica(s) are unavailable for 5 minutes.'
+    - alert: NextcloudComponentCrashLooping
+      expr: increase(kube_pod_container_status_restarts_total{ {{- $ns }}}[30m]) >= 3
+      labels:
+        severity: warning
+      annotations:
+        summary: 'Container {{ `{{ $labels.container }}` }} of {{ `{{ $labels.pod }}` }} restarts'
+        description: '{{ `{{ $value | printf "%.0f" }}` }} restarts in 30 minutes.'
+  {{- if include "wrapper.cacheEnabled" . }}
+  - name: nextcloud-redis
+    rules:
+    - alert: NextcloudRedisDown
+      expr: absent(redis_up{ {{- $ns }}}) or redis_up{ {{- $ns }}} == 0
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: The Redis of Nextcloud is down
+        description: Nextcloud works degraded or refuses logins without Redis.
+    - alert: NextcloudRedisHighMemory
+      expr: redis_memory_used_bytes{ {{- $ns }}} / redis_memory_max_bytes{ {{- $ns }}} > 0.9
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: The Redis of Nextcloud uses over 90% of its memory
+        description: 'Redis uses {{ `{{ $value | humanizePercentage }}` }} of maxmemory.'
+  {{- end }}
+  {{- if .Values.talk.enabled }}
+  - name: nextcloud-talk
+    rules:
+    - alert: NATSDown
+      expr: absent(gnatsd_varz_connections{ {{- $ns }}})
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: The NATS metrics of Nextcloud Talk are absent
+        description: Talk signaling fails without NATS.
+    - alert: NATSSlowConsumers
+      expr: gnatsd_varz_slow_consumers{ {{- $ns }}} > 0
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: NATS has slow consumers
+        description: '{{ `{{ $value }}` }} consumer(s) do not keep up with their messages.'
+    - alert: NATSNoSubscriptions
+      expr: gnatsd_varz_subscriptions{ {{- $ns }}} == 0
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: NATS has no subscriptions
+        description: The signaling server may have lost its connection to NATS.
+    - alert: NextcloudSignalingDown
+      expr: absent(signaling_backend_current{ {{- $ns }}})
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: The metrics of the Talk signaling server are absent
+        description: Talk calls fail without the signaling server.
+    - alert: NextcloudSignalingNoBackends
+      expr: signaling_backend_current{ {{- $ns }}} == 0
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: The Talk signaling server has no backend
+        description: The signaling server cannot route calls to Nextcloud.
+  {{- end }}
+  {{- if gt (int .Values.database.replicas) 1 }}
+  - name: nextcloud-mariadb-galera
+    rules:
+    - alert: MariaDBGaleraClusterSizeDecreased
+      expr: min by (namespace) (mysql_global_status_wsrep_cluster_size{ {{- $ns }}}) < {{ int .Values.database.replicas }}
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: The Galera cluster of Nextcloud misses a node
+        description: 'The cluster size is {{ `{{ $value }}` }}.'
+    - alert: MariaDBGaleraNodeNotReady
+      expr: mysql_global_status_wsrep_ready{ {{- $ns }}} == 0
+      for: 2m
+      labels:
+        severity: critical
+      annotations:
+        summary: A Galera node of Nextcloud is not ready
+        description: 'Node {{ `{{ $labels.target }}` }} is not ready.'
+    - alert: MariaDBGaleraNotPrimary
+      expr: mysql_global_status_wsrep_cluster_status{ {{- $ns }}} != 1
+      for: 2m
+      labels:
+        severity: critical
+      annotations:
+        summary: The Galera cluster of Nextcloud is not Primary
+        description: 'Node {{ `{{ $labels.target }}` }} is outside the primary component.'
+  {{- end }}
+{{- end }}

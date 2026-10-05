@@ -1,0 +1,159 @@
+{{- if and .Values.talk.enabled .Values.talk.turn.enabled }}
+{{- $turn := .Values.talk.turn }}
+{{- $host := include "wrapper.turnHost" . }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nextcloud-turn
+  labels:
+    {{- include "wrapper.labels" "nextcloud-turn" | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "wrapper.labels" "nextcloud-turn" | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "wrapper.labels" "nextcloud-turn" | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - name: coturn
+        image: {{ $turn.image }}
+        imagePullPolicy: IfNotPresent
+        args:
+        - -n
+        - --log-file=stdout
+        - --pidfile=/var/tmp/turnserver.pid
+        - --userdb=/var/tmp/turndb
+        - --fingerprint
+        - --no-cli
+        - --no-software-attribute
+        - --use-auth-secret
+        - --static-auth-secret=$(TURN_SECRET)
+        - --realm={{ $turn.realm | default $host }}
+        - --listening-port={{ $turn.port }}
+        - --min-port={{ $turn.relayPorts.min }}
+        - --max-port={{ $turn.relayPorts.max }}
+        {{- with $turn.externalIP }}
+        - --external-ip={{ . }}
+        {{- end }}
+        {{- if $turn.tls.enabled }}
+        - --tls-listening-port={{ $turn.tls.port }}
+        - --cert=/tls/tls.crt
+        - --pkey=/tls/tls.key
+        {{- else }}
+        - --no-tls
+        - --no-dtls
+        {{- end }}
+        env:
+        - name: TURN_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: nextcloud-talk
+              key: turn-secret
+        ports:
+        - name: turn-tcp
+          containerPort: {{ $turn.port }}
+          protocol: TCP
+        - name: turn-udp
+          containerPort: {{ $turn.port }}
+          protocol: UDP
+        livenessProbe:
+          tcpSocket:
+            port: turn-tcp
+          initialDelaySeconds: 30
+          failureThreshold: 3
+        readinessProbe:
+          tcpSocket:
+            port: turn-tcp
+        resources:
+          {{- toYaml $turn.resources | nindent 10 }}
+        # the binary carries this file capability and does not start without
+        securityContext:
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            add:
+            - NET_BIND_SERVICE
+            drop:
+            - ALL
+        volumeMounts:
+        - name: tmp
+          mountPath: /var/tmp
+        {{- if $turn.tls.enabled }}
+        - name: tls
+          mountPath: /tls
+          readOnly: true
+        {{- end }}
+      volumes:
+      - name: tmp
+        emptyDir: {}
+      {{- if $turn.tls.enabled }}
+      - name: tls
+        secret:
+          secretName: nextcloud-turn-tls
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nextcloud-turn
+  labels:
+    {{- include "wrapper.labels" "nextcloud-turn" | nindent 4 }}
+  {{- with $turn.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ $turn.service.type }}
+  {{- if ne $turn.service.type "ClusterIP" }}
+  externalTrafficPolicy: {{ $turn.service.externalTrafficPolicy }}
+  {{- end }}
+  ports:
+  - name: turn-tcp
+    port: {{ $turn.port }}
+    targetPort: {{ $turn.port }}
+    protocol: TCP
+  - name: turn-udp
+    port: {{ $turn.port }}
+    targetPort: {{ $turn.port }}
+    protocol: UDP
+  {{- if $turn.tls.enabled }}
+  - name: turns-tcp
+    port: {{ $turn.tls.port }}
+    targetPort: {{ $turn.tls.port }}
+    protocol: TCP
+  - name: turns-udp
+    port: {{ $turn.tls.port }}
+    targetPort: {{ $turn.tls.port }}
+    protocol: UDP
+  {{- end }}
+  {{- range $port := untilStep (int $turn.relayPorts.min) (int (add1 $turn.relayPorts.max)) 1 }}
+  - name: relay-{{ $port }}
+    port: {{ $port }}
+    targetPort: {{ $port }}
+    protocol: UDP
+  {{- end }}
+  selector:
+    {{- include "wrapper.labels" "nextcloud-turn" | nindent 4 }}
+{{- if $turn.tls.enabled }}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: nextcloud-turn
+spec:
+  secretName: nextcloud-turn-tls
+  dnsNames:
+  - {{ $host }}
+  issuerRef:
+    group: cert-manager.io
+    kind: {{ $turn.tls.issuerKind }}
+    name: {{ $turn.tls.issuerName }}
+  usages:
+  - digital signature
+  - key encipherment
+{{- end }}
+{{- end }}

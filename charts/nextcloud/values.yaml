@@ -8,8 +8,13 @@ route:
     # large uploads and long document sessions
     haproxy.router.openshift.io/timeout: 3600s
 
+# Strict-Transport-Security header on every Route of this chart
+hsts:
+  enabled: true
+  header: max-age=31536000;includeSubDomains;preload
+
 secrets:
-  # kubernetes: Secrets from the values below. externalSecret: from a secret store
+  # kubernetes: Secrets from the values below. externalSecret: a secret store
   type: kubernetes
   adminUsername: admin
   # password of the first administrator; empty: generated
@@ -18,6 +23,18 @@ secrets:
   mariadbPassword: ""
   mariadbRootPassword: ""
   onlyofficeJwtSecret: ""
+  # letters and digits only: the values are used inside URLs and config files
+  redisPassword: ""
+  whiteboardJwtSecret: ""
+  metricsToken: ""
+  signalingSecret: ""
+  signalingInternalSecret: ""
+  # 32 or 64 characters
+  signalingHashKey: ""
+  # 16, 24 or 32 characters
+  signalingBlockKey: ""
+  recordingSecret: ""
+  turnSecret: ""
   externalSecret:
     storeKind: ClusterSecretStore
     storeName: ""
@@ -28,6 +45,15 @@ secrets:
       mariadb-password: nextcloud-mariadb
       mariadb-root-password: nextcloud-mariadb-root
       jwt-secret: nextcloud-onlyoffice-jwt
+      redis-password: nextcloud-redis
+      whiteboard-jwt-secret: nextcloud-whiteboard-jwt
+      metrics-token: nextcloud-metrics-token
+      signaling-secret: nextcloud-signaling
+      signaling-internal-secret: nextcloud-signaling-internal
+      signaling-hashkey: nextcloud-signaling-hashkey
+      signaling-blockkey: nextcloud-signaling-blockkey
+      recording-secret: nextcloud-talk-recording
+      turn-secret: nextcloud-turn
 
 # Outgoing mail server; empty: Nextcloud sends no mail
 smtp:
@@ -63,6 +89,171 @@ onlyoffice:
     limits:
       cpu: "2"
       memory: 4Gi
+
+# Redis: file locking and cache; always runs when a component below needs it
+cache:
+  enabled: true
+  image: docker.io/redis:8.6.2-alpine
+  maxMemory: 128mb
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+# Push of file changes and notifications to the clients, under /push
+notifyPush:
+  enabled: true
+  resources:
+    requests:
+      cpu: 25m
+      memory: 32Mi
+    limits:
+      cpu: 500m
+      memory: 128Mi
+
+# Backend of the whiteboard app, under /whiteboard
+whiteboard:
+  enabled: true
+  image: ghcr.io/nextcloud-releases/aio-whiteboard:latest
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: "1"
+      memory: 512Mi
+
+# Worker that runs queued tasks at once instead of at the next cron run
+taskprocessing:
+  enabled: false
+  resources:
+    requests:
+      cpu: 50m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 768Mi
+
+# Nextcloud Talk: signaling server, NATS, TURN server and call recording
+talk:
+  enabled: false
+  initImage: docker.io/busybox:1.36
+  signaling:
+    # empty: signaling-<hostname of Nextcloud>
+    host: ""
+    image: ghcr.io/strukturag/nextcloud-spreed-signaling:master
+    # addresses that may read the statistics and metrics
+    statsAllowedIps: 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
+  nats:
+    image: docker.io/nats:2.10-alpine
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+  turn:
+    enabled: true
+    # public DNS name of the TURN server; empty: turn-<hostname of Nextcloud>
+    host: ""
+    # public address behind the DNS name; required for calls across networks
+    externalIP: ""
+    # empty: the DNS name of the TURN server
+    realm: ""
+    image: docker.io/coturn/coturn:4.7.0-r2
+    port: 3478
+    # UDP ports for relayed media; every port is a port of the Service
+    relayPorts:
+      min: 49160
+      max: 49359
+    service:
+      # LoadBalancer requests a public address; ClusterIP serves no one outside
+      type: ClusterIP
+      # for example the address pool of the load balancer
+      annotations: {}
+      externalTrafficPolicy: Local
+    tls:
+      enabled: false
+      port: 5349
+      issuerKind: ClusterIssuer
+      issuerName: letsencrypt
+    resources:
+      requests:
+        cpu: 100m
+        memory: 96Mi
+      limits:
+        cpu: "1"
+        memory: 384Mi
+  recording:
+    enabled: true
+    image: ghcr.io/nextcloud-releases/aio-talk-recording:latest
+    timezone: Etc/UTC
+    storage:
+      size: 10Gi
+      storageClassName: ""
+    resources:
+      requests:
+        cpu: 200m
+        memory: 256Mi
+      limits:
+        cpu: "2"
+        memory: 2Gi
+
+# Exporters, ServiceMonitors and alert rules
+monitoring:
+  enabled: false
+  interval: 30s
+  # alert below this free space for user files
+  freeSpaceBytes: 10737418240
+  nextcloudExporterImage: docker.io/xperimental/nextcloud-exporter:0.9.1
+  redisExporterImage: docker.io/oliver006/redis_exporter:v1.67.0
+  blackboxExporterImage: docker.io/prom/blackbox-exporter:v0.25.0
+  natsExporterImage: docker.io/natsio/prometheus-nats-exporter:0.19.2
+  # of every exporter
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+# Dump of the database to an S3 bucket claimed with an ObjectBucketClaim
+backup:
+  enabled: false
+  # StorageClass of the bucket claim; required when enabled
+  storageClassName: ""
+  # empty: one backup at once, none scheduled
+  schedule: 0 2 * * *
+  maxRetention: 720h
+  s3:
+    # empty: the name and the address the bucket claim reports
+    bucket: ""
+    endpoint: ""
+    region: us-east-1
+    # false: plain HTTP inside the cluster, on port 80 when the claim says 443
+    tls:
+      enabled: false
+      # Secret key with the CA of the endpoint, as {name: , key: }
+      caSecretKeyRef: {}
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 300m
+      memory: 256Mi
 
 # Mail server in the same project; its values are those of the mailu chart
 mailu:
@@ -103,8 +294,44 @@ nextcloud:
       value: 1G
     - name: PHP_MEMORY_LIMIT
       value: 1G
-    - name: OVERWRITEPROTOCOL
-      value: https
+    # Redis is used when the chart has created this Secret
+    - name: REDIS_HOST
+      valueFrom:
+        secretKeyRef:
+          name: nextcloud-redis
+          key: redis-host
+          optional: true
+    - name: REDIS_HOST_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: nextcloud-redis
+          key: redis-password
+          optional: true
+    # the setup script of this chart and the secrets it reads
+    extraVolumes:
+    - name: setup
+      configMap:
+        name: nextcloud-setup
+        defaultMode: 0755
+    - name: setup-secrets
+      projected:
+        sources:
+        - secret:
+            name: nextcloud-whiteboard
+            optional: true
+        - secret:
+            name: nextcloud-talk
+            optional: true
+        - secret:
+            name: nextcloud-metrics
+            optional: true
+    extraVolumeMounts:
+    - name: setup
+      mountPath: /docker-entrypoint-hooks.d/before-starting/00-chart.sh
+      subPath: setup.sh
+    - name: setup-secrets
+      mountPath: /run/secrets/setup
+      readOnly: true
     configs:
       logging.config.php: |-
         <?php
@@ -117,7 +344,6 @@ nextcloud:
           'trusted_proxies' => ['10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16'],
         );
     defaultConfigs:
-      redis.config.php: false
       smtp.config.php: false
     phpConfigs:
       upload-max-filesize.ini: |-
@@ -156,12 +382,13 @@ nextcloud:
     enabled: false
   cronjob:
     enabled: true
-    securityContext:
-      runAsUser: 0
-    resources:
-      requests:
-        cpu: 50m
-        memory: 128Mi
+    sidecar:
+      securityContext:
+        runAsUser: 0
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
   imaginary:
     enabled: true
     securityContext:

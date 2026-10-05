@@ -1,0 +1,89 @@
+{{- if .Values.taskprocessing.enabled }}
+{{- $nc := .Values.nextcloud }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nextcloud-taskprocessing
+  labels:
+    {{- include "wrapper.labels" "nextcloud-taskprocessing" | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "wrapper.labels" "nextcloud-taskprocessing" | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "wrapper.labels" "nextcloud-taskprocessing" | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      affinity:
+        {{- include "wrapper.sameNode" . | nindent 8 }}
+      containers:
+      - name: worker
+        image: {{ include "wrapper.nextcloudImage" . }}
+        imagePullPolicy: IfNotPresent
+        workingDir: /var/www/html
+        command:
+        - sh
+        - -c
+        # the worker starts when Nextcloud is installed and leaves at its timeout
+        - |
+          until php occ status 2>/dev/null | grep -q 'installed: true'; do sleep 10; done
+          exec php occ taskprocessing:worker --timeout=3600 --interval=1
+        env:
+        - name: OVERWRITEPROTOCOL
+          value: https
+        - name: PHP_MEMORY_LIMIT
+          value: 512M
+        - name: REDIS_HOST
+          value: nextcloud-redis
+        - name: REDIS_HOST_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: nextcloud-redis
+              key: redis-password
+        resources:
+          {{- toYaml .Values.taskprocessing.resources | nindent 10 }}
+        # occ runs as the owner of the files of Nextcloud
+        securityContext:
+          runAsUser: 33
+          runAsGroup: 33
+          {{- include "wrapper.restricted" . | nindent 10 }}
+        volumeMounts:
+        {{- range $path := list "html" "config" "custom_apps" "themes" }}
+        - name: nextcloud-main
+          mountPath: /var/www/html{{ if ne $path "html" }}/{{ $path }}{{ end }}
+          subPath: {{ $path }}
+        {{- end }}
+        - name: nextcloud-main
+          mountPath: /var/www/tmp
+          subPath: tmp
+        - name: nextcloud-data
+          mountPath: /var/www/html/data
+          subPath: data
+        {{- range $key, $value := $nc.nextcloud.configs }}
+        - name: nextcloud-config
+          mountPath: /var/www/html/config/{{ $key }}
+          subPath: {{ $key }}
+        {{- end }}
+        {{- range $key, $value := $nc.nextcloud.defaultConfigs }}
+        {{- if $value }}
+        - name: nextcloud-config
+          mountPath: /var/www/html/config/{{ $key }}
+          subPath: {{ $key }}
+        {{- end }}
+        {{- end }}
+      volumes:
+      - name: nextcloud-main
+        persistentVolumeClaim:
+          claimName: nextcloud-nextcloud
+      - name: nextcloud-data
+        persistentVolumeClaim:
+          claimName: nextcloud-nextcloud-data
+      - name: nextcloud-config
+        configMap:
+          name: nextcloud-config
+{{- end }}
