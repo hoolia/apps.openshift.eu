@@ -1,0 +1,31 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: odoo-postgres
+  labels:
+    app.kubernetes.io/name: odoo
+    app.kubernetes.io/component: database
+spec:
+  instances: {{ .Values.postgres.instances }}
+  {{- if .Values.postgres.imageName }}
+  imageName: {{ .Values.postgres.imageName }}
+  {{- end }}
+  # a disruption budget on a single instance would block every node drain
+  enablePDB: {{ gt (int .Values.postgres.instances) 1 }}
+  bootstrap:
+    initdb:
+      database: {{ .Values.postgres.database }}
+      owner: {{ .Values.postgres.owner }}
+      {{- with .Values.postgres.extensions }}
+      postInitApplicationSQL:
+      {{- range . }}
+      - CREATE EXTENSION IF NOT EXISTS {{ . }}
+      {{- end }}
+      {{- end }}
+  storage:
+    size: {{ .Values.postgres.storage.size }}
+    {{- if .Values.postgres.storage.storageClassName }}
+    storageClass: {{ .Values.postgres.storage.storageClassName }}
+    {{- end }}
+  resources:
+    {{- toYaml .Values.postgres.resources | nindent 4 }}

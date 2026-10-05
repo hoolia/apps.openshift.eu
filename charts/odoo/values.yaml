@@ -1,0 +1,79 @@
+image:
+  # an image built on the official Odoo image, for example with own addons
+  repository: docker.io/library/odoo
+  # empty: the appVersion of the chart
+  tag: ""
+  pullPolicy: IfNotPresent
+  # names of pull Secrets for a private image
+  pullSecrets: []
+
+odoo:
+  # modules installed when the database is created
+  initModules: base
+  # directories with own addons, comma separated; empty: built-in only
+  addonsPath: ""
+  # 0: one process with threads. More needs route.hostname (websocket Route)
+  workers: 0
+  cronThreads: 1
+  # extra lines of the options section of odoo.conf, as key: value
+  extraConfig: {}
+
+resources:
+  requests:
+    cpu: 200m
+    memory: 512Mi
+  limits:
+    cpu: "2"
+    memory: 2Gi
+
+persistence:
+  # filestore and sessions
+  size: 10Gi
+  # empty: the default StorageClass of the cluster
+  storageClassName: ""
+
+postgres:
+  instances: 1
+  # empty: the default PostgreSQL image of the operator
+  imageName: ""
+  database: odoo
+  owner: odoo
+  # created in the database by the superuser at the first start
+  extensions:
+  - unaccent
+  - pg_trgm
+  storage:
+    size: 10Gi
+    # empty: the default StorageClass of the cluster
+    storageClassName: ""
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+route:
+  # empty: OpenShift assigns a host under the default application domain
+  hostname: ""
+  # used when a hostname is set; certificate issued by cert-manager
+  annotations:
+    cert-manager.io/issuer-kind: ClusterIssuer
+    cert-manager.io/issuer-name: letsencrypt
+
+secrets:
+  # kubernetes: Secret from the values below. externalSecret: from a secret store
+  type: kubernetes
+  # password of the user admin when the database is created; empty: generated
+  adminPassword: ""
+  # master password of the database manager; empty: generated once and kept
+  masterPassword: ""
+  externalSecret:
+    storeKind: ClusterSecretStore
+    storeName: ""
+    refreshInterval: 1h
+    # vault item per key; the value is read from the item's password
+    items:
+      admin-password: odoo-admin
+      master-password: odoo-master

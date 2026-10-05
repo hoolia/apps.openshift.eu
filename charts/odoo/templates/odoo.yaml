@@ -1,0 +1,205 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: odoo-data
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.persistence.size }}
+{{- if .Values.persistence.storageClassName }}
+  storageClassName: {{ .Values.persistence.storageClassName }}
+{{- end }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: odoo
+  labels:
+    app.kubernetes.io/name: odoo
+spec:
+  replicas: 1
+  # the data volume is ReadWriteOnce: the old pod must release it first
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: odoo
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: odoo
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      {{- with .Values.image.pullSecrets }}
+      imagePullSecrets:
+      {{- range . }}
+      - name: {{ . }}
+      {{- end }}
+      {{- end }}
+      initContainers:
+      - name: init-database
+        image: {{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command: ["sh", "/config/init.sh"]
+        env: &env
+        # the image has no passwd entry for the UID OpenShift assigns
+        - name: LOGNAME
+          value: odoo
+        - name: HOME
+          value: /var/lib/odoo
+        - name: ODOO_INIT_MODULES
+          value: {{ .Values.odoo.initModules | quote }}
+        - name: PGHOST
+          value: odoo-postgres-rw
+        - name: PGPORT
+          value: "5432"
+        - name: PGDATABASE
+          value: {{ .Values.postgres.database | quote }}
+        - name: PGUSER
+          valueFrom:
+            secretKeyRef:
+              name: odoo-postgres-app
+              key: username
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: odoo-postgres-app
+              key: password
+        - name: ODOO_MASTER_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: odoo-credentials
+              key: master-password
+        - name: ODOO_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: odoo-credentials
+              key: admin-password
+        securityContext: &securityContext
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+        volumeMounts: &volumeMounts
+        - name: data
+          mountPath: /var/lib/odoo
+        - name: config
+          mountPath: /config
+        - name: tmp
+          mountPath: /tmp
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
+      containers:
+      - name: odoo
+        image: {{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command: ["sh", "/config/run.sh"]
+        ports:
+        - name: http
+          containerPort: 8069
+        - name: websocket
+          containerPort: 8072
+        env: *env
+        securityContext: *securityContext
+        volumeMounts: *volumeMounts
+        startupProbe:
+          httpGet:
+            path: /web/health
+            port: http
+          periodSeconds: 10
+          failureThreshold: 60
+        readinessProbe:
+          httpGet:
+            path: /web/health
+            port: http
+          periodSeconds: 15
+          timeoutSeconds: 5
+          failureThreshold: 3
+        livenessProbe:
+          httpGet:
+            path: /web/health
+            port: http
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 6
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: odoo-data
+      - name: config
+        configMap:
+          name: odoo-config
+      - name: tmp
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: odoo
+spec:
+  selector:
+    app.kubernetes.io/name: odoo
+  ports:
+  - name: http
+    port: 8069
+    targetPort: http
+  - name: websocket
+    port: 8072
+    targetPort: websocket
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: odoo
+  {{- if and .Values.route.hostname .Values.route.annotations }}
+  annotations:
+    {{- toYaml .Values.route.annotations | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.route.hostname }}
+  host: {{ .Values.route.hostname }}
+  {{- end }}
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+  to:
+    kind: Service
+    name: odoo
+    weight: 100
+  wildcardPolicy: None
+{{- if gt (int .Values.odoo.workers) 0 }}
+---
+# with workers the websocket is served by a separate process and port
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: odoo-websocket
+  {{- with .Values.route.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  host: {{ .Values.route.hostname }}
+  path: /websocket
+  port:
+    targetPort: websocket
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+  to:
+    kind: Service
+    name: odoo
+    weight: 100
+  wildcardPolicy: None
+{{- end }}

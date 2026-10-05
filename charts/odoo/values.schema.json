@@ -1,0 +1,53 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "image": {
+      "type": "object",
+      "properties": {
+        "repository": {"type": "string", "title": "Image", "description": "Own image built on the official Odoo image, for example with Enterprise addons"},
+        "tag": {"type": "string", "title": "Image tag", "description": "Leave empty for the version of the chart"}
+      }
+    },
+    "route": {
+      "type": "object",
+      "properties": {
+        "hostname": {"type": "string", "title": "Hostname", "description": "Leave empty for a generated hostname"}
+      }
+    },
+    "persistence": {
+      "type": "object",
+      "properties": {
+        "size": {"type": "string", "title": "Filestore volume size"},
+        "storageClassName": {"type": "string", "title": "Storage class"}
+      }
+    },
+    "postgres": {
+      "type": "object",
+      "properties": {
+        "instances": {"type": "integer", "minimum": 1, "title": "Database instances", "description": "2 or more for a database that survives a node failure"},
+        "storage": {
+          "type": "object",
+          "properties": {
+            "size": {"type": "string", "title": "Database volume size"}
+          }
+        }
+      }
+    },
+    "odoo": {
+      "type": "object",
+      "properties": {
+        "initModules": {"type": "string", "title": "Modules installed at the first start"},
+        "workers": {"type": "integer", "minimum": 0, "title": "Worker processes", "description": "0 runs one process with threads; more needs a hostname"}
+      }
+    },
+    "secrets": {
+      "type": "object",
+      "properties": {
+        "type": {"type": "string", "enum": ["kubernetes", "externalSecret"], "title": "Secret source"},
+        "adminPassword": {"type": "string", "title": "Initial admin password", "description": "Leave empty to generate one"},
+        "masterPassword": {"type": "string", "title": "Master password", "description": "Leave empty to generate one"}
+      }
+    }
+  }
+}

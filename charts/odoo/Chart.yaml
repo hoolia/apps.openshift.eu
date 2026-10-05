@@ -1,0 +1,23 @@
+apiVersion: v2
+name: odoo
+description: Odoo Community business applications with a PostgreSQL database and a filestore volume
+type: application
+version: 0.1.0
+appVersion: "19.0"
+home: https://apps.openshift.eu
+icon: https://avatars.githubusercontent.com/u/6368483?s=200
+keywords:
+- erp
+- crm
+- accounting
+- odoo
+sources:
+- https://github.com/odoo/odoo
+- https://github.com/odoo/docker
+- https://github.com/hoolia/apps.openshift.eu
+maintainers:
+- name: Hoolia B.V.
+  url: https://apps.openshift.eu
+annotations:
+  charts.openshift.io/name: Odoo
+  charts.openshift.io/provider: Hoolia B.V.

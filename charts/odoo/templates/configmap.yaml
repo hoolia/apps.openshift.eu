@@ -1,0 +1,74 @@
+{{- if and (gt (int .Values.odoo.workers) 0) (not .Values.route.hostname) }}
+{{- fail "odoo.workers above 0 needs route.hostname" }}
+{{- end }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: odoo-config
+data:
+  odoo.conf: |
+    [options]
+    data_dir = /var/lib/odoo
+    db_name = {{ .Values.postgres.database }}
+    dbfilter = ^{{ .Values.postgres.database }}$
+    list_db = False
+    proxy_mode = True
+    http_port = 8069
+    gevent_port = 8072
+    workers = {{ .Values.odoo.workers }}
+    max_cron_threads = {{ .Values.odoo.cronThreads }}
+    {{- if .Values.odoo.addonsPath }}
+    addons_path = {{ .Values.odoo.addonsPath }}
+    {{- end }}
+    {{- range $key, $value := .Values.odoo.extraConfig }}
+    {{ $key }} = {{ $value }}
+    {{- end }}
+  conf.sh: |
+    umask 077
+    cp /config/odoo.conf /tmp/odoo.conf
+    printf 'admin_passwd = %s\n' "$ODOO_MASTER_PASSWORD" >> /tmp/odoo.conf
+    set -- -c /tmp/odoo.conf --db_host "$PGHOST" --db_port "$PGPORT" --db_user "$PGUSER"
+  state.py: |
+    import psycopg2
+    cur = psycopg2.connect("").cursor()
+    cur.execute("select to_regclass('ir_module_module')")
+    if cur.fetchone()[0] is None:
+        print("empty")
+        raise SystemExit
+    cur.execute("select state from ir_module_module where name = 'base'")
+    row = cur.fetchone()
+    if not row or row[0] != "installed":
+        print("empty")
+        raise SystemExit
+    cur.execute("select 1 from ir_config_parameter where key = 'chart.admin_password_set'")
+    print("ready" if cur.fetchone() else "installed")
+  password.py: |
+    import os
+    params = env['ir.config_parameter'].sudo()
+    if not params.get_param('chart.admin_password_set'):
+        admin = env.ref('base.user_admin').sudo()
+        admin.write({'password': os.environ['ODOO_ADMIN_PASSWORD']})
+        params.set_param('chart.admin_password_set', 'True')
+        env.cr.commit()
+  init.sh: |
+    set -eu
+    . /config/conf.sh
+    tries=0
+    until state=$(python3 /config/state.py 2>/dev/null); do
+      tries=$((tries + 1))
+      [ "$tries" -lt 120 ] || { echo "database not reachable"; exit 1; }
+      echo "waiting for the database"
+      sleep 5
+    done
+    echo "database state: $state"
+    if [ "$state" = empty ]; then
+      odoo "$@" -i "$ODOO_INIT_MODULES" --stop-after-init --no-http
+      state=installed
+    fi
+    if [ "$state" = installed ]; then
+      odoo shell "$@" --no-http < /config/password.py
+    fi
+  run.sh: |
+    set -eu
+    . /config/conf.sh
+    exec odoo "$@"
