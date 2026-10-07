@@ -4,8 +4,13 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: nextcloud-notify-push
+  {{- with include "wrapper.topologyAnnotations" "nextcloud-notify-push" }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
   labels:
     {{- include "wrapper.labels" "nextcloud-notify-push" | nindent 4 }}
+    {{- include "wrapper.topologyLabels" "nextcloud-notify-push" | nindent 4 }}
 spec:
   replicas: 1
   strategy:

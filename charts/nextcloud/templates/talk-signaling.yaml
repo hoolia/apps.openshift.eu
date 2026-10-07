@@ -4,8 +4,13 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: nextcloud-nats
+  {{- with include "wrapper.topologyAnnotations" "nextcloud-nats" }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
   labels:
     {{- include "wrapper.labels" "nextcloud-nats" | nindent 4 }}
+    {{- include "wrapper.topologyLabels" "nextcloud-nats" | nindent 4 }}
 spec:
   replicas: 1
   selector:
@@ -119,8 +124,13 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: nextcloud-signaling
+  {{- with include "wrapper.topologyAnnotations" "nextcloud-signaling" }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
   labels:
     {{- include "wrapper.labels" "nextcloud-signaling" | nindent 4 }}
+    {{- include "wrapper.topologyLabels" "nextcloud-signaling" | nindent 4 }}
 spec:
   replicas: 1
   selector:

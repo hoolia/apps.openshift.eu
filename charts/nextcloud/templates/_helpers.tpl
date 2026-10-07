@@ -160,3 +160,48 @@ spec:
       nullBytePolicy: Ignore
   {{- end }}
 {{- end -}}
+
+{{/*
+Topology view of the OpenShift console. Per workload: the group it is drawn in, the icon,
+a product logo where one exists, and the workloads it calls (drawn as arrows). An arrow to a workload that is switched off
+is not drawn.
+*/}}
+{{- define "wrapper.topology" -}}
+nextcloud-taskprocessing: {group: nextcloud, runtime: php, to: [StatefulSet/nextcloud-mariadb, Deployment/nextcloud-redis], icon: "https://raw.githubusercontent.com/nextcloud/promo/master/nextcloud-icon.svg"}
+nextcloud-notify-push: {group: nextcloud, runtime: rust, to: [Deployment/nextcloud-redis, StatefulSet/nextcloud-mariadb]}
+nextcloud-redis: {group: nextcloud, runtime: redis}
+onlyoffice: {group: nextcloud-office, runtime: nodejs, icon: "https://avatars.githubusercontent.com/ONLYOFFICE"}
+nextcloud-whiteboard: {group: nextcloud-office, runtime: nodejs, to: [Deployment/nextcloud, Deployment/nextcloud-redis], icon: "https://raw.githubusercontent.com/nextcloud/promo/master/nextcloud-icon.svg"}
+nextcloud-signaling: {group: nextcloud-talk, runtime: golang, to: [Deployment/nextcloud-nats, Deployment/nextcloud-turn]}
+nextcloud-nats: {group: nextcloud-talk, runtime: golang, icon: "https://raw.githubusercontent.com/cncf/artwork/main/projects/nats/icon/color/nats-icon-color.svg"}
+nextcloud-turn: {group: nextcloud-talk}
+nextcloud-talk-recording: {group: nextcloud-talk, runtime: python, to: [Deployment/nextcloud-signaling]}
+nextcloud-exporter: {group: nextcloud-monitoring, runtime: golang, to: [Deployment/nextcloud], icon: "https://raw.githubusercontent.com/cncf/artwork/main/projects/prometheus/icon/color/prometheus-icon-color.svg"}
+nextcloud-redis-exporter: {group: nextcloud-monitoring, runtime: golang, to: [Deployment/nextcloud-redis], icon: "https://raw.githubusercontent.com/cncf/artwork/main/projects/prometheus/icon/color/prometheus-icon-color.svg"}
+nextcloud-blackbox-exporter: {group: nextcloud-monitoring, runtime: golang, to: [Deployment/nextcloud], icon: "https://raw.githubusercontent.com/cncf/artwork/main/projects/prometheus/icon/color/prometheus-icon-color.svg"}
+{{- end -}}
+
+{{- define "wrapper.topologyLabels" -}}
+{{- $t := index (include "wrapper.topology" . | fromYaml) . | default dict -}}
+{{- with $t.group }}
+app.kubernetes.io/part-of: {{ . }}
+{{- end }}
+{{- with $t.runtime }}
+app.openshift.io/runtime: {{ . }}
+{{- end }}
+{{- end -}}
+
+{{- define "wrapper.topologyAnnotations" -}}
+{{- $t := index (include "wrapper.topology" . | fromYaml) . | default dict -}}
+{{- $to := list -}}
+{{- range $t.to }}
+{{- $p := splitList "/" . -}}
+{{- $to = append $to (dict "apiVersion" "apps/v1" "kind" (first $p) "name" (last $p)) -}}
+{{- end }}
+{{- if $to }}
+app.openshift.io/connects-to: {{ $to | toJson | squote }}
+{{- end }}
+{{- with $t.icon }}
+app.openshift.io/custom-icon: {{ . }}
+{{- end }}
+{{- end -}}

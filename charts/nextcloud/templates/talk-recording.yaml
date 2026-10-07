@@ -20,8 +20,13 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: nextcloud-talk-recording
+  {{- with include "wrapper.topologyAnnotations" "nextcloud-talk-recording" }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
   labels:
     {{- include "wrapper.labels" "nextcloud-talk-recording" | nindent 4 }}
+    {{- include "wrapper.topologyLabels" "nextcloud-talk-recording" | nindent 4 }}
 spec:
   replicas: 1
   strategy:

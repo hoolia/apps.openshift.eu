@@ -10,8 +10,13 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: nextcloud-turn
+  {{- with include "wrapper.topologyAnnotations" "nextcloud-turn" }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
   labels:
     {{- include "wrapper.labels" "nextcloud-turn" | nindent 4 }}
+    {{- include "wrapper.topologyLabels" "nextcloud-turn" | nindent 4 }}
 spec:
   replicas: 1
   selector:

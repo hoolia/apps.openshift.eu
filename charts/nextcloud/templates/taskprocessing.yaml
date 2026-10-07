@@ -4,8 +4,13 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: nextcloud-taskprocessing
+  {{- with include "wrapper.topologyAnnotations" "nextcloud-taskprocessing" }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
   labels:
     {{- include "wrapper.labels" "nextcloud-taskprocessing" | nindent 4 }}
+    {{- include "wrapper.topologyLabels" "nextcloud-taskprocessing" | nindent 4 }}
 spec:
   replicas: 1
   strategy:

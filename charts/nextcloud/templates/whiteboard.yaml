@@ -3,8 +3,13 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: nextcloud-whiteboard
+  {{- with include "wrapper.topologyAnnotations" "nextcloud-whiteboard" }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
   labels:
     {{- include "wrapper.labels" "nextcloud-whiteboard" | nindent 4 }}
+    {{- include "wrapper.topologyLabels" "nextcloud-whiteboard" | nindent 4 }}
 spec:
   replicas: 1
   selector:

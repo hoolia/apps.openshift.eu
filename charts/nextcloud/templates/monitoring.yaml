@@ -12,8 +12,13 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ $e.name }}
+  {{- with include "wrapper.topologyAnnotations" $e.name }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
   labels:
     {{- include "wrapper.labels" $e.name | nindent 4 }}
+    {{- include "wrapper.topologyLabels" $e.name | nindent 4 }}
 spec:
   replicas: 1
   selector:

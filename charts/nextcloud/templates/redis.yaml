@@ -3,8 +3,13 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: nextcloud-redis
+  {{- with include "wrapper.topologyAnnotations" "nextcloud-redis" }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
   labels:
     {{- include "wrapper.labels" "nextcloud-redis" | nindent 4 }}
+    {{- include "wrapper.topologyLabels" "nextcloud-redis" | nindent 4 }}
 spec:
   replicas: 1
   strategy:

@@ -3,9 +3,14 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: onlyoffice
+  {{- with include "wrapper.topologyAnnotations" "onlyoffice" }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
   labels:
     app.kubernetes.io/name: onlyoffice
     app.kubernetes.io/instance: onlyoffice
+    {{- include "wrapper.topologyLabels" "onlyoffice" | nindent 4 }}
 spec:
   replicas: 1
   selector:
