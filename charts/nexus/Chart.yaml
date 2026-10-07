@@ -2,7 +2,7 @@ apiVersion: v2
 name: nexus
 description: Sonatype Nexus Repository for Maven, npm, container images and other package formats
 type: application
-version: 0.1.0
+version: 0.1.1
 appVersion: "3.94.2"
 home: https://apps.openshift.eu
 icon: https://avatars.githubusercontent.com/u/44938?s=200
@@ -14,8 +14,8 @@ sources:
 - https://github.com/sonatype/docker-nexus3
 - https://github.com/hoolia/apps.openshift.eu
 maintainers:
-- name: Hoolia B.V.
+- name: GRN.CLOUD B.V.
   url: https://apps.openshift.eu
 annotations:
   charts.openshift.io/name: Nexus Repository
-  charts.openshift.io/provider: Hoolia B.V.
+  charts.openshift.io/provider: GRN.CLOUD B.V.
