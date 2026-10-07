@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GRN.CLOUD Apps - Helm chart repository</title>
+<meta name="description" content="Helm charts for the GRN.CLOUD tenant app marketplace on OpenShift.">
+<style>
+:root{--primary:#02753C;--cta:#9EFF12;--heading:#1e1e1e;--body:#4B5563;--muted:#54595F;--bg:#F8FAFE;--card:#fff;--border:#E2E8F0}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--body);font:16px/1.5 Karla,system-ui,-apple-system,"Segoe UI",sans-serif}
+header{background:linear-gradient(115deg,#04150d 0%,#042a18 42%,#02753C 130%);color:#fff;padding:64px 16px 48px}
+.wrap{max-width:960px;margin:0 auto}
+h1,h2,h3{font-family:Rubik,system-ui,-apple-system,"Segoe UI",sans-serif;line-height:1.2;margin:0}
+h1{font-size:36px;font-weight:700}
+header p{max-width:65ch;margin:16px 0 0;color:#e6f2ec;font-size:18px}
+main{padding:32px 16px 64px}
+h2{font-size:24px;font-weight:600;color:var(--heading);margin:32px 0 16px}
+pre{background:#04150d;color:#e6f2ec;padding:16px;border-radius:8px;overflow-x:auto;font-size:14px;margin:0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:16px}
+.card h3{font-size:18px;font-weight:600;color:var(--heading)}
+.card .v{font-size:14px;color:var(--muted);margin:4px 0 8px}
+.card p{margin:0;font-size:14px}
+a{color:var(--primary)}
+a:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+footer{font-size:14px;color:var(--muted);margin-top:48px}
+</style>
+</head>
+<body>
+<header><div class="wrap">
+<h1>GRN.CLOUD Apps</h1>
+<p>Helm charts for the GRN.CLOUD tenant app marketplace. Each chart installs one application in your own OpenShift project, without cluster-admin rights.</p>
+</div></header>
+<main><div class="wrap">
+<h2>Use this repository</h2>
+<pre>helm repo add grncloud https://apps.openshift.eu
+helm repo update
+helm search repo grncloud</pre>
+<h2>Charts</h2>
+<div class="grid" id="charts"><p>The chart list is in <a href="index.yaml">index.yaml</a>.</p></div>
+<footer>
+Source and documentation per chart: <a href="https://github.com/hoolia/apps.openshift.eu">github.com/hoolia/apps.openshift.eu</a>.
+Repository index: <a href="index.yaml">index.yaml</a>.
+</footer>
+</div></main>
+<script>
+fetch('index.yaml').then(function (r) { return r.text(); }).then(function (t) {
+  var charts = [], cur = null;
+  t.split('\n').forEach(function (l) {
+    var m = /^  ([a-z0-9-]+):\s*$/.exec(l);
+    if (m) { cur = { name: m[1] }; charts.push(cur); return; }
+    if (!cur) return;
+    m = /^    (description|version|appVersion):\s*(.*)$/.exec(l);
+    if (m && cur[m[1]] === undefined) cur[m[1]] = m[2].replace(/^["']|["']$/g, '');
+  });
+  if (!charts.length) return;
+  var box = document.getElementById('charts');
+  box.textContent = '';
+  charts.forEach(function (c) {
+    var d = document.createElement('div'); d.className = 'card';
+    var h = document.createElement('h3');
+    var a = document.createElement('a');
+    a.href = 'https://github.com/hoolia/apps.openshift.eu/tree/main/charts/' + c.name;
+    a.textContent = c.name; h.appendChild(a);
+    var v = document.createElement('div'); v.className = 'v';
+    v.textContent = 'chart ' + (c.version || '') + (c.appVersion ? ' - app ' + c.appVersion : '');
+    var p = document.createElement('p'); p.textContent = c.description || '';
+    d.appendChild(h); d.appendChild(v); d.appendChild(p); box.appendChild(d);
+  });
+}).catch(function () {});
+</script>
+</body>
+</html>
