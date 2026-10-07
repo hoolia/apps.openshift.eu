@@ -5,68 +5,110 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>GRN.CLOUD Apps - Helm chart repository</title>
 <meta name="description" content="Helm charts for the GRN.CLOUD tenant app marketplace on OpenShift.">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
 <style>
-:root{--primary:#02753C;--cta:#9EFF12;--heading:#1e1e1e;--body:#4B5563;--muted:#54595F;--bg:#F8FAFE;--card:#fff;--border:#E2E8F0}
+:root{--primary:#02753C;--cta:#9EFF12;--heading:#1e1e1e;--body:#4B5563;--muted:#54595F;--panel:#F8FAFE;--card:#fff;--border:#E2E8F0}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--body);font:16px/1.5 Karla,system-ui,-apple-system,"Segoe UI",sans-serif}
-header{background:linear-gradient(115deg,#04150d 0%,#042a18 42%,#02753C 130%);color:#fff;padding:64px 16px 48px}
-.wrap{max-width:960px;margin:0 auto}
+body{margin:0;min-height:100vh;color:var(--body);font:16px/1.5 Karla,system-ui,-apple-system,"Segoe UI",sans-serif;
+  background:radial-gradient(900px 500px at 12% 0%,#3f7d12 0%,rgba(63,125,18,0) 60%),linear-gradient(135deg,#0a1611 0%,#0d2719 50%,#0f3d24 130%);background-attachment:fixed}
 h1,h2,h3{font-family:Rubik,system-ui,-apple-system,"Segoe UI",sans-serif;line-height:1.2;margin:0}
-h1{font-size:36px;font-weight:700}
-header p{max-width:65ch;margin:16px 0 0;color:#e6f2ec;font-size:18px}
-main{padding:32px 16px 64px}
-h2{font-size:24px;font-weight:600;color:var(--heading);margin:32px 0 16px}
-pre{background:#04150d;color:#e6f2ec;padding:16px;border-radius:8px;overflow-x:auto;font-size:14px;margin:0}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px}
-.card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:16px}
-.card h3{font-size:18px;font-weight:600;color:var(--heading)}
-.card .v{font-size:14px;color:var(--muted);margin:4px 0 8px}
-.card p{margin:0;font-size:14px}
 a{color:var(--primary)}
-a:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
-footer{font-size:14px;color:var(--muted);margin-top:48px}
+a:focus-visible,button:focus-visible{outline:2px solid var(--cta);outline-offset:2px}
+.mast{max-width:1240px;margin:0 auto;padding:16px 24px;display:flex;align-items:center;gap:16px;color:#fff}
+.mast img{height:40px;width:auto;display:block}
+.mast span{font:500 18px Rubik,system-ui,sans-serif;opacity:.9;border-left:1px solid rgba(255,255,255,.35);padding-left:16px}
+.mast a.console{margin-left:auto;color:#fff;font-size:14px;text-decoration:none;border:1px solid rgba(255,255,255,.4);border-radius:999px;padding:6px 16px}
+.mast a.console:hover{border-color:var(--cta);color:var(--cta)}
+.panel{max-width:1240px;margin:0 auto 32px;background:var(--panel);border-radius:16px;padding:32px 24px 40px}
+h1{font-size:30px;font-weight:600;color:var(--heading)}
+.lead{max-width:75ch;margin:8px 0 24px}
+.layout{display:grid;grid-template-columns:260px 1fr;gap:32px;border:1px solid var(--border);border-radius:12px;padding:24px}
+.side h2{font-size:14px;font-weight:600;color:var(--heading);margin:0 0 8px}
+.side p{font-size:14px;margin:0 0 16px}
+pre{background:#0d2719;color:#e6f2ec;padding:12px;border-radius:8px;overflow-x:auto;font-size:12.5px;margin:0 0 20px;white-space:pre-wrap;word-break:break-all}
+.top{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:16px}
+.top h2{font-size:20px;font-weight:600;color:var(--heading)}
+.top span{font-size:14px;color:var(--muted)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:24px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:24px;display:flex;flex-direction:column;min-height:300px}
+.card:hover{border-color:var(--primary);box-shadow:0 4px 14px rgba(2,117,60,.12)}
+.hd{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px}
+.hd img{width:50px;height:50px;object-fit:contain}
+.badge{font-size:12px;background:#f0f0f0;color:#1e1e1e;border-radius:999px;padding:2px 10px;font-weight:500}
+.card h3{font-size:16px;font-weight:500;color:var(--heading)}
+.prov{font-size:14px;color:var(--muted);margin:8px 0 14px}
+.desc{font-size:14px;margin:0 0 16px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.ver{font-size:12px;color:var(--muted);margin-top:auto}
+.btns{display:flex;gap:8px;margin-top:12px}
+.btn{flex:1;text-align:center;text-decoration:none;font:500 14px Rubik,system-ui,sans-serif;border-radius:999px;padding:8px 12px;border:1px solid var(--primary);color:var(--primary);background:#fff}
+.btn:hover{background:#eef7f1}
+.btn.cta{background:var(--cta);border-color:var(--cta);color:#000}
+.btn.cta:hover{background:var(--primary);color:#fff;border-color:var(--cta)}
+footer{max-width:1240px;margin:0 auto;padding:0 24px 32px;font-size:14px;color:#cfe3d7}
+footer a{color:#fff}
+@media (max-width:800px){.layout{grid-template-columns:1fr}.mast span{display:none}}
 </style>
 </head>
 <body>
-<header><div class="wrap">
-<h1>GRN.CLOUD Apps</h1>
-<p>Helm charts for the GRN.CLOUD tenant app marketplace. Each chart installs one application in your own OpenShift project, without cluster-admin rights.</p>
-</div></header>
-<main><div class="wrap">
-<h2>Use this repository</h2>
+<div class="mast">
+<a href="https://www.grn.cloud"><img src="logo-white.png" alt="GRN.CLOUD"></a>
+<span>Apps</span>
+<a class="console" href="https://console.grn.cloud">Open console</a>
+</div>
+<main class="panel">
+<h1>Helm Charts</h1>
+<p class="lead">Applications for the GRN.CLOUD platform. Deploy one in your own project from the console, or install the chart yourself with Helm. No cluster-admin rights needed.</p>
+<div class="layout">
+<aside class="side">
+<h2>Deploy from the console</h2>
+<p>The Deploy button opens the managed version in console.grn.cloud: pick your project, fill in a name, and Argo CD installs and updates the application.</p>
+<h2>Install with Helm</h2>
 <pre>helm repo add grncloud https://apps.openshift.eu
 helm repo update
 helm search repo grncloud</pre>
-<h2>Charts</h2>
+<h2>Repository</h2>
+<p><a href="index.yaml">index.yaml</a><br><a href="https://github.com/hoolia/apps.openshift.eu">Source on GitHub</a></p>
+</aside>
+<section>
+<div class="top"><h2>All items</h2><span id="count"></span></div>
 <div class="grid" id="charts"><p>The chart list is in <a href="index.yaml">index.yaml</a>.</p></div>
-<footer>
-Source and documentation per chart: <a href="https://github.com/hoolia/apps.openshift.eu">github.com/hoolia/apps.openshift.eu</a>.
-Repository index: <a href="index.yaml">index.yaml</a>.
-</footer>
-</div></main>
+</section>
+</div>
+</main>
+<footer>GRN.CLOUD B.V. - charts are open source, see each chart's README for values and delivery notes.</footer>
 <script>
 fetch('index.yaml').then(function (r) { return r.text(); }).then(function (t) {
-  var charts = [], cur = null;
+  var charts = [], cur = null, first = false;
   t.split('\n').forEach(function (l) {
     var m = /^  ([a-z0-9-]+):\s*$/.exec(l);
-    if (m) { cur = { name: m[1] }; charts.push(cur); return; }
+    if (m) { cur = { id: m[1] }; charts.push(cur); first = false; return; }
     if (!cur) return;
-    m = /^    (description|version|appVersion):\s*(.*)$/.exec(l);
+    if (/^  - /.test(l)) { if (first) { cur.done = true; } first = true; l = '    ' + l.slice(4); }
+    if (cur.done) return;
+    m = /^    (description|version|appVersion|icon):\s*(.*)$/.exec(l) || /^      charts\.openshift\.io\/(name|provider):\s*(.*)$/.exec(l);
     if (m && cur[m[1]] === undefined) cur[m[1]] = m[2].replace(/^["']|["']$/g, '');
   });
   if (!charts.length) return;
   var box = document.getElementById('charts');
   box.textContent = '';
+  document.getElementById('count').textContent = charts.length + ' items';
+  function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e; }
   charts.forEach(function (c) {
-    var d = document.createElement('div'); d.className = 'card';
-    var h = document.createElement('h3');
-    var a = document.createElement('a');
-    a.href = 'https://github.com/hoolia/apps.openshift.eu/tree/main/charts/' + c.name;
-    a.textContent = c.name; h.appendChild(a);
-    var v = document.createElement('div'); v.className = 'v';
-    v.textContent = 'chart ' + (c.version || '') + (c.appVersion ? ' - app ' + c.appVersion : '');
-    var p = document.createElement('p'); p.textContent = c.description || '';
-    d.appendChild(h); d.appendChild(v); d.appendChild(p); box.appendChild(d);
+    var d = el('article', 'card');
+    var hd = el('div', 'hd');
+    var img = el('img'); img.alt = ''; img.loading = 'lazy'; img.src = c.icon || 'favicon.svg';
+    img.onerror = function () { img.onerror = null; img.src = 'favicon.svg'; };
+    hd.appendChild(img); hd.appendChild(el('span', 'badge', 'Helm Chart'));
+    d.appendChild(hd);
+    d.appendChild(el('h3', '', c.name || c.id));
+    d.appendChild(el('div', 'prov', 'Provided by ' + (c.provider || 'GRN.CLOUD B.V.')));
+    d.appendChild(el('p', 'desc', c.description || ''));
+    d.appendChild(el('div', 'ver', 'Chart ' + (c.version || '') + (c.appVersion ? ' - app ' + c.appVersion : '')));
+    var b = el('div', 'btns');
+    var s = el('a', 'btn', 'Source'); s.href = 'https://github.com/hoolia/apps.openshift.eu/tree/main/charts/' + c.id;
+    var p = el('a', 'btn cta', 'Deploy'); p.href = 'https://console.grn.cloud/catalog/instantiate-template?template=' + c.id + '-managed&template-ns=openshift';
+    b.appendChild(s); b.appendChild(p); d.appendChild(b);
+    box.appendChild(d);
   });
 }).catch(function () {});
 </script>
