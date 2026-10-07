@@ -31,7 +31,7 @@
     "ssh": {
       "type": "object",
       "properties": {
-        "enabled": {"type": "boolean", "title": "Git over SSH", "description": "Needs a TCP address from the platform team"}
+        "enabled": {"type": "boolean", "title": "Git over SSH", "description": "Will charge for a new Public IP-address"}
       }
     },
     "secrets": {
