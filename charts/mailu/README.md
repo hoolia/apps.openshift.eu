@@ -34,7 +34,11 @@ Read the webmail address and the password of the first account (`admin@<domain>`
 | `upstream.persistence.storageClass` | empty | Empty: the default StorageClass. |
 | `secrets.type` | `kubernetes` | `externalSecret` reads the four secrets from a secret store. |
 | `secrets.initialAdminPassword` | empty | Password of the first admin account. Empty: generated. |
-| `mailService.type` | `ClusterIP` | `LoadBalancer` gives the mail protocols a public address. |
+| `mailService.public` | `false` | `true` gives the mail protocols a public address (LoadBalancer Service). |
+| `dns.enabled` | `false` | Ask the platform's DNS (external-dns) for the records of the mail domain. See Delivery instructions. |
+| `dns.dkim.publicKey` | empty | Public DKIM key from the admin interface. With `dns.enabled` it becomes the DKIM record. |
+| `dns.spf`, `dns.dmarc` | `v=spf1 mx -all`, `v=DMARC1; p=quarantine` | Content of the SPF and DMARC records. |
+| `global.publicAddress.shared` | `false` | Let the other public Services of the project share one address. The mail Service never shares. |
 | `mailService.annotations` | `{}` | Annotations of that Service, for example the address pool. |
 | `mailService.ports.*` | mail ports on | Ports of that Service. `http` and `https` are off. |
 | `egressService.enabled` | `false` | Second public address, used as the source of outgoing mail. |
@@ -69,28 +73,42 @@ release name.
 The platform team does these steps for you. Ask for them in one request and name your
 project, the mail domain and the hostname of the mail server.
 
-- Public address. The mail Service gets a public IP address only from the public address
-  pool. Ask which annotation selects that pool and set it, for example
-  `--set 'mailService.annotations.metallb\.io/address-pool=<pool>'`. Read the address with
-  `oc get service mailu-front-ext`.
+- Public address. Set `mailService.public=true`. The mail Service gets a public IP address
+  only from the public address pool. Ask which annotation selects that pool and set it,
+  for example `--set 'mailService.annotations.metallb\.io/address-pool=<pool>'`. Read the
+  address with `oc get service mailu-front-ext`.
 - Inbound port 25. Ask the platform team to confirm that port 25 from the internet
   reaches the public range. Without it you can send mail but not receive it.
 - Outgoing address. Outgoing mail must leave from a public address with reverse DNS. Ask
   whether the platform sends the mail of your pods from the address of the mail Service.
   If it does not, set `egressService.enabled=true` with the same pool annotation; outgoing
   mail then leaves from the address of `mailu-postfix-egress`.
-- DNS records, all created by the platform team:
-  - `A`: the mail hostname to the address of `mailu-front-ext`.
-  - `MX`: the mail domain to the mail hostname.
-  - `TXT` (SPF) on the mail domain: `v=spf1 mx a:<mail hostname> -all`. Add
-    `ip4:<outgoing address>` when the outgoing address differs.
-  - `TXT` (DKIM): `dkim._domainkey.<mail domain>`. Generate the key in the admin
-    interface under Mail domains, Details, and hand over the record shown there.
-  - `TXT` (DMARC): `_dmarc.<mail domain>`, for example
-    `v=DMARC1; p=reject; rua=mailto:postmaster@<mail domain>`.
-  - Reverse DNS (`PTR`): the outgoing address to the mail hostname.
-  - Autoconfig, if used: `CNAME` `autoconfig.<mail domain>` to the mail hostname, and
-    `mailService.ports.http` and `https` set to true.
+- DNS records. `<mail host>` is the first of `upstream.hostnames`, `<domain>` is
+  `upstream.domain`, `<address>` is shown by `oc get service mailu-front-ext`.
+
+  | Type | Name | Value |
+  |---|---|---|
+  | `A` | `<mail host>` | `<address>` |
+  | `MX` | `<domain>` | `10 <mail host>` |
+  | `TXT` | `<domain>` | `v=spf1 mx -all` (SPF). Add `ip4:<outgoing address>` when mail leaves from another address. |
+  | `TXT` | `dkim._domainkey.<domain>` | The record shown in the admin interface under Mail domains, Details, after Generate keys (DKIM). |
+  | `TXT` | `_dmarc.<domain>` | `v=DMARC1; p=quarantine; rua=mailto:postmaster@<domain>` (DMARC) |
+  | `CNAME` | `autoconfig.<domain>` | `<mail host>`. Optional; also set `mailService.ports.http` and `https` to true. |
+  | `PTR` | `<outgoing address>` | `<mail host>`. Set by the owner of the address: ask the platform team. |
+
+  Your own DNS zone: create these records at your DNS provider. Start with `A` and wait
+  until it resolves, then `MX`; mail for the domain arrives here from that moment.
+
+  A zone the platform serves: set `dns.enabled=true`. The `A` record then follows the
+  Service by itself. `MX`, SPF and DMARC are requested with a DNSEndpoint, and DKIM as
+  well once `dns.dkim.publicKey` holds the key. Whether the platform's external-dns
+  writes `MX` and `TXT` records depends on its configuration; check with
+  `dig MX <domain>` and ask the platform team when they stay away.
+- Shared address. With `global.publicAddress.shared=true` the public Services of the
+  project that can share one address do so, and switch to `externalTrafficPolicy:
+  Cluster`. The mail Service keeps its own address: behind a shared address every
+  sending server would appear with the address of a cluster node, which defeats the
+  spam checks and makes the server relay for anyone.
 - Admin pod. The upstream chart always adds the capability `NET_BIND_SERVICE` to the
   admin container and the container must start as root. The `anyuid` SCC allows root but
   no added capability. Ask the platform team to confirm that the admin pod can run in

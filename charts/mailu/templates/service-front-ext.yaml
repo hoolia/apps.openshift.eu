@@ -1,5 +1,13 @@
+{{- $type := ternary "LoadBalancer" .Values.mailService.type .Values.mailService.public }}
 {{- $ports := (include "mailu-wrapper.frontPorts" . | fromYaml).ports }}
 {{- $annotations := deepCopy .Values.mailService.annotations }}
+{{- if eq $type "LoadBalancer" }}
+{{- $annotations = merge $annotations (include "mailu-wrapper.publicAddress" . | fromYaml) }}
+{{- if .Values.dns.enabled }}
+{{- $_ := set $annotations "external-dns.alpha.kubernetes.io/hostname" (first .Values.upstream.hostnames) }}
+{{- $_ := set $annotations "external-dns.alpha.kubernetes.io/ttl" (toString .Values.dns.ttl) }}
+{{- end }}
+{{- end }}
 {{- if not .Values.certificate.enabled }}
 {{- $_ := set $annotations "service.beta.openshift.io/serving-cert-secret-name" (printf "%s-certificates" (include "mailu-wrapper.fullname" .)) }}
 {{- end }}
@@ -11,8 +19,9 @@ metadata:
   annotations: {{- toYaml . | nindent 4 }}
   {{- end }}
 spec:
-  type: {{ .Values.mailService.type }}
-  {{- if ne .Values.mailService.type "ClusterIP" }}
+  type: {{ $type }}
+  {{- if ne $type "ClusterIP" }}
+  # never shared: behind a shared address every sender has the address of a node
   externalTrafficPolicy: {{ .Values.mailService.externalTrafficPolicy }}
   {{- end }}
   selector: {{- include "mailu-wrapper.selector" (dict "context" . "component" "front") | nindent 4 }}

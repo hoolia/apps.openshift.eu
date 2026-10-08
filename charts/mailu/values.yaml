@@ -20,6 +20,8 @@ secrets:
 
 # Public Service for the mail protocols
 mailService:
+  # true: LoadBalancer Service with a public address, whatever type says
+  public: false
   # LoadBalancer gives the mail ports a public address
   type: ClusterIP
   externalTrafficPolicy: Local
@@ -37,6 +39,20 @@ mailService:
     # webmail on the mail address itself, next to the Route
     http: false
     https: false
+
+# Records in the platform's DNS, written by external-dns. Works for a mail domain in a
+# zone that external-dns serves; for any other zone create the records yourself.
+dns:
+  enabled: false
+  ttl: 300
+  # priority of the MX record
+  mxPriority: 10
+  spf: v=spf1 mx -all
+  dmarc: v=DMARC1; p=quarantine
+  dkim:
+    selector: dkim
+    # public key from the admin interface (Mail domains, Details); empty: no record
+    publicKey: ""
 
 # Second public address, used only as the source of outgoing mail
 egressService:
@@ -102,6 +118,17 @@ imapsync:
       memory: 512Mi
 
 global:
+  # Public address of the load balancer (MetalLB annotations)
+  publicAddress:
+    # true: the public Services of this project share one address. They then use
+    # externalTrafficPolicy Cluster, so a server no longer sees the address of its
+    # client. The mail Service never shares: it needs that address to refuse spam
+    # and relaying. false: one address per Service.
+    shared: false
+    # Services with the same key share; empty: the name of the project
+    sharingKey: ""
+    # with shared: ask for this address; empty: the load balancer assigns one
+    ip: ""
   database:
     roundcube:
       existingSecret: mailu-secrets

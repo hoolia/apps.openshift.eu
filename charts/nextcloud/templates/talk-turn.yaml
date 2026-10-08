@@ -4,6 +4,7 @@
 {{- $type := ternary "LoadBalancer" $turn.service.type $turn.public }}
 {{- $annotations := deepCopy $turn.service.annotations }}
 {{- if $turn.public }}
+{{- $annotations = merge $annotations (include "wrapper.publicAddress" . | fromYaml) }}
 {{- $_ := set $annotations "external-dns.alpha.kubernetes.io/hostname" $host }}
 {{- end }}
 apiVersion: apps/v1
@@ -146,7 +147,7 @@ metadata:
 spec:
   type: {{ $type }}
   {{- if ne $type "ClusterIP" }}
-  externalTrafficPolicy: {{ $turn.service.externalTrafficPolicy }}
+  externalTrafficPolicy: {{ include "wrapper.trafficPolicy" (dict "root" . "policy" $turn.service.externalTrafficPolicy) }}
   {{- end }}
   ports:
   - name: turn-tcp

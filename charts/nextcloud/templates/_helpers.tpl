@@ -205,3 +205,22 @@ app.openshift.io/connects-to: {{ $to | toJson | squote }}
 app.openshift.io/custom-icon: {{ . }}
 {{- end }}
 {{- end -}}
+
+{{/*
+Annotations that let the LoadBalancer Services of one project share a public address.
+Read from global, so a chart and its subcharts ask for the same address.
+*/}}
+{{- define "wrapper.publicAddress" -}}
+{{- $p := (.Values.global).publicAddress | default dict -}}
+{{- if $p.shared }}
+metallb.io/allow-shared-ip: {{ $p.sharingKey | default .Release.Namespace | quote }}
+{{- with $p.ip }}
+metallb.io/loadBalancerIPs: {{ . | quote }}
+{{- end }}
+{{- end }}
+{{- end -}}
+
+{{/* Services that share an address must all use the policy Cluster. */}}
+{{- define "wrapper.trafficPolicy" -}}
+{{- if ((.root.Values.global).publicAddress).shared -}}Cluster{{- else -}}{{ .policy }}{{- end -}}
+{{- end -}}

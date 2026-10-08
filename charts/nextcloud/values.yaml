@@ -296,6 +296,25 @@ backup:
 # Mail server in the same project; its values are those of the mailu chart
 mailu:
   enabled: true
+  # the mail server uses neither of these; they must be switched off at this depth
+  upstream:
+    mariadb:
+      enabled: false
+    postgresql:
+      enabled: false
+
+global:
+  # Public address of the load balancer (MetalLB annotations)
+  publicAddress:
+    # true: the public Services of this project share one address. They then use
+    # externalTrafficPolicy Cluster, so a server no longer sees the address of its
+    # client. The mail Service never shares: it needs that address to refuse spam
+    # and relaying. false: one address per Service.
+    shared: false
+    # Services with the same key share; empty: the name of the project
+    sharingKey: ""
+    # with shared: ask for this address; empty: the load balancer assigns one
+    ip: ""
 
 hpa:
   enabled: false

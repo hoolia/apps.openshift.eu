@@ -42,3 +42,22 @@ cluster, else a new random one.
 {{- end -}}
 {{- dict "ports" $out | toYaml -}}
 {{- end -}}
+
+{{/*
+Annotations that let the LoadBalancer Services of one project share a public address.
+Read from global, so a chart and its subcharts ask for the same address.
+*/}}
+{{- define "mailu-wrapper.publicAddress" -}}
+{{- $p := (.Values.global).publicAddress | default dict -}}
+{{- if $p.shared }}
+metallb.io/allow-shared-ip: {{ $p.sharingKey | default .Release.Namespace | quote }}
+{{- with $p.ip }}
+metallb.io/loadBalancerIPs: {{ . | quote }}
+{{- end }}
+{{- end }}
+{{- end -}}
+
+{{/* Services that share an address must all use the policy Cluster. */}}
+{{- define "mailu-wrapper.trafficPolicy" -}}
+{{- if ((.root.Values.global).publicAddress).shared -}}Cluster{{- else -}}{{ .policy }}{{- end -}}
+{{- end -}}

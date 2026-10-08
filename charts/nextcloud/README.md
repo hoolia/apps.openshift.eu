@@ -28,6 +28,7 @@ password:
 | `secrets.type` | `kubernetes` | `externalSecret` reads the secrets from a secret store. |
 | `secrets.adminPassword` | empty | Password of the first administrator. Empty: generated. |
 | `smtp.host` | empty | Outgoing mail server. |
+| `global.publicAddress.shared` | `false` | Share one public address between the public Services of the project. See Delivery instructions. |
 | `mailu.enabled` | `true` | Run a Mailu mail server in the same project. Its values are those of the `mailu` chart, under `mailu`. |
 | `hsts.enabled` | `true` | Send the Strict-Transport-Security header `hsts.header` on every hostname of this chart. |
 | `settings.maintenanceWindowStart` | `1` | Hour (UTC) at which the heavy daily jobs start. Empty: not set. |
@@ -81,10 +82,33 @@ The second command applies only with `ai.enabled` or `taskprocessing.enabled`.
 
 ## Delivery instructions
 
-- Every hostname needs a DNS record pointing at the platform's ingress. A hostname under
-  the platform's application domain works without a request. For your own domain, ask
-  the platform team for the target and create the records at your DNS provider; the
-  certificates follow automatically once the names resolve.
+- DNS records. A hostname under the platform's application domain needs nothing: the
+  platform's DNS follows the Routes and the public Services by itself. For your own
+  domain, create these records at your DNS provider. `<host>` is
+  `nextcloud.nextcloud.host`. Read `<ingress>` with
+  `oc get route nextcloud -o jsonpath='{.status.ingress[0].routerCanonicalHostname}'`.
+
+  | Type | Name | Value | Needed for |
+  |---|---|---|---|
+  | `CNAME` | `<host>` | `<ingress>` | Nextcloud, push and whiteboard |
+  | `CNAME` | `office-<host>` (or `onlyoffice.host`) | `<ingress>` | OnlyOffice |
+  | `CNAME` | `signaling-<host>` (or `talk.signaling.host`) | `<ingress>` | Talk |
+  | `A` | `turn-<host>` (or `talk.turn.host`) | address of `oc get service nextcloud-turn` | Talk across networks, with `talk.turn.public` |
+  | `A` | `mail.<mail domain>` | address of `oc get service mailu-front-ext` | Mail |
+  | `MX` | `<mail domain>` | `10 mail.<mail domain>` | Mail |
+  | `TXT` | `<mail domain>` | `v=spf1 mx -all` | Mail (SPF) |
+  | `TXT` | `dkim._domainkey.<mail domain>` | record shown in the mail admin interface under Mail domains, Details | Mail (DKIM) |
+  | `TXT` | `_dmarc.<mail domain>` | `v=DMARC1; p=quarantine` | Mail (DMARC) |
+
+  A name that is the zone itself (`example.org`) cannot be a `CNAME`: use your
+  provider's `ALIAS` record, or an `A` record with the address `<ingress>` resolves to.
+  Create the records before you switch the hostname: each certificate is issued once
+  its name resolves here. The mail rows are explained in the Delivery instructions of
+  the `mailu` chart, with `mailu.mailService.public=true` and `mailu.dns.enabled`.
+- Public addresses. Talk and mail each take one address of the load balancer. With
+  `global.publicAddress.shared=true` the public Services that can share one address do
+  so; they then use `externalTrafficPolicy: Cluster` and no longer see the address of
+  their client. The mail Service always keeps an address of its own.
 - With `secrets.type=externalSecret`, create the items named in
   `secrets.externalSecret.items` for the components you enable in your vault collection,
   each with the value in the password field, and set `secrets.externalSecret.storeName`
