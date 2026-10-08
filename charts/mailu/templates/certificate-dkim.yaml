@@ -1,0 +1,25 @@
+{{- $dkim := (.Values.global).dkim | default dict }}
+{{- if $dkim.managed }}
+# Never renewed with a new key: the public half is in DNS
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "mailu-wrapper.fullname" . }}-dkim
+spec:
+  secretName: {{ include "mailu-wrapper.fullname" . }}-dkim
+  commonName: {{ .Values.upstream.domain }}
+  duration: 87600h
+  privateKey:
+    algorithm: RSA
+    size: 2048
+    encoding: PKCS1
+    rotationPolicy: Never
+  issuerRef:
+    name: {{ $dkim.issuer.name }}
+    kind: {{ $dkim.issuer.kind }}
+    group: cert-manager.io
+  {{- with $dkim.secretTemplate }}
+  secretTemplate:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}

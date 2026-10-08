@@ -95,16 +95,17 @@ The second command applies only with `ai.enabled` or `taskprocessing.enabled`.
   | `CNAME` | `signaling-<host>` (or `talk.signaling.host`) | `<ingress>` | Talk |
   | `A` | `turn-<host>` (or `talk.turn.host`) | address of `oc get service nextcloud-turn` | Talk across networks, with `talk.turn.public` |
   | `A` | `mail.<mail domain>` | address of `oc get service mailu-front-ext` | Mail |
-  | `MX` | `<mail domain>` | `10 mail.<mail domain>` | Mail |
+  | `MX` | `<mail domain>` | `10 mail.<mail domain>.` | Mail. Never written by the platform: ask the platform team for a mail domain in a zone of the platform. |
   | `TXT` | `<mail domain>` | `v=spf1 mx -all` | Mail (SPF) |
-  | `TXT` | `dkim._domainkey.<mail domain>` | record shown in the mail admin interface under Mail domains, Details | Mail (DKIM) |
+  | `TXT` | `dkim._domainkey.<mail domain>` | record shown in the mail admin interface under Mail domains, Details | Mail (DKIM). Written by the platform with `global.dkim.managed=true`. |
   | `TXT` | `_dmarc.<mail domain>` | `v=DMARC1; p=quarantine` | Mail (DMARC) |
 
   A name that is the zone itself (`example.org`) cannot be a `CNAME`: use your
   provider's `ALIAS` record, or an `A` record with the address `<ingress>` resolves to.
   Create the records before you switch the hostname: each certificate is issued once
   its name resolves here. The mail rows are explained in the Delivery instructions of
-  the `mailu` chart, with `mailu.mailService.public=true` and `mailu.dns.enabled`.
+  the `mailu` chart, with `mailu.mailService.public=true`, `mailu.dns.enabled` and
+  `global.dkim.managed`.
 - Public addresses. Talk and mail each take one address of the load balancer. With
   `global.publicAddress.shared=true` the public Services that can share one address do
   so; they then use `externalTrafficPolicy: Cluster` and no longer see the address of

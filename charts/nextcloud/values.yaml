@@ -304,6 +304,17 @@ mailu:
       enabled: false
 
 global:
+  # DKIM signing key of the mail server, made by cert-manager; the platform then
+  # publishes the DKIM record. Set at install, see the mailu chart.
+  dkim:
+    managed: false
+    selector: dkim
+    issuer:
+      name: selfsigned
+      kind: ClusterIssuer
+    # labels and annotations of the Secret that holds the key, by which a platform
+    # recognises it and publishes the DKIM record
+    secretTemplate: {}
   # Public address of the load balancer (MetalLB annotations)
   publicAddress:
     # true: the public Services of this project share one address. They then use

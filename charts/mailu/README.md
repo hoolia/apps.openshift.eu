@@ -36,7 +36,8 @@ Read the webmail address and the password of the first account (`admin@<domain>`
 | `secrets.initialAdminPassword` | empty | Password of the first admin account. Empty: generated. |
 | `mailService.public` | `false` | `true` gives the mail protocols a public address (LoadBalancer Service). |
 | `dns.enabled` | `false` | Ask the platform's DNS (external-dns) for the records of the mail domain. See Delivery instructions. |
-| `dns.dkim.publicKey` | empty | Public DKIM key from the admin interface. With `dns.enabled` it becomes the DKIM record. |
+| `global.dkim.managed` | `false` | `true`: cert-manager makes the DKIM signing key. Set it at install. |
+| `global.dkim.secretTemplate` | `{}` | Labels and annotations of the Secret with that key. A platform that publishes the DKIM record recognises the Secret by them. |
 | `dns.spf`, `dns.dmarc` | `v=spf1 mx -all`, `v=DMARC1; p=quarantine` | Content of the SPF and DMARC records. |
 | `global.publicAddress.shared` | `false` | Let the other public Services of the project share one address. The mail Service never shares. |
 | `mailService.annotations` | `{}` | Annotations of that Service, for example the address pool. |
@@ -91,7 +92,7 @@ project, the mail domain and the hostname of the mail server.
   | `A` | `<mail host>` | `<address>` |
   | `MX` | `<domain>` | `10 <mail host>` |
   | `TXT` | `<domain>` | `v=spf1 mx -all` (SPF). Add `ip4:<outgoing address>` when mail leaves from another address. |
-  | `TXT` | `dkim._domainkey.<domain>` | The record shown in the admin interface under Mail domains, Details, after Generate keys (DKIM). |
+  | `TXT` | `dkim._domainkey.<domain>` | The record shown in the admin interface under Mail domains, Details (DKIM). Press Generate keys first, unless `global.dkim.managed=true`. |
   | `TXT` | `_dmarc.<domain>` | `v=DMARC1; p=quarantine; rua=mailto:postmaster@<domain>` (DMARC) |
   | `CNAME` | `autoconfig.<domain>` | `<mail host>`. Optional; also set `mailService.ports.http` and `https` to true. |
   | `PTR` | `<outgoing address>` | `<mail host>`. Set by the owner of the address: ask the platform team. |
@@ -99,11 +100,12 @@ project, the mail domain and the hostname of the mail server.
   Your own DNS zone: create these records at your DNS provider. Start with `A` and wait
   until it resolves, then `MX`; mail for the domain arrives here from that moment.
 
-  A zone the platform serves: set `dns.enabled=true`. The `A` record then follows the
-  Service by itself. `MX`, SPF and DMARC are requested with a DNSEndpoint, and DKIM as
-  well once `dns.dkim.publicKey` holds the key. Whether the platform's external-dns
-  writes `MX` and `TXT` records depends on its configuration; check with
-  `dig MX <domain>` and ask the platform team when they stay away.
+  A zone the platform serves: set `dns.enabled=true` and `global.dkim.managed=true`. The
+  `A` record then follows the Service, SPF and DMARC are requested with a DNSEndpoint,
+  and the DKIM record follows the signing key that cert-manager keeps in the Secret
+  `mailu-dkim`. The `MX` record is not written by the platform: ask the platform team
+  for `MX <domain> 10 <mail host>.` and check with `dig MX <domain>`. Do not press
+  Generate keys with a managed key: the key file is read-only.
 - Shared address. With `global.publicAddress.shared=true` the public Services of the
   project that can share one address do so, and switch to `externalTrafficPolicy:
   Cluster`. The mail Service keeps its own address: behind a shared address every

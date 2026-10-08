@@ -45,14 +45,8 @@ mailService:
 dns:
   enabled: false
   ttl: 300
-  # priority of the MX record
-  mxPriority: 10
   spf: v=spf1 mx -all
   dmarc: v=DMARC1; p=quarantine
-  dkim:
-    selector: dkim
-    # public key from the admin interface (Mail domains, Details); empty: no record
-    publicKey: ""
 
 # Second public address, used only as the source of outgoing mail
 egressService:
@@ -118,6 +112,18 @@ imapsync:
       memory: 512Mi
 
 global:
+  # DKIM signing key made by cert-manager instead of in the admin interface. The
+  # platform publishes its public half as the DKIM record. Switch on at install: a
+  # key made in the admin interface earlier is no longer used.
+  dkim:
+    managed: false
+    selector: dkim
+    issuer:
+      name: selfsigned
+      kind: ClusterIssuer
+    # labels and annotations of the Secret that holds the key, by which a platform
+    # recognises it and publishes the DKIM record
+    secretTemplate: {}
   # Public address of the load balancer (MetalLB annotations)
   publicAddress:
     # true: the public Services of this project share one address. They then use
@@ -247,13 +253,25 @@ upstream:
       volumeMounts:
       - name: startup-script
         mountPath: /shared
-    extraVolumeMounts:
-    - name: startup-script
-      mountPath: /start.py
-      subPath: start.py
-    extraVolumes:
-    - name: startup-script
-      emptyDir: {}
+    # text, not a list: the DKIM key is mounted only with global.dkim.managed
+    extraVolumeMounts: |
+      - name: startup-script
+        mountPath: /start.py
+        subPath: start.py
+      {{- if (.Values.global.dkim).managed }}
+      - name: dkim-key
+        mountPath: /dkim/{{ .Values.domain }}.{{ .Values.global.dkim.selector }}.key
+        subPath: tls.key
+        readOnly: true
+      {{- end }}
+    extraVolumes: |
+      - name: startup-script
+        emptyDir: {}
+      {{- if (.Values.global.dkim).managed }}
+      - name: dkim-key
+        secret:
+          secretName: {{ include "mailu.names.fullname" . }}-dkim
+      {{- end }}
     resources:
       requests:
         cpu: 50m
@@ -332,33 +350,45 @@ upstream:
   rspamd:
     containerSecurityContext: *root
     affinity: *followAdmin
-    extraVolumes:
-    - name: override-d
-      configMap:
-        name: '{{ include "mailu.names.fullname" . }}-rspamd-override-d'
-    extraVolumeMounts:
-    # DKIM keys of the admin interface, on the shared volume
-    - name: data
-      mountPath: /dkim
-      subPath: dkim
-    - name: override-d
-      mountPath: /etc/rspamd/override.d/dkim_signing.conf
-      subPath: dkim_signing.conf
-    - name: override-d
-      mountPath: /etc/rspamd/override.d/force_actions.conf
-      subPath: force_actions.conf
-    - name: override-d
-      mountPath: /etc/rspamd/override.d/whitelist.conf
-      subPath: whitelist.conf
-    - name: override-d
-      mountPath: /etc/rspamd/override.d/local_subnet.map
-      subPath: local_subnet.map
-    - name: override-d
-      mountPath: /etc/rspamd/override.d/greylist.conf
-      subPath: greylist.conf
-    - name: override-d
-      mountPath: /etc/rspamd/override.d/greylist-whitelist-domains.map
-      subPath: greylist-whitelist-domains.map
+    # text, not a list: the DKIM key is mounted only with global.dkim.managed
+    extraVolumes: |
+      - name: override-d
+        configMap:
+          name: {{ include "mailu.names.fullname" . }}-rspamd-override-d
+      {{- if (.Values.global.dkim).managed }}
+      - name: dkim-key
+        secret:
+          secretName: {{ include "mailu.names.fullname" . }}-dkim
+      {{- end }}
+    extraVolumeMounts: |
+      # DKIM keys of the admin interface, on the shared volume
+      - name: data
+        mountPath: /dkim
+        subPath: dkim
+      - name: override-d
+        mountPath: /etc/rspamd/override.d/dkim_signing.conf
+        subPath: dkim_signing.conf
+      - name: override-d
+        mountPath: /etc/rspamd/override.d/force_actions.conf
+        subPath: force_actions.conf
+      - name: override-d
+        mountPath: /etc/rspamd/override.d/whitelist.conf
+        subPath: whitelist.conf
+      - name: override-d
+        mountPath: /etc/rspamd/override.d/local_subnet.map
+        subPath: local_subnet.map
+      - name: override-d
+        mountPath: /etc/rspamd/override.d/greylist.conf
+        subPath: greylist.conf
+      - name: override-d
+        mountPath: /etc/rspamd/override.d/greylist-whitelist-domains.map
+        subPath: greylist-whitelist-domains.map
+      {{- if (.Values.global.dkim).managed }}
+      - name: dkim-key
+        mountPath: /dkim/{{ .Values.domain }}.{{ .Values.global.dkim.selector }}.key
+        subPath: tls.key
+        readOnly: true
+      {{- end }}
     resources:
       requests:
         cpu: 100m
