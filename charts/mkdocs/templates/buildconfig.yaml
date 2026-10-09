@@ -8,7 +8,7 @@ spec:
     type: Git
     git:
       uri: {{ .Values.source.gitRepo }}
-      ref: {{ .Values.source.gitRef }}
+      ref: {{ .Values.source.gitRef | quote }}
     {{- with .Values.source.contextDir }}
     contextDir: {{ . }}
     {{- end }}

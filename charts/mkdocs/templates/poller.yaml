@@ -79,9 +79,9 @@ spec:
             - name: DEPLOYMENT
               value: {{ include "mkdocs.fullname" . }}
             - name: GIT_REPO
-              value: {{ .Values.source.gitRepo }}
+              value: {{ .Values.source.gitRepo | quote }}
             - name: GIT_REF
-              value: {{ .Values.source.gitRef }}
+              value: {{ .Values.source.gitRef | quote }}
             {{- if .Values.source.private }}
             - name: GIT_USERNAME
               valueFrom:

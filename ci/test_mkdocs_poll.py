@@ -41,12 +41,66 @@ class RolloutDigest(unittest.TestCase):
 
 
 class RemoteCommit(unittest.TestCase):
-    def test_first_line_wins(self):
-        out = "aaa111\trefs/heads/main\nbbb222\trefs/remotes/x/main\n"
-        self.assertEqual(poll.remote_commit(out), "aaa111")
+    def test_branch(self):
+        self.assertEqual(poll.remote_commit("aaa\trefs/heads/main\n", "main"), "aaa")
+
+    def test_other_branch_with_the_same_tail_is_ignored(self):
+        out = "bbb\trefs/heads/feature/main\naaa\trefs/heads/main\n"
+        self.assertEqual(poll.remote_commit(out, "main"), "aaa")
+
+    def test_annotated_tag_gives_the_commit_not_the_tag_object(self):
+        out = "ttt\trefs/tags/v1\nccc\trefs/tags/v1^{}\n"
+        self.assertEqual(poll.remote_commit(out, "v1"), "ccc")
+
+    def test_lightweight_tag(self):
+        self.assertEqual(poll.remote_commit("ccc\trefs/tags/v1\n", "v1"), "ccc")
 
     def test_missing_ref_gives_empty(self):
-        self.assertEqual(poll.remote_commit(""), "")
+        self.assertEqual(poll.remote_commit("", "main"), "")
+        self.assertEqual(poll.remote_commit("bbb\trefs/heads/feature/main\n", "main"), "")
+
+
+class LsRemote(unittest.TestCase):
+    URL = "https://u:s3cr3t@h/r.git"
+
+    def run_with(self, fake):
+        import contextlib
+        import io
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):
+            result = poll.ls_remote(self.URL, "main", run=fake)
+        return result, out.getvalue()
+
+    def test_timeout_gives_none_and_prints_no_password(self):
+        def fake(cmd, **kwargs):
+            raise poll.subprocess.TimeoutExpired(cmd, 60)
+        result, printed = self.run_with(fake)
+        self.assertIsNone(result)
+        self.assertNotIn("s3cr3t", printed)
+
+    def test_failure_gives_none_and_prints_no_password(self):
+        def fake(cmd, **kwargs):
+            return poll.subprocess.CompletedProcess(cmd, 128, "", f"fatal: {self.URL} not found")
+        result, printed = self.run_with(fake)
+        self.assertIsNone(result)
+        self.assertNotIn("s3cr3t", printed)
+
+    def test_asks_for_exact_refs(self):
+        seen = {}
+
+        def fake(cmd, **kwargs):
+            seen["cmd"] = cmd
+            return poll.subprocess.CompletedProcess(cmd, 0, "aaa\trefs/heads/main\n", "")
+        result, _ = self.run_with(fake)
+        self.assertEqual(result, "aaa")
+        self.assertEqual(seen["cmd"][3:], ["refs/heads/main", "refs/tags/main", "refs/tags/main^{}"])
+
+
+class BuildRequest(unittest.TestCase):
+    def test_names_the_commit_so_a_failed_build_still_records_it(self):
+        request = poll.build_request("mkdocs", "abc123")
+        self.assertEqual(request["revision"], {"git": {"commit": "abc123"}})
+        self.assertEqual(request["metadata"], {"name": "mkdocs"})
 
 
 class ShouldBuild(unittest.TestCase):
