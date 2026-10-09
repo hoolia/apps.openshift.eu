@@ -64,4 +64,17 @@ has external "key: mkdocs-client-secret"
 has external "key: mkdocs-git-password"
 hasnt external "kind: Secret"
 
+OUT=$(render --set source.gitRepo=https://example.com/docs.git)
+for k in CronJob ServiceAccount Role RoleBinding; do has poller "kind: $k"; done
+has poller "buildconfigs/instantiate"
+has poller 'schedule: "*/10 * * * *"'
+# poll.py itself names GIT_PASSWORD, so assert on the secret reference
+hasnt poller "key: password"
+
+OUT=$(render --set source.gitRepo=https://example.com/docs.git --set source.private=true)
+has "poller private" "key: password"
+
+OUT=$(render --set source.gitRepo=https://example.com/docs.git --set source.pollSchedule=)
+hasnt "poller off" "kind: CronJob"
+
 [ $fail = 0 ] && echo "RESULT PASS" || { echo "RESULT FAIL"; exit 1; }
