@@ -6,7 +6,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 1.5.8
-    created: "2026-10-08T08:05:23.532351019Z"
+    created: "2026-10-09T08:14:41.109666118Z"
     dependencies:
     - alias: upstream
       name: bifrost
@@ -37,7 +37,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 1.5.8
-    created: "2026-10-08T08:05:31.979102844Z"
+    created: "2026-10-09T08:14:49.493615487Z"
     dependencies:
     - alias: upstream
       name: bifrost
@@ -68,7 +68,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 1.5.8
-    created: "2026-10-08T08:05:40.780345908Z"
+    created: "2026-10-09T08:14:59.436395809Z"
     dependencies:
     - alias: upstream
       name: bifrost
@@ -100,7 +100,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 19.3.1
-    created: "2026-10-08T08:05:31.124052405Z"
+    created: "2026-10-09T08:14:48.628945754Z"
     description: GitLab instance for source code, merge requests and pipelines, run
       by the GitLab operator
     digest: e154c53eb21905046cc42f4799c490808b1de1d9cd27790c6eabdaa061f83cf9
@@ -128,7 +128,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 19.3.1
-    created: "2026-10-08T08:05:33.743698074Z"
+    created: "2026-10-09T08:14:51.637850647Z"
     description: GitLab instance for source code, merge requests and pipelines, run
       by the GitLab operator
     digest: 0f2cefada68b95d0b442f7447dd119930b1b5ef4e21d6c55c345482c5276d9fc
@@ -157,7 +157,39 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 2024.06.46
-    created: "2026-10-08T08:05:19.825254078Z"
+    created: "2026-10-09T08:14:35.057720605Z"
+    dependencies:
+    - alias: upstream
+      name: mailu
+      repository: https://mailu.github.io/helm-charts
+      version: 2.6.3
+    description: Mail server with SMTP, IMAP, webmail, spam filter and admin interface
+    digest: f526fe8a7377d585dff7306e9f01ee7d4289f3df987b88c6917154d7529f302e
+    home: https://apps.openshift.eu
+    icon: https://mailu.io/master/_images/logo.png
+    keywords:
+    - mail
+    - email
+    - smtp
+    - imap
+    - webmail
+    maintainers:
+    - name: GRN.CLOUD B.V.
+      url: https://apps.openshift.eu
+    name: mailu
+    sources:
+    - https://github.com/Mailu/helm-charts
+    - https://github.com/hoolia/apps.openshift.eu
+    type: application
+    urls:
+    - https://github.com/hoolia/apps.openshift.eu/releases/download/mailu-0.1.4/mailu-0.1.4.tgz
+    version: 0.1.4
+  - annotations:
+      charts.openshift.io/name: Mailu
+      charts.openshift.io/provider: GRN.CLOUD B.V.
+    apiVersion: v2
+    appVersion: 2024.06.46
+    created: "2026-10-09T08:14:37.016913552Z"
     dependencies:
     - alias: upstream
       name: mailu
@@ -189,7 +221,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 2024.06.46
-    created: "2026-10-08T08:05:21.658307801Z"
+    created: "2026-10-09T08:14:39.155727587Z"
     dependencies:
     - alias: upstream
       name: mailu
@@ -221,7 +253,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 2024.06.46
-    created: "2026-10-08T08:05:30.270043167Z"
+    created: "2026-10-09T08:14:47.675246762Z"
     dependencies:
     - alias: upstream
       name: mailu
@@ -253,7 +285,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 2024.06.46
-    created: "2026-10-08T08:05:44.451333592Z"
+    created: "2026-10-09T08:15:03.414444147Z"
     dependencies:
     - alias: upstream
       name: mailu
@@ -286,7 +318,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 2.41.6
-    created: "2026-10-08T08:05:29.305431932Z"
+    created: "2026-10-09T08:14:46.707871325Z"
     description: n8n workflow automation with a PostgreSQL database and optional queue
       mode
     digest: 307f4c4603f98274a24df179bc4afae270f8d9252aa012702302520f02fb440c
@@ -313,7 +345,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 2.41.6
-    created: "2026-10-08T08:05:35.271800074Z"
+    created: "2026-10-09T08:14:53.507406176Z"
     description: n8n workflow automation with a PostgreSQL database and optional queue
       mode
     digest: bd1f1078f822fcd4e73bbf953ca547a34c00a8ae0432d4a172594c01b3c8d0b3
@@ -341,7 +373,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 33.0.8
-    created: "2026-10-08T08:05:18.971655964Z"
+    created: "2026-10-09T08:14:36.079345978Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -375,7 +407,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 33.0.8
-    created: "2026-10-08T08:05:20.782693725Z"
+    created: "2026-10-09T08:14:38.04399974Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -409,7 +441,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 33.0.8
-    created: "2026-10-08T08:05:22.64725673Z"
+    created: "2026-10-09T08:14:40.194965472Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -443,7 +475,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 33.0.8
-    created: "2026-10-08T08:05:28.467604747Z"
+    created: "2026-10-09T08:14:45.792504501Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -477,7 +509,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 33.0.8
-    created: "2026-10-08T08:05:32.988834398Z"
+    created: "2026-10-09T08:14:50.53307145Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -511,7 +543,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 33.0.8
-    created: "2026-10-08T08:05:37.159475222Z"
+    created: "2026-10-09T08:14:55.461286771Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -545,7 +577,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 33.0.8
-    created: "2026-10-08T08:05:38.178641762Z"
+    created: "2026-10-09T08:14:56.491723836Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -579,7 +611,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 33.0.8
-    created: "2026-10-08T08:05:39.021894928Z"
+    created: "2026-10-09T08:14:57.492541046Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -613,7 +645,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 33.0.8
-    created: "2026-10-08T08:05:39.909157439Z"
+    created: "2026-10-09T08:14:58.504978212Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -647,7 +679,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 33.0.8
-    created: "2026-10-08T08:05:42.479441853Z"
+    created: "2026-10-09T08:15:01.371988104Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -681,7 +713,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 33.0.8
-    created: "2026-10-08T08:05:43.521813522Z"
+    created: "2026-10-09T08:15:02.455509597Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -716,7 +748,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 3.94.2
-    created: "2026-10-08T08:05:27.510771865Z"
+    created: "2026-10-09T08:14:44.67285595Z"
     description: Sonatype Nexus Repository for Maven, npm, container images and other
       package formats
     digest: 2d163fd91301b776c58fe1530c19586ce799b494eaaf7d700b14523390c0cae2
@@ -742,7 +774,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 3.94.2
-    created: "2026-10-08T08:05:41.514352984Z"
+    created: "2026-10-09T08:15:00.296379122Z"
     description: Sonatype Nexus Repository for Maven, npm, container images and other
       package formats
     digest: 73704fdf9c3e5aacd7aec74591520c01dec3696b4e241b1daec83bbe3b9fd15b
@@ -769,7 +801,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: "19.0"
-    created: "2026-10-08T08:05:26.685804937Z"
+    created: "2026-10-09T08:14:43.77998512Z"
     description: Odoo Community business applications with a PostgreSQL database and
       a filestore volume
     digest: d8c3c2eceb5aeaf1f977049c30898845e039f4af72438e698d0fd0ace7db8dec
@@ -797,7 +829,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: "19.0"
-    created: "2026-10-08T08:05:34.48482066Z"
+    created: "2026-10-09T08:14:52.583936308Z"
     description: Odoo Community business applications with a PostgreSQL database and
       a filestore volume
     digest: bc6c410c1f343bf6dcddfc53107b1f56c57164410bbf3cea56bab74e00c54316
@@ -826,7 +858,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 3.8.49
-    created: "2026-10-08T08:05:25.842149416Z"
+    created: "2026-10-09T08:14:42.893965516Z"
     description: Self-hosted AI proxy that routes LLM requests to many providers through
       one endpoint
     digest: 6c742fbe39006351ce574e872e4946683a4875cd4b15dfca80badaaf959280a4
@@ -852,7 +884,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 3.8.49
-    created: "2026-10-08T08:05:45.363543488Z"
+    created: "2026-10-09T08:15:04.285280211Z"
     description: Self-hosted AI proxy that routes LLM requests to many providers through
       one endpoint
     digest: 66a1c2cda85e1a7c4064009c785dac097383498ee45eb28d4fa92523b66288db
@@ -878,7 +910,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 3.8.49
-    created: "2026-10-08T08:05:46.182475788Z"
+    created: "2026-10-09T08:15:05.326028114Z"
     description: Self-hosted AI proxy that routes LLM requests to many providers through
       one endpoint
     digest: 0b81b8abf1dec23a30410c71bc9cc5aa9b88075f5593577e63709c4b884c2cc6
@@ -904,7 +936,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 3.8.49
-    created: "2026-10-08T08:05:47.065248797Z"
+    created: "2026-10-09T08:15:06.198704664Z"
     description: Self-hosted AI proxy that routes LLM requests to many providers through
       one endpoint
     digest: 61fdc2ed6882612630d8da3914814eafdde0d58e1b397ac6f483237e572f500c
@@ -930,7 +962,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 3.8.49
-    created: "2026-10-08T08:05:47.878008146Z"
+    created: "2026-10-09T08:15:07.13429666Z"
     description: Self-hosted AI proxy that routes LLM requests to many providers through
       one endpoint
     digest: bdb19c8d5b028e55c462d885935ecc49a5ed3868b6a99899c68b4048d60e736b
@@ -957,7 +989,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 1.37.3
-    created: "2026-10-08T08:05:24.733694799Z"
+    created: "2026-10-09T08:14:41.968271017Z"
     description: Vaultwarden password manager, a server for the Bitwarden apps and
       browser extensions
     digest: b01316118763caecf7808d77af70bdc4eed8907e10387a513c47459d5686dff2
@@ -984,7 +1016,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 1.37.3
-    created: "2026-10-08T08:05:36.292926502Z"
+    created: "2026-10-09T08:14:54.411591995Z"
     description: Vaultwarden password manager, a server for the Bitwarden apps and
       browser extensions
     digest: 63951a3c56acb2ef2e8fffbcb9a270e4dbe51bd7c948666a46a54b7ba81de83a
@@ -1006,4 +1038,4 @@ entries:
     urls:
     - https://github.com/hoolia/apps.openshift.eu/releases/download/vaultwarden-0.1.0/vaultwarden-0.1.0.tgz
     version: 0.1.0
-generated: "2026-10-08T08:05:47.877097955Z"
+generated: "2026-10-09T08:15:07.133293549Z"
