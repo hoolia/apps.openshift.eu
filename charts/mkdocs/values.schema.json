@@ -45,7 +45,7 @@
         "type": {"enum": ["kubernetes", "externalSecret"]},
         "gitPassword": {"type": "string"},
         "clientSecret": {"type": "string"},
-        "cookieSecret": {"type": "string", "pattern": "^$|^.{16}$|^.{24}$|^.{32}$"},
+        "cookieSecret": {"type": "string"},
         "externalSecret": {"type": "object"}
       }
     }

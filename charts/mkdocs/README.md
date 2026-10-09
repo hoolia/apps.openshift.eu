@@ -40,4 +40,4 @@ A commit whose build fails is not built again; the site keeps serving the last g
 - A hostname outside the default application domain needs a DNS record pointing at the platform's ingress. Ask the platform team for the record; the certificate follows automatically once it resolves.
 - A login needs an OIDC client with the redirect address `https://<hostname>/oauth2/callback`. Ask the platform team for a client at the platform's issuer, or use your own issuer.
 - To restrict by group, the issuer must put the user's groups in the token claim named by `oauth.groupsClaim`.
-- With `secrets.type=externalSecret`, create the items named in `secrets.externalSecret.items` in your vault collection, each with the value in the password field, and set `secrets.externalSecret.storeName` to your store.
+- With `secrets.type=externalSecret`, create the items named in `secrets.externalSecret.items` in your vault collection, each with the value in the password field, and set `secrets.externalSecret.storeName` to your store. The cookie secret item must hold 16, 24 or 32 characters.

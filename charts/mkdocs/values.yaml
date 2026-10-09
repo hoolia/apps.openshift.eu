@@ -70,7 +70,8 @@ secrets:
   type: kubernetes
   gitPassword: ""
   clientSecret: ""
-  # empty: generated once and kept on upgrade
+  # empty: generated once and kept on upgrade. A value that is not 16, 24 or
+  # 32 characters long is hashed to 32
   cookieSecret: ""
   externalSecret:
     storeKind: ClusterSecretStore
