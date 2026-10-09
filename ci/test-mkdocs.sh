@@ -17,6 +17,9 @@ has default "memory: 1Gi"
 hasnt default "kind: CronJob"
 hasnt default "kind: NetworkPolicy"
 hasnt default "kind: Secret"
+has default "location = /healthz"
+has default "path: /healthz"
+hasnt default "deny all;"
 
 OUT=$(render --set source.gitRepo=https://example.com/docs.git --set source.contextDir=site --set source.requirementsFile=req.txt)
 has git "uri: https://example.com/docs.git"
@@ -49,6 +52,9 @@ has oauth "kind: NetworkPolicy"
 has oauth "targetPort: 4180"
 has oauth "name: mkdocs-oauth"
 hasnt oauth "s3cr3t"
+# other policies of the cluster can open the site port: nginx itself refuses all but the proxy
+has oauth "allow 127.0.0.1;"
+has oauth "deny all;"
 
 OUT=$(render $OA --set-json 'oauth.allowedGroups=[""]')
 has "empty group" "name: oauth2-proxy"

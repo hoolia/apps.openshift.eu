@@ -26,7 +26,7 @@ oc get route mkdocs -o jsonpath='https://{.spec.host}{"\n"}'
 - `source.strict` (default: true): Fail the build on a broken internal link.
 - `source.private`, `source.gitUsername`, `secrets.gitPassword`: Login of a private repository.
 - `source.pollSchedule` (default: every 10 minutes): How often to look for a new commit.
-- `route.hostname` (default: empty): Hostname of the site. Empty: OpenShift assigns one.
+- `route.hostname` (default: empty): Hostname of the site. Empty: OpenShift assigns one. Set it at install; a tenant cannot change the hostname of an existing Route.
 - `oauth.enabled` (default: false): Put the site behind a login.
 - `oauth.issuerUrl`, `oauth.clientId`, `secrets.clientSecret`: Your OIDC issuer and client. Required with `oauth.enabled`.
 - `oauth.allowedGroups` (default: empty): Only these groups get in. Empty: every user of the issuer.
