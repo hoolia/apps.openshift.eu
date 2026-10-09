@@ -1,0 +1,17 @@
+{{- if .Values.oauth.enabled }}
+# only the login proxy is reachable; the site port stays inside the pod
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "mkdocs.fullname" . }}
+spec:
+  podSelector:
+    matchLabels:
+      app: {{ include "mkdocs.fullname" . }}
+  policyTypes:
+  - Ingress
+  ingress:
+  - ports:
+    - protocol: TCP
+      port: 4180
+{{- end }}
