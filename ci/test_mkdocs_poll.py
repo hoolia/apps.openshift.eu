@@ -8,11 +8,36 @@ poll = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(poll)
 
 
-def build(phase, commit=None):
-    b = {"status": {"phase": phase}, "spec": {}}
+def build(phase, commit=None, digest=None, created="2026-01-01T00:00:00Z"):
+    b = {"status": {"phase": phase}, "spec": {}, "metadata": {"creationTimestamp": created}}
     if commit:
         b["spec"]["revision"] = {"git": {"commit": commit}}
+    if digest:
+        b["status"]["output"] = {"to": {"imageDigest": digest}}
     return b
+
+
+class RolloutDigest(unittest.TestCase):
+    def test_new_image_rolls(self):
+        builds = [build("Complete", digest="sha256:new")]
+        self.assertEqual(poll.rollout_digest(builds, "sha256:old"), "sha256:new")
+
+    def test_same_image_does_not_roll(self):
+        builds = [build("Complete", digest="sha256:same")]
+        self.assertIsNone(poll.rollout_digest(builds, "sha256:same"))
+
+    def test_newest_complete_build_wins(self):
+        builds = [build("Complete", digest="sha256:b", created="2026-01-02T00:00:00Z"),
+                  build("Complete", digest="sha256:a", created="2026-01-01T00:00:00Z")]
+        self.assertEqual(poll.rollout_digest(builds, "sha256:a"), "sha256:b")
+
+    def test_failed_build_does_not_roll(self):
+        builds = [build("Failed", created="2026-01-02T00:00:00Z"),
+                  build("Complete", digest="sha256:a", created="2026-01-01T00:00:00Z")]
+        self.assertIsNone(poll.rollout_digest(builds, "sha256:a"))
+
+    def test_no_complete_build_does_not_roll(self):
+        self.assertIsNone(poll.rollout_digest([build("Running")], ""))
 
 
 class RemoteCommit(unittest.TestCase):

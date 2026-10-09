@@ -16,6 +16,10 @@ rules:
 - apiGroups: ["build.openshift.io"]
   resources: ["buildconfigs/instantiate"]
   verbs: ["create"]
+- apiGroups: ["apps"]
+  resources: ["deployments"]
+  resourceNames: [{{ include "mkdocs.fullname" . | quote }}]
+  verbs: ["get", "patch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -49,6 +53,8 @@ spec:
   jobTemplate:
     spec:
       backoffLimit: 0
+      # the job waits for the build it started
+      activeDeadlineSeconds: 1200
       template:
         spec:
           serviceAccountName: {{ $name }}
@@ -69,6 +75,8 @@ spec:
             - name: HOME
               value: /tmp
             - name: BUILDCONFIG
+              value: {{ include "mkdocs.fullname" . }}
+            - name: DEPLOYMENT
               value: {{ include "mkdocs.fullname" . }}
             - name: GIT_REPO
               value: {{ .Values.source.gitRepo }}

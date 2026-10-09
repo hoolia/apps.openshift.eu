@@ -17,6 +17,10 @@ has default "memory: 1Gi"
 hasnt default "kind: CronJob"
 hasnt default "kind: NetworkPolicy"
 hasnt default "kind: Secret"
+# no image trigger: under Argo CD it fights over the image field
+hasnt default "image.openshift.io/triggers"
+has default "image: image-registry.openshift-image-registry.svc:5000/test/mkdocs:latest"
+has default "imagePullPolicy: Always"
 has default "location = /healthz"
 has default "path: /healthz"
 hasnt default "deny all;"
@@ -81,6 +85,9 @@ hasnt external "kind: Secret"
 OUT=$(render --set source.gitRepo=https://example.com/docs.git)
 for k in CronJob ServiceAccount Role RoleBinding; do has poller "kind: $k"; done
 has poller "buildconfigs/instantiate"
+# the poller restarts the Deployment after a build
+has poller 'resources: ["deployments"]'
+has poller "name: DEPLOYMENT"
 has poller 'schedule: "*/10 * * * *"'
 # poll.py itself names GIT_PASSWORD, so assert on the secret reference
 hasnt poller "key: password"

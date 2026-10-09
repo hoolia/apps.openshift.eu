@@ -25,7 +25,7 @@ oc get route mkdocs -o jsonpath='https://{.spec.host}{"\n"}'
 - `source.requirementsFile` (default: empty): pip requirements file. Empty: `mkdocs-material`.
 - `source.strict` (default: true): Fail the build on a broken internal link.
 - `source.private`, `source.gitUsername`, `secrets.gitPassword`: Login of a private repository.
-- `source.pollSchedule` (default: every 10 minutes): How often to look for a new commit.
+- `source.pollSchedule` (default: every 10 minutes): How often to look for a new commit. The same job restarts the site after a build; with an empty schedule run `oc rollout restart deployment/mkdocs` after a build yourself.
 - `route.hostname` (default: empty): Hostname of the site. Empty: OpenShift assigns one. Set it at install; a tenant cannot change the hostname of an existing Route.
 - `oauth.enabled` (default: false): Put the site behind a login.
 - `oauth.issuerUrl`, `oauth.clientId`, `secrets.clientSecret`: Your OIDC issuer and client. Required with `oauth.enabled`.
