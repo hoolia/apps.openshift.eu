@@ -19,6 +19,8 @@ source:
 build:
   builderImage: registry.access.redhat.com/ubi9/python-312:latest
   runtimeImage: registry.access.redhat.com/ubi9/nginx-124:latest
+  # registry of the cluster, where the build pushes and the pods pull
+  registry: image-registry.openshift-image-registry.svc:5000
   resources:
     requests:
       cpu: 100m
@@ -70,7 +72,8 @@ secrets:
   type: kubernetes
   gitPassword: ""
   clientSecret: ""
-  # empty: generated once and kept on upgrade
+  # empty: generated once and kept on upgrade. A value that is not 16, 24 or
+  # 32 characters long is hashed to 32
   cookieSecret: ""
   externalSecret:
     storeKind: ClusterSecretStore

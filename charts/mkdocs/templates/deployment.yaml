@@ -2,12 +2,6 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ include "mkdocs.fullname" . }}
-  annotations:
-    # a new build moves the tag; OpenShift then sets the image below
-    image.openshift.io/triggers: |
-      [{"from":{"kind":"ImageStreamTag","name":"{{ include "mkdocs.fullname" . }}:latest"},
-        "fieldPath":"spec.template.spec.containers[?(@.name==\"mkdocs\")].image",
-        "paused":false}]
 spec:
   replicas: {{ .Values.replicaCount }}
   selector:
@@ -33,7 +27,10 @@ spec:
           name: {{ include "mkdocs.fullname" . }}-nginx
       containers:
       - name: mkdocs
-        image: {{ include "mkdocs.fullname" . }}:latest
+        # a fixed tag and no image trigger: a trigger rewrites this field, which a
+        # GitOps tool then reverts. The poller restarts the pods after a build
+        image: {{ .Values.build.registry }}/{{ .Release.Namespace }}/{{ include "mkdocs.fullname" . }}:latest
+        imagePullPolicy: Always
         ports:
         - containerPort: 8080
           name: site

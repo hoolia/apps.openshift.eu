@@ -17,6 +17,10 @@ has default "memory: 1Gi"
 hasnt default "kind: CronJob"
 hasnt default "kind: NetworkPolicy"
 hasnt default "kind: Secret"
+# no image trigger: under Argo CD it fights over the image field
+hasnt default "image.openshift.io/triggers"
+has default "image: image-registry.openshift-image-registry.svc:5000/test/mkdocs:latest"
+has default "imagePullPolicy: Always"
 has default "location = /healthz"
 has default "path: /healthz"
 hasnt default "deny all;"
@@ -56,6 +60,14 @@ hasnt oauth "s3cr3t"
 has oauth "allow 127.0.0.1;"
 has oauth "deny all;"
 
+# a secret generated elsewhere can have any length; oauth2-proxy wants 16, 24 or 32 bytes
+cookie() { render $OA --set secrets.cookieSecret="$1" | awk '/cookie-secret:/{gsub(/"/,"",$2); print $2}' | base64 -d; }
+C48=e9e2334228689ae870e4f029424641eabcf5c9efbc2d3772
+[ "$(cookie $C48 | wc -c)" = 32 ] || { echo "FAIL cookie: 48 characters do not give 32"; fail=1; }
+[ "$(cookie $C48)" = "$(cookie $C48)" ] || { echo "FAIL cookie: not stable between renders"; fail=1; }
+C32=abcdefghijklmnopqrstuvwxyz012345
+[ "$(cookie $C32)" = "$C32" ] || { echo "FAIL cookie: a 32 character value is not kept"; fail=1; }
+
 OUT=$(render $OA --set-json 'oauth.allowedGroups=[""]')
 has "empty group" "name: oauth2-proxy"
 hasnt "empty group" "--allowed-group"
@@ -73,6 +85,9 @@ hasnt external "kind: Secret"
 OUT=$(render --set source.gitRepo=https://example.com/docs.git)
 for k in CronJob ServiceAccount Role RoleBinding; do has poller "kind: $k"; done
 has poller "buildconfigs/instantiate"
+# the poller restarts the Deployment after a build
+has poller 'resources: ["deployments"]'
+has poller "name: DEPLOYMENT"
 has poller 'schedule: "*/10 * * * *"'
 # poll.py itself names GIT_PASSWORD, so assert on the secret reference
 hasnt poller "key: password"
