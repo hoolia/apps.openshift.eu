@@ -95,6 +95,11 @@ hasnt poller "key: password"
 OUT=$(render --set source.gitRepo=https://example.com/docs.git --set source.private=true)
 has "poller private" "key: password"
 
+# a version tag such as 1.0 must stay a string
+OUT=$(render --set source.gitRepo=https://example.com/docs.git --set-string source.gitRef=1.0)
+has "numeric ref" 'value: "1.0"'
+has "numeric ref" 'ref: "1.0"'
+
 OUT=$(render --set source.gitRepo=https://example.com/docs.git --set source.pollSchedule=)
 hasnt "poller off" "kind: CronJob"
 

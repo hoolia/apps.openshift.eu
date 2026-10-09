@@ -27,13 +27,50 @@ def remote_url(repo, username, password):
     return f"{scheme}://{user}:{urllib.parse.quote(password, safe='')}@{rest}"
 
 
-def remote_commit(output):
-    """First commit id in `git ls-remote` output, or '' when the ref is missing."""
+def remote_commit(output, ref):
+    """Commit that the branch or tag `ref` points at, or '' when it does not exist.
+
+    Only the exact names count: `git ls-remote` also lists refs that merely end in
+    the name. For an annotated tag the peeled line (^{}) holds the commit; the
+    plain line holds the tag object, which no build ever records.
+    """
+    refs = {}
     for line in output.splitlines():
         parts = line.split()
         if len(parts) == 2:
-            return parts[0]
+            refs[parts[1]] = parts[0]
+    for name in (f"refs/tags/{ref}^{{}}", f"refs/heads/{ref}", f"refs/tags/{ref}"):
+        if name in refs:
+            return refs[name]
     return ""
+
+
+def ls_remote(url, ref, run=subprocess.run):
+    """Commit of `ref` at the remote, or None when the remote cannot be read.
+
+    Nothing of the command or its error output is printed: both can hold the
+    URL with the password.
+    """
+    command = ["git", "ls-remote", url, f"refs/heads/{ref}", f"refs/tags/{ref}", f"refs/tags/{ref}^{{}}"]
+    try:
+        result = run(command, capture_output=True, text=True, timeout=60)
+    except subprocess.TimeoutExpired:
+        print("git ls-remote timed out")
+        return None
+    if result.returncode:
+        print("git ls-remote failed")
+        return None
+    return remote_commit(result.stdout, ref)
+
+
+def build_request(name, commit):
+    """Request for a build of exactly this commit.
+
+    Naming the commit records it on the build from the start, also when the
+    build fails before the clone, so a broken state is built once.
+    """
+    return {"kind": "BuildRequest", "apiVersion": "build.openshift.io/v1",
+            "metadata": {"name": name}, "revision": {"git": {"commit": commit}}}
 
 
 def should_build(commit, builds):
@@ -85,17 +122,13 @@ def main():
                   + urllib.parse.quote(f"openshift.io/build-config.name={name}"))
     url = remote_url(os.environ["GIT_REPO"], os.environ.get("GIT_USERNAME", ""),
                      os.environ.get("GIT_PASSWORD", ""))
-    result = subprocess.run(["git", "ls-remote", url, os.environ["GIT_REF"]],
-                            capture_output=True, text=True, timeout=60)
-    if result.returncode:
-        # stderr can repeat the URL with the password: do not print it
-        print("git ls-remote failed")
+    commit = ls_remote(url, os.environ["GIT_REF"])
+    if commit is None:
         return 1
-    commit = remote_commit(result.stdout)
     builds = call(builds_url)["items"]
     if should_build(commit, builds):
         call(f"{API}/namespaces/{namespace}/buildconfigs/{name}/instantiate",
-             {"kind": "BuildRequest", "apiVersion": "build.openshift.io/v1", "metadata": {"name": name}})
+             build_request(name, commit))
         print(f"build started for {commit[:12]}")
     else:
         print(f"no build for {commit[:12] or 'missing ref'}")
