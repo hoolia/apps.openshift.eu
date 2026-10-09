@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "mkdocs.fullname" . }}
+  annotations:
+    # a new build moves the tag; OpenShift then sets the image below
+    image.openshift.io/triggers: |
+      [{"from":{"kind":"ImageStreamTag","name":"{{ include "mkdocs.fullname" . }}:latest"},
+        "fieldPath":"spec.template.spec.containers[?(@.name==\"mkdocs\")].image",
+        "paused":false}]
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ include "mkdocs.fullname" . }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: {{ include "mkdocs.fullname" . }}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      volumes:
+      - name: nginx
+        configMap:
+          name: {{ include "mkdocs.fullname" . }}-nginx
+      containers:
+      - name: mkdocs
+        image: {{ include "mkdocs.fullname" . }}:latest
+        ports:
+        - containerPort: 8080
+          name: site
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+        volumeMounts:
+        - name: nginx
+          mountPath: /opt/app-root/etc/nginx.default.d
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 8080
+          initialDelaySeconds: 3
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 20
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}

@@ -1,0 +1,83 @@
+fullnameOverride: mkdocs
+
+source:
+  # empty: an example site is generated, so the chart installs without a repository
+  gitRepo: ""
+  gitRef: main
+  # directory in the repository that holds the config file; empty: the root
+  contextDir: ""
+  configFile: mkdocs.yml
+  # pip requirements file in that directory; empty: mkdocs-material is installed
+  requirementsFile: ""
+  strict: true
+  # the repository needs a login: user name here, password under secrets
+  private: false
+  gitUsername: ""
+  # how often to look for a new commit; empty: never
+  pollSchedule: "*/10 * * * *"
+
+build:
+  builderImage: registry.access.redhat.com/ubi9/python-312:latest
+  runtimeImage: registry.access.redhat.com/ubi9/nginx-124:latest
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+replicaCount: 2
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    cpu: 200m
+    memory: 128Mi
+
+route:
+  # empty: OpenShift assigns a host under the default application domain
+  hostname: ""
+
+oauth:
+  # true: only users who log in at the issuer see the site
+  enabled: false
+  image: quay.io/oauth2-proxy/oauth2-proxy:latest
+  # OIDC issuer, for example https://login.example.com/realms/example
+  issuerUrl: ""
+  clientId: ""
+  scope: openid email profile
+  # token claim that lists the groups of the user
+  groupsClaim: groups
+  # empty: every user of the issuer
+  allowedGroups: []
+  emailDomains:
+  - "*"
+  # further oauth2-proxy flags, for an issuer that needs them
+  extraArgs: []
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
+secrets:
+  # kubernetes: Secrets from the values below. externalSecret: from a secret store
+  type: kubernetes
+  gitPassword: ""
+  clientSecret: ""
+  # empty: generated once and kept on upgrade
+  cookieSecret: ""
+  externalSecret:
+    storeKind: ClusterSecretStore
+    storeName: ""
+    refreshInterval: 1h
+    # one vault item per secret; the value is read from the item's password
+    items:
+      gitPassword: mkdocs-git-password
+      clientSecret: mkdocs-client-secret
+      cookieSecret: mkdocs-cookie-secret
