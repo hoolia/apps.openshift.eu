@@ -318,6 +318,32 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: "1.6"
+    created: "2026-10-09T12:48:19.227994123Z"
+    description: Documentation site built from a Git repository with MkDocs, optionally
+      behind a single sign-on login
+    digest: c4df0db56154a9e6e1b564fbe78de8b4ff632d0179b7bb16347a8c2e860b8f64
+    home: https://apps.openshift.eu
+    icon: https://raw.githubusercontent.com/squidfunk/mkdocs-material/master/src/templates/.icons/material/book-open-page-variant.svg
+    keywords:
+    - documentation
+    - mkdocs
+    - static-site
+    maintainers:
+    - name: GRN.CLOUD B.V.
+      url: https://apps.openshift.eu
+    name: mkdocs
+    sources:
+    - https://github.com/mkdocs/mkdocs
+    - https://github.com/hoolia/apps.openshift.eu
+    type: application
+    urls:
+    - https://github.com/hoolia/apps.openshift.eu/releases/download/mkdocs-0.2.0/mkdocs-0.2.0.tgz
+    version: 0.2.0
+  - annotations:
+      charts.openshift.io/name: MkDocs
+      charts.openshift.io/provider: GRN.CLOUD B.V.
+    apiVersion: v2
+    appVersion: "1.6"
     created: "2026-10-09T11:03:12.012210185Z"
     description: Documentation site built from a Git repository with MkDocs, optionally
       behind a single sign-on login
@@ -1099,4 +1125,4 @@ entries:
     urls:
     - https://github.com/hoolia/apps.openshift.eu/releases/download/vaultwarden-0.1.0/vaultwarden-0.1.0.tgz
     version: 0.1.0
-generated: "2026-10-09T11:03:12.012264075Z"
+generated: "2026-10-09T12:48:19.228047712Z"
