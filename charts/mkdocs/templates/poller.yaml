@@ -1,0 +1,103 @@
+{{- if and .Values.source.gitRepo .Values.source.pollSchedule }}
+{{- $name := printf "%s-poller" (include "mkdocs.fullname" .) }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $name }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $name }}
+rules:
+- apiGroups: ["build.openshift.io"]
+  resources: ["builds"]
+  verbs: ["get", "list"]
+- apiGroups: ["build.openshift.io"]
+  resources: ["buildconfigs/instantiate"]
+  verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $name }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $name }}
+subjects:
+- kind: ServiceAccount
+  name: {{ $name }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name }}
+data:
+  poll.py: |
+    {{- .Files.Get "files/poll.py" | nindent 4 }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ $name }}
+spec:
+  schedule: {{ .Values.source.pollSchedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      template:
+        spec:
+          serviceAccountName: {{ $name }}
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          volumes:
+          - name: script
+            configMap:
+              name: {{ $name }}
+          containers:
+          - name: poll
+            image: {{ .Values.build.builderImage }}
+            command: ["python3", "/opt/poll/poll.py"]
+            env:
+            - name: HOME
+              value: /tmp
+            - name: BUILDCONFIG
+              value: {{ include "mkdocs.fullname" . }}
+            - name: GIT_REPO
+              value: {{ .Values.source.gitRepo }}
+            - name: GIT_REF
+              value: {{ .Values.source.gitRef }}
+            {{- if .Values.source.private }}
+            - name: GIT_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "mkdocs.fullname" . }}-git
+                  key: username
+            - name: GIT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "mkdocs.fullname" . }}-git
+                  key: password
+            {{- end }}
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop: ["ALL"]
+            volumeMounts:
+            - name: script
+              mountPath: /opt/poll
+            resources:
+              requests:
+                cpu: 10m
+                memory: 64Mi
+              limits:
+                cpu: 200m
+                memory: 256Mi
+{{- end }}

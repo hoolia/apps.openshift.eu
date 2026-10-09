@@ -1,0 +1,36 @@
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  name: {{ include "mkdocs.fullname" . }}
+spec:
+  source:
+    {{- if .Values.source.gitRepo }}
+    type: Git
+    git:
+      uri: {{ .Values.source.gitRepo }}
+      ref: {{ .Values.source.gitRef }}
+    {{- with .Values.source.contextDir }}
+    contextDir: {{ . }}
+    {{- end }}
+    {{- if .Values.source.private }}
+    sourceSecret:
+      name: {{ include "mkdocs.fullname" . }}-git
+    {{- end }}
+    {{- else }}
+    type: Dockerfile
+    {{- end }}
+    dockerfile: |-
+      {{- include "mkdocs.dockerfile" . | nindent 6 }}
+  strategy:
+    type: Docker
+    dockerStrategy: {}
+  output:
+    to:
+      kind: ImageStreamTag
+      name: {{ include "mkdocs.fullname" . }}:latest
+  resources:
+    {{- toYaml .Values.build.resources | nindent 4 }}
+  triggers:
+  - type: ConfigChange
+  successfulBuildsHistoryLimit: 3
+  failedBuildsHistoryLimit: 3

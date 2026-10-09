@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "mkdocs.fullname" . }}-nginx
+data:
+  site.conf: |
+    {{- if .Values.oauth.enabled }}
+    # only the login proxy in the same pod may read the site: a NetworkPolicy
+    # cannot close the port where another policy of the cluster opens it
+    allow 127.0.0.1;
+    deny all;
+    {{- end }}
+    {{- .Files.Get "files/nginx.conf" | nindent 4 }}
