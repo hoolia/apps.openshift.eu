@@ -5,7 +5,9 @@
 {{- $annotations = merge $annotations (include "mailu-wrapper.publicAddress" . | fromYaml) }}
 {{- if .Values.dns.enabled }}
 {{- $_ := set $annotations "external-dns.alpha.kubernetes.io/hostname" (first .Values.upstream.hostnames) }}
+{{- $_ := set $annotations "external-dns.kubernetes.io/hostname" (first .Values.upstream.hostnames) }}
 {{- $_ := set $annotations "external-dns.alpha.kubernetes.io/ttl" (toString .Values.dns.ttl) }}
+{{- $_ := set $annotations "external-dns.kubernetes.io/ttl" (toString .Values.dns.ttl) }}
 {{- end }}
 {{- end }}
 {{- if not .Values.certificate.enabled }}

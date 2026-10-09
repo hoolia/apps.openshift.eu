@@ -6,6 +6,7 @@
 {{- if $turn.public }}
 {{- $annotations = merge $annotations (include "wrapper.publicAddress" . | fromYaml) }}
 {{- $_ := set $annotations "external-dns.alpha.kubernetes.io/hostname" $host }}
+{{- $_ := set $annotations "external-dns.kubernetes.io/hostname" $host }}
 {{- end }}
 apiVersion: apps/v1
 kind: Deployment
