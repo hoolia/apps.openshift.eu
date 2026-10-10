@@ -32,5 +32,13 @@ spec:
     {{- toYaml .Values.build.resources | nindent 4 }}
   triggers:
   - type: ConfigChange
+  {{- if and .Values.source.gitRepo .Values.source.webhook }}
+  {{- range $type, $key := dict "GitLab" "gitlab" "GitHub" "github" "Generic" "generic" }}
+  - type: {{ $type }}
+    {{ $key }}:
+      secretReference:
+        name: {{ include "mkdocs.fullname" $ }}-webhook
+  {{- end }}
+  {{- end }}
   successfulBuildsHistoryLimit: 3
   failedBuildsHistoryLimit: 3

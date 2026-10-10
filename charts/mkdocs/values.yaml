@@ -15,6 +15,9 @@ source:
   gitUsername: ""
   # how often to look for a new commit; empty: never
   pollSchedule: "*/10 * * * *"
+  # true: the Git server starts a build on a push through the webhook of the
+  # BuildConfig, and an image trigger restarts the site after the build
+  webhook: false
 
 build:
   builderImage: registry.access.redhat.com/ubi9/python-312:latest
@@ -75,6 +78,8 @@ secrets:
   # empty: generated once and kept on upgrade. A value that is not 16, 24 or
   # 32 characters long is hashed to 32
   cookieSecret: ""
+  # part of the webhook address. Empty: generated once and kept on upgrade
+  webhookSecret: ""
   externalSecret:
     storeKind: ClusterSecretStore
     storeName: ""
@@ -84,3 +89,4 @@ secrets:
       gitPassword: mkdocs-git-password
       clientSecret: mkdocs-client-secret
       cookieSecret: mkdocs-cookie-secret
+      webhookSecret: mkdocs-webhook-secret

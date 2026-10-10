@@ -103,4 +103,22 @@ has "numeric ref" 'ref: "1.0"'
 OUT=$(render --set source.gitRepo=https://example.com/docs.git --set source.pollSchedule=)
 hasnt "poller off" "kind: CronJob"
 
+OUT=$(render --set source.gitRepo=https://example.com/docs.git --set source.webhook=true --set source.pollSchedule=)
+for t in GitLab GitHub Generic; do has webhook "type: $t"; done
+has webhook "name: mkdocs-webhook"
+has webhook "WebHookSecretKey"
+has webhook "name: system:webhook"
+has webhook "name: system:unauthenticated"
+has webhook "image.openshift.io/triggers"
+hasnt webhook "kind: CronJob"
+
+OUT=$(render --set source.gitRepo=https://example.com/docs.git --set source.webhook=true --set secrets.type=externalSecret --set secrets.externalSecret.storeName=vault-test)
+has "webhook external" "key: mkdocs-webhook-secret"
+hasnt "webhook external" "kind: Secret"
+
+# without a repository there is nothing to push to
+OUT=$(render --set source.webhook=true)
+hasnt "webhook without repo" "type: GitLab"
+hasnt "webhook without repo" "system:webhook"
+
 [ $fail = 0 ] && echo "RESULT PASS" || { echo "RESULT FAIL"; exit 1; }

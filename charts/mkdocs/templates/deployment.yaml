@@ -2,6 +2,11 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ include "mkdocs.fullname" . }}
+  {{- if and .Values.source.gitRepo .Values.source.webhook }}
+  annotations:
+    # restarts the site after a build; a GitOps tool must ignore the image field
+    image.openshift.io/triggers: '[{"from":{"kind":"ImageStreamTag","name":"{{ include "mkdocs.fullname" . }}:latest"},"fieldPath":"spec.template.spec.containers[?(@.name==\"mkdocs\")].image"}]'
+  {{- end }}
 spec:
   replicas: {{ .Values.replicaCount }}
   selector:
@@ -27,8 +32,8 @@ spec:
           name: {{ include "mkdocs.fullname" . }}-nginx
       containers:
       - name: mkdocs
-        # a fixed tag and no image trigger: a trigger rewrites this field, which a
-        # GitOps tool then reverts. The poller restarts the pods after a build
+        # a fixed tag: the poller restarts the pods after a build. With
+        # source.webhook an image trigger rewrites this field instead
         image: {{ .Values.build.registry }}/{{ .Release.Namespace }}/{{ include "mkdocs.fullname" . }}:latest
         imagePullPolicy: Always
         ports:
