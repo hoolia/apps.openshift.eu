@@ -14,7 +14,8 @@
         "strict": {"type": "boolean"},
         "private": {"type": "boolean"},
         "gitUsername": {"type": "string"},
-        "pollSchedule": {"type": "string"}
+        "pollSchedule": {"type": "string"},
+        "webhook": {"type": "boolean"}
       }
     },
     "build": {"type": "object"},
@@ -46,6 +47,7 @@
         "gitPassword": {"type": "string"},
         "clientSecret": {"type": "string"},
         "cookieSecret": {"type": "string"},
+        "webhookSecret": {"type": "string"},
         "externalSecret": {"type": "object"}
       }
     }
