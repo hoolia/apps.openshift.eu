@@ -84,9 +84,10 @@ oidc:
 #   protocol: vnc
 #   hostname: desktop
 #   port: 5900
-#   # Guacamole connection parameters, all values as strings
+#   # Guacamole connection parameters, all values as strings.
+#   # disable-copy and disable-paste are "true" unless set here
 #   parameters:
-#     disable-copy: "true"
+#     color-depth: "24"
 #   # Guacamole parameter: key of the Secret <release>-guacamole that holds its value
 #   secretParameters:
 #     password: vncPassword

@@ -103,6 +103,12 @@ check endpoints "env('guacamole')['OPENID_AUTHORIZATION_ENDPOINT'] == 'https://i
 check endpoints "env('guacamole')['OPENID_JWKS_ENDPOINT'] == 'https://idp.example.com/jwks'"
 check endpoints "env('guacamole')['EXTENSION_PRIORITY'] == 'openid'"
 
+# no clipboard unless a connection asks for it
+OUT=$(render --set-json 'connections=[{"name":"plain","protocol":"vnc","hostname":"h"}]')
+check "clipboard default" "\"('disable-copy', 'true')\" in sql() and \"('disable-paste', 'true')\" in sql()"
+OUT=$(render --set-json 'connections=[{"name":"open","protocol":"vnc","hostname":"h","parameters":{"disable-copy":"false","disable-paste":"false"}}]')
+check "clipboard explicit" "\"('disable-copy', 'false')\" in sql() and \"('disable-paste', 'false')\" in sql() and \"('disable-copy', 'true')\" not in sql() and \"('disable-paste', 'true')\" not in sql()"
+
 OUT=$(render --set recording.enabled=false --set-json "$CONN")
 check norec "[c['name'] for c in pod()['containers']] == ['guacamole', 'guacd']"
 check norec "'RECORDING_ENABLED' not in env('guacamole') and not objs('PersistentVolumeClaim')"
@@ -198,6 +204,24 @@ for s in 'Xvnc :1' '-geometry' '-rfbport 5900' '-SecurityTypes VncAuth' 'firefox
   check "kiosk start.sh $s" "'$s' in start()"
 done
 check kiosk "all(d['kind'] in $NAMESPACED + ['BuildConfig', 'ImageStream', 'EgressFirewall'] for d in docs)"
+
+check kiosk "[r['type'] for r in rules()].count('Deny') == 1 and all(r['type'] == 'Allow' for r in rules()[:-1])"
+for s in '-SendCutText=0' '-AcceptCutText=0' '-SendPrimary=0' '-SetPrimary=0'; do
+  check "kiosk start.sh $s" "'$s' in start()"
+done
+# the password is in the passwd file only, not in the environment of Xvnc or Firefox
+check kiosk "start().index('vncpasswd -f') < start().index('unset VNC_PASSWORD') < start().index('Xvnc :1') < start().index('firefox --kiosk')"
+
+# the firewall must let Guacamole reach the issuer
+OIDC="--set oidc.enabled=true --set oidc.issuerUrl=https://login.example.com/realms/x --set oidc.clientId=desk --set route.hostname=desk.example.com"
+OUT=$(render $KIOSK $OIDC --set-json 'kiosk.egressFirewall.allowedDnsNames=["code.example.com"]')
+has "kiosk oidc issuer blocked" "kiosk.egressFirewall.allowedDnsNames must hold login.example.com"
+OUT=$(render $KIOSK $OIDC --set-json "$KDNS")
+check "kiosk oidc issuer allowed" "rules()[1] == {'type': 'Allow', 'to': {'dnsName': 'login.example.com'}}"
+OUT=$(render $KIOSK $OIDC --set-json "$KDNS" --set oidc.jwksEndpoint=https://keys.example.com:8443/jwks)
+has "kiosk oidc jwks blocked" "kiosk.egressFirewall.allowedDnsNames must hold keys.example.com"
+OUT=$(render $KIOSK $OIDC --set kiosk.egressFirewall.enabled=false)
+check "kiosk oidc no firewall" "not objs('EgressFirewall') and obj('Deployment', 't-kiosk')"
 
 # a prebuilt image: no build objects
 OUT=$(render $KIOSK --set kiosk.image=quay.io/example/kiosk:1)

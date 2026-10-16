@@ -1,5 +1,13 @@
 {{- $fw := .Values.kiosk.egressFirewall }}
 {{- if and .Values.kiosk.enabled $fw.enabled }}
+{{- if .Values.oidc.enabled }}
+{{- range $u := compact (list .Values.oidc.issuerUrl .Values.oidc.jwksEndpoint) }}
+{{- $host := (urlParse $u).hostname }}
+{{- if not (has $host ($fw.allowedDnsNames | default list)) }}
+{{- fail (printf "kiosk.egressFirewall.allowedDnsNames must hold %s: Guacamole fetches the OpenID Connect signing keys there" $host) }}
+{{- end }}
+{{- end }}
+{{- end }}
 # applies to every pod of the project, Guacamole included: the OpenID Connect
 # issuer must be in the list. OVN-Kubernetes allows one, named default
 apiVersion: k8s.ovn.org/v1

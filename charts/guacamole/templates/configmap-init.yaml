@@ -46,6 +46,9 @@ data:
     {{- $conn := printf "(SELECT connection_id FROM guacamole_connection WHERE connection_name = %s AND parent_id IS NULL)" $name }}
     {{- $params := dict "hostname" (required "connections[].hostname is required" $c.hostname) }}
     {{- if $c.port }}{{- $_ := set $params "port" $c.port }}{{- end }}
+    {{- /* no clipboard unless a connection asks for it */}}
+    {{- $_ := set $params "disable-copy" "true" }}
+    {{- $_ := set $params "disable-paste" "true" }}
     {{- if $root.Values.recording.enabled }}
     {{- $_ := set $params "recording-path" "${HISTORY_PATH}/${HISTORY_UUID}" }}
     {{- $_ := set $params "create-recording-path" "true" }}
