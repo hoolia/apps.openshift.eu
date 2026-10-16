@@ -145,6 +145,10 @@ kiosk:
   # loads a stylesheet or font from a host the egress firewall drops stays
   # blank, or keeps showing the previous page, this long
   connectTimeout: 5
+  # extra Firefox enterprise policies; a key the chart sets keeps the chart value
+  policies: {}
+  # extra Firefox preferences, each locked; a name the chart sets keeps its value
+  preferences: {}
   geometry: 1600x900
   # Firefox profile with the saved logins, kept across restarts
   profileSize: 1Gi

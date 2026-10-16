@@ -42,6 +42,12 @@
     "pref.privacy.disable_button.view_passwords" (merge (dict "Value" true) $locked)
     "network.http.connection-timeout" (merge (dict "Value" (int $k.connectTimeout)) $locked))
 }}
+{{- $prefs := dict }}
+{{- range $name, $value := ($k.preferences | default dict) }}
+{{- $_ := set $prefs $name (merge (dict "Value" $value) $locked) }}
+{{- end }}
+{{- $extra := merge (dict "Preferences" $prefs) (deepCopy ($k.policies | default dict)) }}
+{{- $policies = mergeOverwrite $extra $policies }}
 apiVersion: v1
 kind: ConfigMap
 metadata:

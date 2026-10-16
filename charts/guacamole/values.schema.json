@@ -98,6 +98,8 @@
         "homepage": {"type": "string", "minLength": 1},
         "allowedUrls": {"type": "array", "maxItems": 1000, "items": {"type": "string", "minLength": 1}},
         "connectTimeout": {"type": "integer", "minimum": 1, "maximum": 90},
+        "policies": {"type": "object"},
+        "preferences": {"type": "object"},
         "geometry": {"type": "string", "pattern": "^[0-9]+x[0-9]+$"},
         "profileSize": {"type": "string", "minLength": 1},
         "storageClassName": {"type": "string"},
