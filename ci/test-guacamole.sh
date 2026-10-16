@@ -58,6 +58,8 @@ check default "obj('PersistentVolumeClaim', 't-guacamole-recordings')['spec']['a
 check default "obj('Route')['spec']['tls']['termination'] == 'edge'"
 check default "set(obj('Secret', 't-guacamole')['data']) == {'adminPassword', 'vncPassword'}"
 check default "obj('Job', 't-guacamole-init')['metadata']['annotations']['helm.sh/hook'] == 'post-install,post-upgrade'"
+# a finished Job is removed, a failed one is kept for its logs
+check default "obj('Job', 't-guacamole-init')['metadata']['annotations']['helm.sh/hook-delete-policy'] == 'before-hook-creation,hook-succeeded'"
 check default "'/opt/guacamole/bin/initdb.sh --postgresql' in ' '.join(obj('Job')['spec']['template']['spec']['initContainers'][0]['command'])"
 check default "'guacamole_user' in obj('ConfigMap', 't-guacamole-init')['data']['init.sh']"
 check default "'UPDATE guacamole_user' in sql() and \"name = 'guacadmin'\" in sql()"
@@ -232,6 +234,9 @@ check "kiosk oidc no firewall" "not objs('EgressFirewall') and obj('Deployment',
 # a prebuilt image: no build objects
 OUT=$(render $KIOSK --set kiosk.image=quay.io/example/kiosk:1)
 check "kiosk image" "not objs('BuildConfig') and not objs('ImageStream') and kiosk()['image'] == 'quay.io/example/kiosk:1'"
+# replicas 0 stops the desktop and keeps its profile
+OUT=$(render $KIOSK --set kiosk.replicas=0)
+check "kiosk replicas" "obj('Deployment', 't-kiosk')['spec']['replicas'] == 0 and obj('PersistentVolumeClaim', 't-kiosk-profile')"
 OUT=$(render $KIOSK --set kiosk.egressFirewall.enabled=false)
 check "kiosk no firewall" "not objs('EgressFirewall') and obj('Deployment', 't-kiosk')"
 check "kiosk empty lists" "pol()['WebsiteFilter'] == {'Block': ['<all_urls>'], 'Exceptions': []}"

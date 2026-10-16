@@ -122,6 +122,8 @@ kiosk:
   # 5900, for a connection with hostname <release>-kiosk and
   # secretParameters password: vncPassword
   enabled: false
+  # 0 stops the desktop and keeps its profile; at most 1, one Firefox per profile
+  replicas: 1
   # empty: built in the project from files/kiosk/Containerfile
   image: ""
   # registry of the cluster, where the build pushes and the pod pulls

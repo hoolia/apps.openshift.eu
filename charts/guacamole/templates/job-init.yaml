@@ -12,7 +12,7 @@ metadata:
     {{- include "guacamole.commonLabels" $ | nindent 4 }}
   annotations:
     helm.sh/hook: post-install,post-upgrade
-    helm.sh/hook-delete-policy: before-hook-creation
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
 spec:
   backoffLimit: 6
   # a database that never comes up fails the sync instead of hanging it

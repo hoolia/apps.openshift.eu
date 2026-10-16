@@ -91,6 +91,7 @@
       "type": "object",
       "properties": {
         "enabled": {"type": "boolean"},
+        "replicas": {"type": "integer", "minimum": 0, "maximum": 1},
         "image": {"type": "string"},
         "registry": {"type": "string", "minLength": 1},
         "homepage": {"type": "string", "minLength": 1},

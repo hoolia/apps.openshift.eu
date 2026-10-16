@@ -11,7 +11,7 @@ metadata:
     {{- include "guacamole.commonLabels" $ | nindent 4 }}
     app.openshift.io/runtime: firefox
 spec:
-  replicas: 1
+  replicas: {{ $k.replicas }}
   # the profile volume is ReadWriteOnce, and one Firefox may own a profile
   strategy:
     type: Recreate
