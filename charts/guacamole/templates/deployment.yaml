@@ -1,6 +1,7 @@
 {{- $db := printf "%s-db-app" (include "guacamole.fullname" .) }}
 {{- $rec := .Values.recording }}
 {{- $s3 := and $rec.enabled $rec.s3.enabled }}
+{{- $wm := .Values.watermark.enabled }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -107,11 +108,20 @@ spec:
           allowPrivilegeEscalation: false
           capabilities:
             drop: ["ALL"]
-        {{- if $rec.enabled }}
+        {{- if or $rec.enabled $wm }}
         volumeMounts:
+        {{- if $rec.enabled }}
         - name: recordings
           mountPath: /var/lib/guacamole/recordings
           readOnly: true
+        {{- end }}
+        {{- if $wm }}
+        # the image links template extensions into its generated GUACAMOLE_HOME
+        - name: extensions
+          mountPath: /etc/guacamole/extensions/watermark.jar
+          subPath: watermark.jar
+          readOnly: true
+        {{- end }}
         {{- end }}
         startupProbe:
           httpGet:
@@ -223,12 +233,17 @@ spec:
         resources:
           {{- toYaml .Values.resources.rclone | nindent 10 }}
       {{- end }}
-      {{- if or $rec.enabled $s3 }}
+      {{- if or $rec.enabled $s3 $wm }}
       volumes:
       {{- if $rec.enabled }}
       - name: recordings
         persistentVolumeClaim:
           claimName: {{ include "guacamole.fullname" . }}-recordings
+      {{- end }}
+      {{- if $wm }}
+      - name: extensions
+        configMap:
+          name: {{ include "guacamole.fullname" . }}-extensions
       {{- end }}
       {{- if $s3 }}
       - name: tmp

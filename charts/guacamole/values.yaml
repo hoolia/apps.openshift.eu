@@ -113,6 +113,10 @@ recording:
     # region given to the S3 client
     region: us-east-1
 
+watermark:
+  # true: the user name and the time are tiled faintly over every page
+  enabled: false
+
 kiosk:
   # true: a locked-down Firefox desktop, Service <release>-kiosk on VNC port
   # 5900, for a connection with hostname <release>-kiosk and

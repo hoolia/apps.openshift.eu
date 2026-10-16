@@ -81,6 +81,12 @@
         }
       }
     },
+    "watermark": {
+      "type": "object",
+      "properties": {
+        "enabled": {"type": "boolean"}
+      }
+    },
     "kiosk": {
       "type": "object",
       "properties": {
