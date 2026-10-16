@@ -36,7 +36,8 @@
   "Preferences" (dict
     "signon.showAutoCompleteFooter" (merge (dict "Value" false) $locked)
     "browser.contextual-password-manager.enabled" (merge (dict "Value" false) $locked)
-    "pref.privacy.disable_button.view_passwords" (merge (dict "Value" true) $locked))
+    "pref.privacy.disable_button.view_passwords" (merge (dict "Value" true) $locked)
+    "network.http.connection-timeout" (merge (dict "Value" (int $k.connectTimeout)) $locked))
 }}
 apiVersion: v1
 kind: ConfigMap

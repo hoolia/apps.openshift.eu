@@ -190,6 +190,8 @@ check kiosk "all(pol()[p] is True for p in ['BlockAboutAddons', 'BlockAboutProfi
 check kiosk "pol()['Preferences']['signon.showAutoCompleteFooter'] == {'Value': False, 'Status': 'locked'}"
 check kiosk "pol()['Preferences']['browser.contextual-password-manager.enabled'] == {'Value': False, 'Status': 'locked'}"
 check kiosk "pol()['Preferences']['pref.privacy.disable_button.view_passwords'] == {'Value': True, 'Status': 'locked'}"
+# a dropped connection (egress firewall) to a render-blocking resource must fail fast
+check kiosk "pol()['Preferences']['network.http.connection-timeout'] == {'Value': 5, 'Status': 'locked'}"
 check kiosk "rules()[-1] == {'type': 'Deny', 'to': {'cidrSelector': '0.0.0.0/0'}}"
 check kiosk "rules()[:-1] == [{'type': 'Allow', 'to': {'dnsName': 'code.example.com'}}, {'type': 'Allow', 'to': {'dnsName': 'login.example.com'}}, {'type': 'Allow', 'to': {'cidrSelector': '10.10.10.17/32'}}]"
 check kiosk "obj('EgressFirewall')['apiVersion'] == 'k8s.ovn.org/v1' and len(objs('EgressFirewall')) == 1"
@@ -237,6 +239,10 @@ check "kiosk image" "not objs('BuildConfig') and not objs('ImageStream') and kio
 # replicas 0 stops the desktop and keeps its profile
 OUT=$(render $KIOSK --set kiosk.replicas=0)
 check "kiosk replicas" "obj('Deployment', 't-kiosk')['spec']['replicas'] == 0 and obj('PersistentVolumeClaim', 't-kiosk-profile')"
+OUT=$(render $KIOSK --set kiosk.connectTimeout=10)
+check "kiosk connect timeout" "pol()['Preferences']['network.http.connection-timeout'] == {'Value': 10, 'Status': 'locked'}"
+OUT=$(render $KIOSK --set kiosk.connectTimeout=0)
+has "kiosk connect timeout 0" "connectTimeout"
 OUT=$(render $KIOSK --set kiosk.egressFirewall.enabled=false)
 check "kiosk no firewall" "not objs('EgressFirewall') and obj('Deployment', 't-kiosk')"
 check "kiosk empty lists" "pol()['WebsiteFilter'] == {'Block': ['<all_urls>'], 'Exceptions': []}"
