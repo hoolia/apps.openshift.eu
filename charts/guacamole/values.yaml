@@ -128,7 +128,8 @@ kiosk:
   registry: image-registry.openshift-image-registry.svc:5000
   # first page; must match allowedUrls unless it is an about: page
   homepage: about:blank
-  # Firefox WebsiteFilter exceptions (match patterns); everything else is blocked
+  # Firefox WebsiteFilter exceptions (match patterns); everything else is blocked.
+  # No port: http://10.0.0.1/* matches every port of the host
   # - https://code.example.com/*
   allowedUrls: []
   geometry: 1600x900

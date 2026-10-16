@@ -1,6 +1,11 @@
 {{- if .Values.kiosk.enabled }}
 {{- $k := .Values.kiosk }}
 {{- $locked := dict "Status" "locked" }}
+{{- range ($k.allowedUrls | default list) }}
+{{- if regexMatch "^[^/]*://[^/]*:[0-9]+(/|$)" . }}
+{{- fail (printf "kiosk.allowedUrls entry %s has a port: Firefox match patterns take none, the entry would never match; leave the port out" .) }}
+{{- end }}
+{{- end }}
 {{- $policies := dict
   "DisableDeveloperTools" true
   "BlockAboutConfig" true
@@ -11,7 +16,8 @@
   "PasswordManagerEnabled" true
   "PrimaryPassword" false
   "PrintingEnabled" false
-  "DownloadDirectory" "/tmp/downloads"
+  "AllowFileSelectionDialogs" false
+  "DownloadDirectory" "/downloads"
   "PromptForDownloadLocation" false
   "WebsiteFilter" (dict "Block" (list "<all_urls>") "Exceptions" ($k.allowedUrls | default list))
   "ExtensionSettings" (dict "*" (dict "installation_mode" "blocked"))

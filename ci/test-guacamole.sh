@@ -173,10 +173,14 @@ OUT=$(render $KIOSK --set-json "$KURLS" --set-json "$KDNS" --set-json "$KCIDR")
 check kiosk "pol()['DisableDeveloperTools'] is True and pol()['BlockAboutConfig'] is True"
 check kiosk "pol()['DisablePasswordReveal'] is True and pol()['PasswordManagerEnabled'] is True"
 check kiosk "pol()['PrintingEnabled'] is False"
-# Firefox has no DownloadRestrictions (a Chromium policy): downloads land in a
-# locked directory on an emptyDir, and file:// is blocked by WebsiteFilter
+# Firefox has no DownloadRestrictions (a Chromium policy): no file picker, so
+# Save Page As and password export cannot pick a target, and downloads go
+# without a prompt to a read-only directory, where they fail
 check kiosk "'DownloadRestrictions' not in pol()"
-check kiosk "pol()['DownloadDirectory'] == '/tmp/downloads' and pol()['PromptForDownloadLocation'] is False"
+check kiosk "pol()['AllowFileSelectionDialogs'] is False"
+check kiosk "pol()['DownloadDirectory'] == '/downloads' and pol()['PromptForDownloadLocation'] is False"
+check kiosk "kmounts()['/downloads']['readOnly'] is True and [v for v in pod('t-kiosk')['volumes'] if v['name'] == kmounts()['/downloads']['name']][0]['emptyDir'] == {'sizeLimit': '1Mi'}"
+check kiosk "'/tmp/downloads' not in start()"
 check kiosk "pol()['WebsiteFilter'] == {'Block': ['<all_urls>'], 'Exceptions': ['https://code.example.com/*', 'https://login.example.com/*']}"
 check kiosk "pol()['ExtensionSettings'] == {'*': {'installation_mode': 'blocked'}}"
 check kiosk "pol()['DisableFirefoxAccounts'] is True and pol()['DisableProfileImport'] is True"
@@ -231,6 +235,11 @@ check "kiosk image" "not objs('BuildConfig') and not objs('ImageStream') and kio
 OUT=$(render $KIOSK --set kiosk.egressFirewall.enabled=false)
 check "kiosk no firewall" "not objs('EgressFirewall') and obj('Deployment', 't-kiosk')"
 check "kiosk empty lists" "pol()['WebsiteFilter'] == {'Block': ['<all_urls>'], 'Exceptions': []}"
+# Firefox match patterns take no port: such an exception never matches
+OUT=$(render $KIOSK --set-json 'kiosk.allowedUrls=["http://10.0.0.1:8000/*"]')
+has "kiosk url with port" "kiosk.allowedUrls entry http://10.0.0.1:8000/* has a port"
+OUT=$(render $KIOSK --set-json 'kiosk.allowedUrls=["http://10.0.0.1/*","https://*.example.com/a:b/*"]')
+check "kiosk url without port" "pol()['WebsiteFilter']['Exceptions'] == ['http://10.0.0.1/*', 'https://*.example.com/a:b/*']"
 OUT=$(render --set kiosk.enabled=true)
 check "kiosk defaults" "rules() == [{'type': 'Deny', 'to': {'cidrSelector': '0.0.0.0/0'}}] and env('kiosk', 't-kiosk')['HOMEPAGE'] == 'about:blank'"
 

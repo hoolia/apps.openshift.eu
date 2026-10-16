@@ -7,7 +7,7 @@ export HOME=/tmp DISPLAY=:1
 GEOMETRY=${GEOMETRY:-1600x900}
 HOMEPAGE=${HOMEPAGE:-about:blank}
 
-mkdir -p /tmp/.vnc /tmp/downloads /tmp/.X11-unix
+mkdir -p /tmp/.vnc /tmp/.X11-unix
 chmod 1777 /tmp/.X11-unix 2>/dev/null || true
 umask 077
 printf '%s\n' "$VNC_PASSWORD" | vncpasswd -f > /tmp/.vnc/passwd

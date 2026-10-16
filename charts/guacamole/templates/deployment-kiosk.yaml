@@ -72,6 +72,9 @@ spec:
           subPath: policies.json
         - name: tmp
           mountPath: /tmp
+        - name: downloads
+          mountPath: /downloads
+          readOnly: true
         - name: shm
           mountPath: /dev/shm
         readinessProbe:
@@ -92,10 +95,14 @@ spec:
       - name: kiosk
         configMap:
           name: {{ include "guacamole.kiosk" . }}
-      # downloads and the VNC password live here, gone with the pod
+      # the VNC password lives here, gone with the pod
       - name: tmp
         emptyDir:
           sizeLimit: 1Gi
+      # the download directory: read-only, so every download fails
+      - name: downloads
+        emptyDir:
+          sizeLimit: 1Mi
       # Firefox content processes share memory through /dev/shm
       - name: shm
         emptyDir:
