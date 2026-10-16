@@ -39,9 +39,10 @@
         "jwksEndpoint": {"type": "string", "pattern": "^$|^https://"},
         "usernameClaim": {"type": "string", "minLength": 1},
         "scope": {"type": "string", "minLength": 1},
-        "autoRedirect": {"type": "boolean"}
+        "primary": {"type": "boolean"}
       }
     },
+    "admins": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 128}},
     "connections": {
       "type": "array",
       "items": {

@@ -1,4 +1,18 @@
 {{- $root := . }}
+{{- $admins := list }}
+{{- range $a := (.Values.admins | default list) }}
+{{- if eq $a "guacadmin" }}
+{{- fail "admins: guacadmin is the break-glass administrator with the password of the Secret; leave it out of admins" }}
+{{- end }}
+{{- range $c := $root.Values.connections }}
+{{- if has $a ($c.users | default list) }}
+{{- fail (printf "admins: %s is in admins and in the users of connection %s; a user is one or the other" $a $c.name) }}
+{{- end }}
+{{- end }}
+{{- $admins = append $admins (include "guacamole.sql" $a) }}
+{{- end }}
+{{- $marked := "(SELECT u.entity_id FROM guacamole_user u JOIN guacamole_entity e ON e.entity_id = u.entity_id JOIN guacamole_user_attribute a ON a.user_id = u.user_id AND a.attribute_name = 'guacamole-chart-admin'" }}
+{{- $gone := printf "%s WHERE e.name <> ALL (ARRAY[%s]::text[]))" $marked (join ", " $admins) }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -41,6 +55,14 @@ data:
         password_date = now()
     WHERE entity_id = (SELECT entity_id FROM guacamole_entity WHERE name = 'guacadmin' AND type = 'USER')
       AND password_hash <> sha256(convert_to(:'admin_password' || coalesce(upper(encode(password_salt, 'hex')), ''), 'UTF8'));
+
+    -- former administrators: users marked by an earlier list and not in this
+    -- one lose every system permission, READ on the connections and the mark
+    DELETE FROM guacamole_system_permission WHERE entity_id IN {{ $gone }};
+    DELETE FROM guacamole_connection_permission WHERE permission = 'READ' AND entity_id IN {{ $gone }};
+    DELETE FROM guacamole_user_attribute
+    WHERE attribute_name = 'guacamole-chart-admin'
+      AND user_id IN (SELECT u.user_id FROM guacamole_user u WHERE u.entity_id IN {{ $gone }});
     {{- range $i, $c := .Values.connections }}
     {{- $name := include "guacamole.sql" (required "connections[].name is required" $c.name) }}
     {{- $conn := printf "(SELECT connection_id FROM guacamole_connection WHERE connection_name = %s AND parent_id IS NULL)" $name }}
@@ -104,8 +126,40 @@ data:
     DELETE FROM guacamole_system_permission
     WHERE entity_id = (SELECT entity_id FROM guacamole_entity WHERE name = {{ $u }} AND type = 'USER');
     {{- end }}
-    -- users removed from the list lose the connection
+    {{- $keep := concat $users $admins }}
+    -- users removed from the list lose the connection; administrators keep it
     DELETE FROM guacamole_connection_permission
     WHERE connection_id = {{ $conn }}
-      AND entity_id NOT IN (SELECT entity_id FROM guacamole_entity WHERE type = 'USER' AND name IN ({{ if $users }}{{ join ", " $users }}{{ else }}NULL{{ end }}));
+      AND entity_id NOT IN (SELECT entity_id FROM guacamole_entity WHERE type = 'USER' AND name IN ({{ if $keep }}{{ join ", " $keep }}{{ else }}NULL{{ end }}));
+    {{- end }}
+
+    -- administrators: every system permission, READ on every connection, and
+    -- the mark that lets a later list take both away again
+    {{- range $a := $admins }}
+    INSERT INTO guacamole_entity (name, type) VALUES ({{ $a }}, 'USER')
+    ON CONFLICT (type, name) DO NOTHING;
+    -- a random password nobody knows: the administrator signs in through single sign-on
+    INSERT INTO guacamole_user (entity_id, password_hash, password_salt, password_date)
+    SELECT entity_id,
+           sha256(convert_to(gen_random_uuid()::text || gen_random_uuid()::text, 'UTF8')),
+           sha256(convert_to(gen_random_uuid()::text, 'UTF8')),
+           now()
+    FROM guacamole_entity WHERE name = {{ $a }} AND type = 'USER'
+    ON CONFLICT (entity_id) DO NOTHING;
+    INSERT INTO guacamole_user_attribute (user_id, attribute_name, attribute_value)
+    SELECT u.user_id, 'guacamole-chart-admin', 'true'
+    FROM guacamole_user u JOIN guacamole_entity e ON e.entity_id = u.entity_id
+    WHERE e.name = {{ $a }} AND e.type = 'USER'
+    ON CONFLICT DO NOTHING;
+    INSERT INTO guacamole_system_permission (entity_id, permission)
+    SELECT e.entity_id, p.permission::guacamole_system_permission_type
+    FROM guacamole_entity e, (VALUES ('ADMINISTER'), ('AUDIT'), ('CREATE_CONNECTION'), ('CREATE_CONNECTION_GROUP'),
+      ('CREATE_SHARING_PROFILE'), ('CREATE_USER'), ('CREATE_USER_GROUP')) AS p(permission)
+    WHERE e.name = {{ $a }} AND e.type = 'USER'
+    ON CONFLICT DO NOTHING;
+    INSERT INTO guacamole_connection_permission (entity_id, connection_id, permission)
+    SELECT e.entity_id, c.connection_id, 'READ'
+    FROM guacamole_entity e, guacamole_connection c
+    WHERE e.name = {{ $a }} AND e.type = 'USER'
+    ON CONFLICT DO NOTHING;
     {{- end }}

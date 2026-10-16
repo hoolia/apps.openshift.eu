@@ -89,7 +89,8 @@ check full "env('guacamole')['OPENID_CLIENT_ID'] == 'desk'"
 check full "env('guacamole')['OPENID_REDIRECT_URI'] == 'https://desk.example.com/'"
 check full "env('guacamole')['OPENID_AUTHORIZATION_ENDPOINT'] == 'https://login.example.com/realms/x/protocol/openid-connect/auth'"
 check full "env('guacamole')['OPENID_JWKS_ENDPOINT'] == 'https://login.example.com/realms/x/protocol/openid-connect/certs'"
-check full "env('guacamole')['EXTENSION_PRIORITY'] == '*, openid'"
+# the issuer first: no login form, straight to the identity provider
+check full "env('guacamole')['EXTENSION_PRIORITY'] == 'openid'"
 check full "obj('Route')['spec']['host'] == 'desk.example.com' and obj('Route')['metadata']['annotations']['cert-manager.io/issuer-kind'] == 'ClusterIssuer'"
 for p in "('disable-copy', 'true')" "('disable-paste', 'true')" "('recording-include-keys', 'false')" "('color-depth', '24')" "('hostname', 'kiosk')" "('port', '5900')" "('recording-path', '\${HISTORY_PATH}/\${HISTORY_UUID}')" "('create-recording-path', 'true')" "('password', :'secret_0_0')"; do
   check "full parameter $p" "\"$p\" in sql()"
@@ -102,10 +103,31 @@ check full "all(d['kind'] in $NAMESPACED for d in docs)"
 hasnt full "kind: Namespace"
 
 # an explicit endpoint wins over the Keycloak default
-OUT=$(render $FULL --set oidc.authorizationEndpoint=https://idp.example.com/auth --set oidc.jwksEndpoint=https://idp.example.com/jwks --set oidc.autoRedirect=true)
+OUT=$(render $FULL --set oidc.authorizationEndpoint=https://idp.example.com/auth --set oidc.jwksEndpoint=https://idp.example.com/jwks --set oidc.primary=false)
 check endpoints "env('guacamole')['OPENID_AUTHORIZATION_ENDPOINT'] == 'https://idp.example.com/auth'"
 check endpoints "env('guacamole')['OPENID_JWKS_ENDPOINT'] == 'https://idp.example.com/jwks'"
-check endpoints "env('guacamole')['EXTENSION_PRIORITY'] == 'openid'"
+check endpoints "env('guacamole')['EXTENSION_PRIORITY'] == '*, openid'"
+
+# administrators: every system permission, READ on every connection, marked
+# so that a name removed from the list loses exactly what the chart gave it
+OUT=$(render $FULL --set-json "$CONN" --set-json 'admins=["boss@example.com","o'"'"'neil@example.com"]')
+check admins "\"'boss@example.com'\" in sql() and \"'o''neil@example.com'\" in sql()"
+for p in ADMINISTER AUDIT CREATE_CONNECTION CREATE_CONNECTION_GROUP CREATE_SHARING_PROFILE CREATE_USER CREATE_USER_GROUP; do
+  check "admins $p" "\"'$p'\" in sql().split('-- administrators')[1]"
+done
+check admins "'FROM guacamole_entity e, guacamole_connection c' in sql().split('-- administrators')[1]"
+# the mark is set, and read back by the revoke statements
+check admins "sql().count(\"'guacamole-chart-admin'\") >= 4"
+# administrators keep READ on a managed connection that does not list them
+check admins "\"name IN ('guest@example.com', 'o''brien@example.com', 'boss@example.com', 'o''neil@example.com')\" in sql()"
+check admins "sql().index('-- connection desk') < sql().index('-- administrators')"
+# an empty list still revokes what an earlier list granted
+OUT=$(render $FULL --set-json "$CONN")
+check "admins none" "'-- administrators' in sql() and \"'guacamole-chart-admin'\" in sql()"
+OUT=$(render $FULL --set-json "$CONN" --set-json 'admins=["guest@example.com"]')
+has "admins and users" "guest@example.com is in admins and in the users of connection desk"
+OUT=$(render $FULL --set-json 'admins=["guacadmin"]')
+has "admins guacadmin" "guacadmin is the break-glass administrator"
 
 # no clipboard unless a connection asks for it
 OUT=$(render --set-json 'connections=[{"name":"plain","protocol":"vnc","hostname":"h"}]')
@@ -202,7 +224,20 @@ check kiosk "[e['valueFrom']['secretKeyRef'] for e in kiosk()['env'] if e['name'
 check kiosk "env('kiosk', 't-kiosk')['HOME'] == '/tmp' and env('kiosk', 't-kiosk')['HOMEPAGE'] == 'https://code.example.com/' and env('kiosk', 't-kiosk')['GEOMETRY'] == '1600x900'"
 check kiosk "kmounts()['/usr/lib64/firefox/distribution/policies.json']['subPath'] == 'policies.json'"
 check kiosk "'/profile' in kmounts() and '/dev/shm' in kmounts() and '/tmp' in kmounts()"
-check kiosk "kiosk()['readinessProbe']['tcpSocket'] == {'port': 5900}"
+# probes open no VNC connection: Xvnc blacklists an address after unauthenticated connects
+check kiosk "'tcpSocket' not in kiosk()['readinessProbe'] and 'tcpSocket' not in kiosk()['livenessProbe']"
+check kiosk "kiosk()['readinessProbe']['exec']['command'] == ['sh', '-c', 'kill -0 \"\$(cat /tmp/xvnc.pid)\" && kill -0 \"\$(cat /tmp/firefox.pid)\"']"
+check kiosk "kiosk()['livenessProbe']['exec']['command'] == ['sh', '-c', 'kill -0 \"\$(cat /tmp/xvnc.pid)\"']"
+check kiosk "'echo \$xvnc > /tmp/xvnc.pid' in start() and 'echo \$ff > /tmp/firefox.pid' in start()"
+# no window manager: Firefox is sized to the desktop on its command line
+check kiosk "'--width \"\${GEOMETRY%x*}\" --height \"\${GEOMETRY#*x}\"' in start()"
+# no typed value offered again, no tab of an earlier session
+check kiosk "pol()['DisableFormHistory'] is True"
+check kiosk "pol()['Preferences']['browser.sessionstore.resume_from_crash'] == {'Value': False, 'Status': 'locked'}"
+check kiosk "pol()['Preferences']['browser.startup.page'] == {'Value': 1, 'Status': 'locked'}"
+check kiosk "'rm -rf /profile/formhistory.sqlite* /profile/sessionstore.jsonlz4 /profile/sessionstore-backups' in start()"
+check kiosk "all(f not in start() for f in ['logins.json', 'key4.db', 'cookies'])"
+check kiosk "start().index('sessionstore-backups') < start().index('firefox --kiosk')"
 check kiosk "'fsGroup' not in pod('t-kiosk').get('securityContext', {}) and 'runAsUser' not in pod('t-kiosk').get('securityContext', {}) and 'runAsUser' not in kiosk().get('securityContext', {})"
 check kiosk "obj('Deployment', 't-kiosk')['spec']['strategy']['type'] == 'Recreate' and obj('Deployment', 't-kiosk')['spec']['replicas'] == 1"
 check kiosk "kiosk()['image'] == 'image-registry.openshift-image-registry.svc:5000/test/t-kiosk:latest'"

@@ -77,13 +77,14 @@ spec:
           readOnly: true
         - name: shm
           mountPath: /dev/shm
+        # exec, not tcpSocket: Xvnc blacklists an address after connections without VNC authentication
         readinessProbe:
-          tcpSocket:
-            port: 5900
+          exec:
+            command: ["sh", "-c", 'kill -0 "$(cat /tmp/xvnc.pid)" && kill -0 "$(cat /tmp/firefox.pid)"']
           periodSeconds: 10
         livenessProbe:
-          tcpSocket:
-            port: 5900
+          exec:
+            command: ["sh", "-c", 'kill -0 "$(cat /tmp/xvnc.pid)"']
           initialDelaySeconds: 30
           periodSeconds: 30
         resources:

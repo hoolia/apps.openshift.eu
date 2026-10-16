@@ -76,7 +76,14 @@ oidc:
   usernameClaim: preferred_username
   scope: openid email profile
   # true: straight to the issuer, no login form. false: the form, with a link to the issuer
-  autoRedirect: false
+  primary: true
+
+# administrators by user name, signing in like any other user: every system
+# permission and READ on every connection. A name removed from the list loses
+# them on the next upgrade. guacadmin is not one of them: it stays the
+# break-glass administrator with the password of the Secret
+# - admin@example.com
+admins: []
 
 # connections managed by the chart. Each one is created or updated on every
 # install and upgrade; its parameters and its users are exactly the ones here

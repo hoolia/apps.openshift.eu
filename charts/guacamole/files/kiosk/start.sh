@@ -20,6 +20,8 @@ Xvnc :1 -geometry "$GEOMETRY" -depth 24 -rfbport 5900 -SecurityTypes VncAuth \
   -SendCutText=0 -AcceptCutText=0 -SendPrimary=0 -SetPrimary=0 \
   -nolisten tcp &
 xvnc=$!
+# read by the exec probes, which open no VNC connection
+echo $xvnc > /tmp/xvnc.pid
 ff=""
 trap 'kill $ff $xvnc 2>/dev/null; exit 0' TERM INT
 
@@ -31,8 +33,13 @@ done
 while kill -0 $xvnc 2>/dev/null; do
   # a lock left by the previous pod would make Firefox refuse the profile
   rm -f /profile/lock /profile/.parentlock
-  firefox --kiosk --no-remote --profile /profile "$HOMEPAGE" &
+  # typed form values and the tabs of the previous run; saved logins stay
+  rm -rf /profile/formhistory.sqlite* /profile/sessionstore.jsonlz4 /profile/sessionstore-backups
+  # no window manager applies --kiosk full screen: size the window to the desktop
+  firefox --kiosk --no-remote --profile /profile \
+    --width "${GEOMETRY%x*}" --height "${GEOMETRY#*x}" "$HOMEPAGE" &
   ff=$!
+  echo $ff > /tmp/firefox.pid
   wait $ff || true
   echo "firefox exited, starting it again"
   sleep 2

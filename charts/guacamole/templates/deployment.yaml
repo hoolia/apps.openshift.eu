@@ -104,7 +104,7 @@ spec:
         - name: OPENID_SCOPE
           value: {{ .Values.oidc.scope | quote }}
         - name: EXTENSION_PRIORITY
-          value: {{ ternary "openid" "*, openid" .Values.oidc.autoRedirect | quote }}
+          value: {{ ternary "openid" "*, openid" .Values.oidc.primary | quote }}
         {{- end }}
         ports:
         - containerPort: 8080
