@@ -9,7 +9,14 @@ angular.module('index').requires.push('guacWatermark');
 angular.module('guacWatermark').run(['$injector', function guacWatermark($injector) {
 
     var $rootScope = $injector.get('$rootScope');
-    var authenticationService = $injector.get('authenticationService');
+    // a renamed service leaves the overlay off, never breaks the bootstrap
+    var authenticationService;
+    try {
+        authenticationService = $injector.get('authenticationService');
+    }
+    catch (e) {
+        return;
+    }
 
     var layer = document.createElement('div');
     layer.className = 'guac-watermark';
@@ -55,6 +62,7 @@ angular.module('guacWatermark').run(['$injector', function guacWatermark($inject
 
     $rootScope.$on('guacLogin', function () { setTimeout(render, 0); });
     $rootScope.$on('guacLogout', function () { setTimeout(render, 0); });
+    $rootScope.$on('$locationChangeSuccess', function () { setTimeout(render, 0); });
     setInterval(render, 60000);
     render();
 

@@ -242,6 +242,10 @@ check watermark "[m for m in ctr('guacamole')['volumeMounts'] if m['name'] == 'e
 check watermark "[v['configMap']['name'] for v in pod()['volumes'] if v['name'] == 'extensions'] == ['t-guacamole-extensions']"
 check watermark "'GUACAMOLE_HOME' not in env('guacamole')"
 check watermark "__import__('base64').b64decode(obj('ConfigMap', 't-guacamole-extensions')['binaryData']['watermark.jar']) == open('$C/files/watermark.jar', 'rb').read()"
+# a subPath mount never refreshes: a changed jar must roll the pod
+check watermark "len(obj('Deployment', 't-guacamole')['spec']['template']['metadata']['annotations']['checksum/extensions']) == 64"
+OUT=$(render)
+check "watermark off" "'checksum/extensions' not in (obj('Deployment', 't-guacamole')['spec']['template']['metadata'].get('annotations') or {})"
 OUT=$(render --set watermark.enabled=true --set recording.enabled=false)
 check "watermark norec" "[v['name'] for v in pod()['volumes']] == ['extensions'] and mounts('guacamole') == ['extensions']"
 # the committed jar is the build of the committed sources
@@ -259,6 +263,7 @@ assert m["js"] == ["watermark.js"] and m["css"] == ["watermark.css"], m
 assert sorted(z.namelist()) == ["guac-manifest.json", "watermark.css", "watermark.js"], z.namelist()
 js = z.read("watermark.js").decode()
 assert "getCurrentUsername" in js and "60000" in js and "pointer-events" not in js
+assert "$locationChangeSuccess" in js and "catch" in js
 css = z.read("watermark.css").decode()
 assert "position: fixed" in css and "pointer-events: none" in css
 EOF

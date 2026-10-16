@@ -27,6 +27,11 @@ spec:
     metadata:
       labels:
         app: {{ include "guacamole.fullname" . }}
+      {{- if $wm }}
+      # the subPath mount never refreshes: a new jar rolls the pod
+      annotations:
+        checksum/extensions: {{ include (print $.Template.BasePath "/configmap-extensions.yaml") . | sha256sum }}
+      {{- end }}
     spec:
       automountServiceAccountToken: false
       # no fixed user or fsGroup: both come from the project's range
