@@ -1,0 +1,10 @@
+Guacamole: oc get route {{ include "guacamole.fullname" . }} -o jsonpath='https://{.spec.host}/{"\n"}'
+
+Administrator: guacadmin, password:
+  oc get secret {{ include "guacamole.fullname" . }} -o jsonpath='{.data.adminPassword}' | base64 -d
+{{- if and .Values.recording.enabled .Values.recording.s3.enabled }}
+
+Recordings are copied to the bucket of ObjectBucketClaim {{ include "guacamole.fullname" . }}-recordings.
+Give the bucket a lifecycle rule that expires them after {{ .Values.recording.s3.expiryDays }} days; the
+claim cannot carry one. See the Delivery instructions of the chart README.
+{{- end }}
