@@ -196,6 +196,9 @@ spec:
           value: {{ $rec.s3.region | quote }}
         - name: RCLONE_CONFIG_S3_FORCE_PATH_STYLE
           value: "true"
+        # the claim's bucket exists and its user may not create buckets
+        - name: RCLONE_CONFIG_S3_NO_CHECK_BUCKET
+          value: "true"
         - name: RCLONE_CONFIG_S3_ACCESS_KEY_ID
           valueFrom:
             secretKeyRef:

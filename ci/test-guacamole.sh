@@ -75,6 +75,8 @@ check full "all('recordings' in mounts(c) for c in ['guacamole', 'guacd', 'rclon
 check full "ctr('rclone')['image'] == 'rclone/rclone:1.71'"
 check full "'rclone copy' in ' '.join(ctr('rclone')['args']) and 'rclone sync' not in ' '.join(ctr('rclone')['args'])"
 check full "'sleep 300' in ' '.join(ctr('rclone')['args'])"
+# the bucket exists and its user may not create one (RGW TooManyBuckets)
+check full "env('rclone')['RCLONE_CONFIG_S3_NO_CHECK_BUCKET'] == 'true'"
 check full "{e['valueFrom']['secretKeyRef']['name'] for e in ctr('rclone')['env'] if 'valueFrom' in e and 'secretKeyRef' in e['valueFrom']} == {'t-guacamole-recordings'}"
 check full "{e['valueFrom']['configMapKeyRef']['name'] for e in ctr('rclone')['env'] if 'valueFrom' in e and 'configMapKeyRef' in e['valueFrom']} == {'t-guacamole-recordings'}"
 check full "obj('ObjectBucketClaim', 't-guacamole-recordings')['spec']['storageClassName'] == 'objects'"
