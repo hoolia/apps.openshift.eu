@@ -34,9 +34,14 @@
   "OverrideFirstRunPage" ""
   "OverridePostUpdatePage" ""
   "DisableFormHistory" true
+  "SearchSuggestEnabled" false
+  "FirefoxHome" (dict "Search" false "TopSites" false "SponsoredTopSites" false "Highlights" false "Pocket" false "SponsoredPocket" false "Snippets" false "Locked" true)
+  "FirefoxSuggest" (dict "WebSuggestions" false "SponsoredSuggestions" false "ImproveSuggest" false "Locked" true)
   "Preferences" (dict
     "browser.sessionstore.resume_from_crash" (merge (dict "Value" false) $locked)
     "browser.startup.page" (merge (dict "Value" 1) $locked)
+    "browser.urlbar.suggest.topsites" (merge (dict "Value" false) $locked)
+    "browser.newtabpage.activity-stream.default.sites" (merge (dict "Value" "") $locked)
     "signon.showAutoCompleteFooter" (merge (dict "Value" false) $locked)
     "browser.contextual-password-manager.enabled" (merge (dict "Value" false) $locked)
     "pref.privacy.disable_button.view_passwords" (merge (dict "Value" true) $locked)
