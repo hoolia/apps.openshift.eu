@@ -15,12 +15,16 @@ data:
       echo "waiting for the database"
       sleep 5
     done
-    # the schema is created once; Guacamole never creates its own tables
+    # the schema is created once; Guacamole never creates its own tables.
+    # Schema and init.sql share one transaction, so the schema's default
+    # guacadmin password is never committed
+    files="-f /scripts/init.sql"
     if [ "$(psql -tAc "SELECT to_regclass('public.guacamole_user') IS NULL")" = t ]; then
       echo "creating the schema"
-      psql -v ON_ERROR_STOP=1 --single-transaction -q -f /work/schema.sql
+      files="-f /work/schema.sql $files"
     fi
-    psql -v ON_ERROR_STOP=1 --single-transaction -q -f /scripts/init.sql
+    # shellcheck disable=SC2086
+    psql -v ON_ERROR_STOP=1 --single-transaction -q $files
     echo "done"
   # applied on every install and upgrade: each statement leaves the same state
   init.sql: |

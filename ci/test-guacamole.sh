@@ -127,6 +127,32 @@ check external "obj('ExternalSecret', 't-guacamole')['spec']['target']['name'] =
 check external "sorted(x['secretKey'] for x in obj('ExternalSecret')['spec']['data']) == ['adminPassword', 'vncPassword']"
 check external "sorted(x['remoteRef']['key'] for x in obj('ExternalSecret')['spec']['data']) == ['guacamole-admin-password', 'guacamole-vnc-password']"
 
+# hardening: guacd probes on its loopback address (a tcpSocket probe would
+# dial the pod IP, where guacd does not listen), a deadline on the init Job,
+# and the schema plus init.sql in one transaction (no committed guacadmin)
+OUT=$(render)
+check hardening "ctr('guacd')['readinessProbe']['exec']['command'] == ['nc', '-z', '127.0.0.1', '4822'] and 'tcpSocket' not in ctr('guacd')['readinessProbe']"
+check hardening "ctr('guacd')['livenessProbe']['exec']['command'] == ['nc', '-z', '127.0.0.1', '4822'] and ctr('guacd')['livenessProbe']['timeoutSeconds'] == 5"
+check hardening "obj('Job', 't-guacamole-init')['spec']['activeDeadlineSeconds'] == 600"
+T=$(mktemp -d)
+echo "$OUT" | python3 -c 'import sys, yaml
+for d in yaml.safe_load_all(sys.stdin):
+    if d and d["kind"] == "ConfigMap" and d["metadata"]["name"] == "t-guacamole-init":
+        open(sys.argv[1] + "/init.sh", "w").write(d["data"]["init.sh"])' "$T"
+mkdir "$T/bin"
+printf '#!/bin/sh\nexit 0\n' > "$T/bin/pg_isready"
+# psql stand-in: answers the schema probe with $FRESH, logs every other call
+printf '#!/bin/sh\ncase "$*" in *-tAc*) echo "$FRESH" ;; *) echo "$*" >> "$LOG" ;; esac\n' > "$T/bin/psql"
+chmod +x "$T/bin/pg_isready" "$T/bin/psql"
+for fresh in t f; do
+  : > "$T/log"
+  PATH="$T/bin:$PATH" FRESH=$fresh LOG="$T/log" sh "$T/init.sh" >/dev/null || { echo "FAIL init.sh fresh=$fresh: exit"; fail=1; }
+  want="-v ON_ERROR_STOP=1 --single-transaction -q -f /work/schema.sql -f /scripts/init.sql"
+  [ $fresh = f ] && want="-v ON_ERROR_STOP=1 --single-transaction -q -f /scripts/init.sql"
+  [ "$(cat "$T/log")" = "$want" ] || { echo "FAIL init.sh fresh=$fresh: psql calls: $(cat "$T/log")"; fail=1; }
+done
+rm -rf "$T"
+
 # kiosk desktop: off by default, nothing of it rendered
 OUT=$(render)
 check "kiosk off" "not [d for d in docs if d['metadata']['name'].startswith('t-kiosk')] and not objs('EgressFirewall')"

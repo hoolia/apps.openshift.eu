@@ -15,6 +15,8 @@ metadata:
     helm.sh/hook-delete-policy: before-hook-creation
 spec:
   backoffLimit: 6
+  # a database that never comes up fails the sync instead of hanging it
+  activeDeadlineSeconds: 600
   template:
     spec:
       restartPolicy: OnFailure

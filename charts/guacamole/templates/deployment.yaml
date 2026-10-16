@@ -139,10 +139,18 @@ spec:
         - name: recordings
           mountPath: /var/lib/guacamole/recordings
         {{- end }}
+        # exec, not tcpSocket: kubelet dials the pod IP, guacd is on loopback
         readinessProbe:
           exec:
             command: ["nc", "-z", "127.0.0.1", "4822"]
+          timeoutSeconds: 5
           periodSeconds: 10
+        livenessProbe:
+          exec:
+            command: ["nc", "-z", "127.0.0.1", "4822"]
+          initialDelaySeconds: 10
+          timeoutSeconds: 5
+          periodSeconds: 30
         resources:
           {{- toYaml .Values.resources.guacd | nindent 10 }}
       {{- if $s3 }}
