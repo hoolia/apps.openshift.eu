@@ -6,6 +6,11 @@
 {{- end -}}
 {{- end -}}
 
+{{/* Name of the kiosk desktop objects: <release>-kiosk. */}}
+{{- define "guacamole.kiosk" -}}
+{{- printf "%s-kiosk" .Release.Name | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
 {{/* Labels that are the same on every object of the chart. */}}
 {{- define "guacamole.commonLabels" -}}
 app.kubernetes.io/part-of: {{ .Release.Name | quote }}

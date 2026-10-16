@@ -81,6 +81,29 @@
         }
       }
     },
+    "kiosk": {
+      "type": "object",
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "image": {"type": "string"},
+        "registry": {"type": "string", "minLength": 1},
+        "homepage": {"type": "string", "minLength": 1},
+        "allowedUrls": {"type": "array", "maxItems": 1000, "items": {"type": "string", "minLength": 1}},
+        "geometry": {"type": "string", "pattern": "^[0-9]+x[0-9]+$"},
+        "profileSize": {"type": "string", "minLength": 1},
+        "storageClassName": {"type": "string"},
+        "egressFirewall": {
+          "type": "object",
+          "properties": {
+            "enabled": {"type": "boolean"},
+            "allowedDnsNames": {"type": "array", "items": {"type": "string", "minLength": 1}},
+            "allowedCidrs": {"type": "array", "items": {"type": "string", "pattern": "^[0-9.]+/[0-9]+$"}}
+          }
+        },
+        "resources": {"type": "object"},
+        "build": {"type": "object"}
+      }
+    },
     "secrets": {
       "type": "object",
       "properties": {

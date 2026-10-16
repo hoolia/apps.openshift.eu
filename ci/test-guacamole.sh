@@ -11,21 +11,26 @@ hasnt() { echo "$OUT" | grep -qF -- "$2" && { echo "FAIL $1: unexpected: $2"; fa
 # env(container) the env of a Deployment container as a dict of plain values
 check() {
   echo "$OUT" | python3 -c '
-import sys, yaml
+import json, sys, yaml
 docs = [d for d in yaml.safe_load_all(sys.stdin) if isinstance(d, dict) and d.get("kind")]
 def objs(kind): return [d for d in docs if d["kind"] == kind]
 def obj(kind, name=None):
     for d in objs(kind):
         if name is None or d["metadata"]["name"] == name: return d
     return {}
-def pod(): return obj("Deployment", "t-guacamole")["spec"]["template"]["spec"]
-def ctr(name):
-    for c in pod()["containers"]:
+def pod(deploy="t-guacamole"): return obj("Deployment", deploy)["spec"]["template"]["spec"]
+def ctr(name, deploy="t-guacamole"):
+    for c in pod(deploy)["containers"]:
         if c["name"] == name: return c
     return {}
-def env(name): return {e["name"]: e.get("value") for e in ctr(name).get("env", [])}
+def env(name, deploy="t-guacamole"): return {e["name"]: e.get("value") for e in ctr(name, deploy).get("env", [])}
 def mounts(name): return [m["name"] for m in ctr(name).get("volumeMounts", [])]
 def sql(): return obj("ConfigMap", "t-guacamole-init")["data"]["init.sql"]
+def kiosk(): return ctr("kiosk", "t-kiosk")
+def kmounts(): return {m["mountPath"]: m for m in kiosk().get("volumeMounts", [])}
+def pol(): return json.loads(obj("ConfigMap", "t-kiosk")["data"]["policies.json"])["policies"]
+def start(): return obj("ConfigMap", "t-kiosk")["data"]["start.sh"]
+def rules(): return obj("EgressFirewall", "default")["spec"]["egress"]
 sys.exit(0 if eval(sys.argv[1]) else 1)
 ' "$2" || { echo "FAIL $1: $2"; fail=1; }
 }
@@ -121,5 +126,60 @@ check external "not [d for d in objs('Secret') if d['metadata']['name'] == 't-gu
 check external "obj('ExternalSecret', 't-guacamole')['spec']['target']['name'] == 't-guacamole'"
 check external "sorted(x['secretKey'] for x in obj('ExternalSecret')['spec']['data']) == ['adminPassword', 'vncPassword']"
 check external "sorted(x['remoteRef']['key'] for x in obj('ExternalSecret')['spec']['data']) == ['guacamole-admin-password', 'guacamole-vnc-password']"
+
+# kiosk desktop: off by default, nothing of it rendered
+OUT=$(render)
+check "kiosk off" "not [d for d in docs if d['metadata']['name'].startswith('t-kiosk')] and not objs('EgressFirewall')"
+
+KIOSK='--set kiosk.enabled=true --set kiosk.homepage=https://code.example.com/ --set kiosk.profileSize=2Gi'
+KURLS='kiosk.allowedUrls=["https://code.example.com/*","https://login.example.com/*"]'
+KDNS='kiosk.egressFirewall.allowedDnsNames=["code.example.com","login.example.com"]'
+KCIDR='kiosk.egressFirewall.allowedCidrs=["10.10.10.17/32"]'
+OUT=$(render $KIOSK --set-json "$KURLS" --set-json "$KDNS" --set-json "$KCIDR")
+check kiosk "pol()['DisableDeveloperTools'] is True and pol()['BlockAboutConfig'] is True"
+check kiosk "pol()['DisablePasswordReveal'] is True and pol()['PasswordManagerEnabled'] is True"
+check kiosk "pol()['PrintingEnabled'] is False"
+# Firefox has no DownloadRestrictions (a Chromium policy): downloads land in a
+# locked directory on an emptyDir, and file:// is blocked by WebsiteFilter
+check kiosk "'DownloadRestrictions' not in pol()"
+check kiosk "pol()['DownloadDirectory'] == '/tmp/downloads' and pol()['PromptForDownloadLocation'] is False"
+check kiosk "pol()['WebsiteFilter'] == {'Block': ['<all_urls>'], 'Exceptions': ['https://code.example.com/*', 'https://login.example.com/*']}"
+check kiosk "pol()['ExtensionSettings'] == {'*': {'installation_mode': 'blocked'}}"
+check kiosk "pol()['DisableFirefoxAccounts'] is True and pol()['DisableProfileImport'] is True"
+check kiosk "all(pol()[p] is True for p in ['BlockAboutAddons', 'BlockAboutProfiles', 'BlockAboutSupport'])"
+check kiosk "pol()['Preferences']['signon.showAutoCompleteFooter'] == {'Value': False, 'Status': 'locked'}"
+check kiosk "pol()['Preferences']['browser.contextual-password-manager.enabled'] == {'Value': False, 'Status': 'locked'}"
+check kiosk "pol()['Preferences']['pref.privacy.disable_button.view_passwords'] == {'Value': True, 'Status': 'locked'}"
+check kiosk "rules()[-1] == {'type': 'Deny', 'to': {'cidrSelector': '0.0.0.0/0'}}"
+check kiosk "rules()[:-1] == [{'type': 'Allow', 'to': {'dnsName': 'code.example.com'}}, {'type': 'Allow', 'to': {'dnsName': 'login.example.com'}}, {'type': 'Allow', 'to': {'cidrSelector': '10.10.10.17/32'}}]"
+check kiosk "obj('EgressFirewall')['apiVersion'] == 'k8s.ovn.org/v1' and len(objs('EgressFirewall')) == 1"
+check kiosk "obj('NetworkPolicy', 't-kiosk')['spec']['podSelector'] == {'matchLabels': {'app': 't-kiosk'}}"
+check kiosk "obj('NetworkPolicy', 't-kiosk')['spec']['ingress'] == [{'from': [{'podSelector': {'matchLabels': {'app': 't-guacamole'}}}], 'ports': [{'protocol': 'TCP', 'port': 5900}]}]"
+check kiosk "obj('Service', 't-kiosk')['spec']['ports'][0]['port'] == 5900 and obj('Service', 't-kiosk')['spec']['selector'] == {'app': 't-kiosk'}"
+check kiosk "[e['valueFrom']['secretKeyRef'] for e in kiosk()['env'] if e['name'] == 'VNC_PASSWORD'] == [{'name': 't-guacamole', 'key': 'vncPassword'}]"
+check kiosk "env('kiosk', 't-kiosk')['HOME'] == '/tmp' and env('kiosk', 't-kiosk')['HOMEPAGE'] == 'https://code.example.com/' and env('kiosk', 't-kiosk')['GEOMETRY'] == '1600x900'"
+check kiosk "kmounts()['/usr/lib64/firefox/distribution/policies.json']['subPath'] == 'policies.json'"
+check kiosk "'/profile' in kmounts() and '/dev/shm' in kmounts() and '/tmp' in kmounts()"
+check kiosk "kiosk()['readinessProbe']['tcpSocket'] == {'port': 5900}"
+check kiosk "'fsGroup' not in pod('t-kiosk').get('securityContext', {}) and 'runAsUser' not in pod('t-kiosk').get('securityContext', {}) and 'runAsUser' not in kiosk().get('securityContext', {})"
+check kiosk "obj('Deployment', 't-kiosk')['spec']['strategy']['type'] == 'Recreate' and obj('Deployment', 't-kiosk')['spec']['replicas'] == 1"
+check kiosk "kiosk()['image'] == 'image-registry.openshift-image-registry.svc:5000/test/t-kiosk:latest'"
+check kiosk "obj('PersistentVolumeClaim', 't-kiosk-profile')['spec']['resources']['requests']['storage'] == '2Gi'"
+check kiosk "'FROM registry.fedoraproject.org/fedora:42' in obj('BuildConfig', 't-kiosk')['spec']['source']['dockerfile']"
+check kiosk "'firefox' in obj('BuildConfig', 't-kiosk')['spec']['source']['dockerfile'] and 'tigervnc-server-minimal' in obj('BuildConfig', 't-kiosk')['spec']['source']['dockerfile']"
+check kiosk "obj('BuildConfig', 't-kiosk')['spec']['output']['to'] == {'kind': 'ImageStreamTag', 'name': 't-kiosk:latest'} and obj('ImageStream', 't-kiosk')"
+for s in 'Xvnc :1' '-geometry' '-rfbport 5900' '-SecurityTypes VncAuth' 'firefox --kiosk' '--profile /profile' 'HOMEPAGE'; do
+  check "kiosk start.sh $s" "'$s' in start()"
+done
+check kiosk "all(d['kind'] in $NAMESPACED + ['BuildConfig', 'ImageStream', 'EgressFirewall'] for d in docs)"
+
+# a prebuilt image: no build objects
+OUT=$(render $KIOSK --set kiosk.image=quay.io/example/kiosk:1)
+check "kiosk image" "not objs('BuildConfig') and not objs('ImageStream') and kiosk()['image'] == 'quay.io/example/kiosk:1'"
+OUT=$(render $KIOSK --set kiosk.egressFirewall.enabled=false)
+check "kiosk no firewall" "not objs('EgressFirewall') and obj('Deployment', 't-kiosk')"
+check "kiosk empty lists" "pol()['WebsiteFilter'] == {'Block': ['<all_urls>'], 'Exceptions': []}"
+OUT=$(render --set kiosk.enabled=true)
+check "kiosk defaults" "rules() == [{'type': 'Deny', 'to': {'cidrSelector': '0.0.0.0/0'}}] and env('kiosk', 't-kiosk')['HOMEPAGE'] == 'about:blank'"
 
 [ $fail = 0 ] && echo "RESULT PASS" || { echo "RESULT FAIL"; exit 1; }

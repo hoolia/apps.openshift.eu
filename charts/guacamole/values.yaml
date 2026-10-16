@@ -112,6 +112,49 @@ recording:
     # region given to the S3 client
     region: us-east-1
 
+kiosk:
+  # true: a locked-down Firefox desktop, Service <release>-kiosk on VNC port
+  # 5900, for a connection with hostname <release>-kiosk and
+  # secretParameters password: vncPassword
+  enabled: false
+  # empty: built in the project from files/kiosk/Containerfile
+  image: ""
+  # registry of the cluster, where the build pushes and the pod pulls
+  registry: image-registry.openshift-image-registry.svc:5000
+  # first page; must match allowedUrls unless it is an about: page
+  homepage: about:blank
+  # Firefox WebsiteFilter exceptions (match patterns); everything else is blocked
+  # - https://code.example.com/*
+  allowedUrls: []
+  geometry: 1600x900
+  # Firefox profile with the saved logins, kept across restarts
+  profileSize: 1Gi
+  # empty: the default storage class
+  storageClassName: ""
+  egressFirewall:
+    # true: EgressFirewall "default" for the whole project: only the entries
+    # below are reachable outside the cluster. The project may hold one only
+    enabled: true
+    # - code.example.com
+    allowedDnsNames: []
+    # - 192.0.2.10/32
+    allowedCidrs: []
+  resources:
+    requests:
+      cpu: 200m
+      memory: 1Gi
+    limits:
+      cpu: "2"
+      memory: 3Gi
+  build:
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        cpu: "2"
+        memory: 2Gi
+
 secrets:
   # kubernetes: a Secret from the values below. externalSecret: from a secret store
   type: kubernetes

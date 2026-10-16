@@ -1,6 +1,6 @@
 apiVersion: v2
 name: guacamole
-description: Apache Guacamole remote desktop gateway with a PostgreSQL database, optional single sign-on and session recording to object storage
+description: Apache Guacamole remote desktop gateway with a PostgreSQL database, optional single sign-on, session recording to object storage and a locked-down kiosk browser desktop
 type: application
 version: 0.1.0
 appVersion: "1.6.0"
