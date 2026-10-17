@@ -74,6 +74,8 @@ oidc:
   jwksEndpoint: ""
   # token claim that holds the Guacamole user name
   usernameClaim: preferred_username
+  # token claim that holds the user's group names, for adminGroups and connections[].groups
+  groupsClaim: groups
   scope: openid email profile
   # true: straight to the issuer, no login form. false: the form, with a link to the issuer
   primary: true
@@ -84,6 +86,12 @@ oidc:
 # break-glass administrator with the password of the Secret
 # - admin@example.com
 admins: []
+
+# groups of the issuer, by name as oidc.groupsClaim gives them: their members
+# are administrators like the names in admins, without a database account.
+# A group removed from the list loses the permissions on the next upgrade
+# - admins
+adminGroups: []
 
 # connections managed by the chart. Each one is created or updated on every
 # install and upgrade; its parameters and its users are exactly the ones here
@@ -101,6 +109,9 @@ admins: []
 #   # users that may open the connection, READ permission only
 #   users:
 #   - user@example.com
+#   # groups of the issuer whose members may open the connection, READ only
+#   groups:
+#   - desktop-users
 connections: []
 
 recording:

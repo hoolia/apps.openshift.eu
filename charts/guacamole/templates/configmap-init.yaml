@@ -13,6 +13,12 @@
 {{- end }}
 {{- $marked := "(SELECT u.entity_id FROM guacamole_user u JOIN guacamole_entity e ON e.entity_id = u.entity_id JOIN guacamole_user_attribute a ON a.user_id = u.user_id AND a.attribute_name = 'guacamole-chart-admin'" }}
 {{- $gone := printf "%s WHERE e.name <> ALL (ARRAY[%s]::text[]))" $marked (join ", " $admins) }}
+{{- $adminGroups := list }}
+{{- range $g := (.Values.adminGroups | default list) }}
+{{- $adminGroups = append $adminGroups (include "guacamole.sql" $g) }}
+{{- end }}
+{{- $markedGroups := "(SELECT g.entity_id FROM guacamole_user_group g JOIN guacamole_entity e ON e.entity_id = g.entity_id JOIN guacamole_user_group_attribute a ON a.user_group_id = g.user_group_id AND a.attribute_name = 'guacamole-chart-admin'" }}
+{{- $goneGroups := printf "%s WHERE e.name <> ALL (ARRAY[%s]::text[]))" $markedGroups (join ", " $adminGroups) }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -63,6 +69,12 @@ data:
     DELETE FROM guacamole_user_attribute
     WHERE attribute_name = 'guacamole-chart-admin'
       AND user_id IN (SELECT u.user_id FROM guacamole_user u WHERE u.entity_id IN {{ $gone }});
+    -- former administrator groups: the same, for groups marked by an earlier list
+    DELETE FROM guacamole_system_permission WHERE entity_id IN {{ $goneGroups }};
+    DELETE FROM guacamole_connection_permission WHERE permission = 'READ' AND entity_id IN {{ $goneGroups }};
+    DELETE FROM guacamole_user_group_attribute
+    WHERE attribute_name = 'guacamole-chart-admin'
+      AND user_group_id IN (SELECT g.user_group_id FROM guacamole_user_group g WHERE g.entity_id IN {{ $goneGroups }});
     {{- range $i, $c := .Values.connections }}
     {{- $name := include "guacamole.sql" (required "connections[].name is required" $c.name) }}
     {{- $conn := printf "(SELECT connection_id FROM guacamole_connection WHERE connection_name = %s AND parent_id IS NULL)" $name }}
@@ -126,11 +138,27 @@ data:
     DELETE FROM guacamole_system_permission
     WHERE entity_id = (SELECT entity_id FROM guacamole_entity WHERE name = {{ $u }} AND type = 'USER');
     {{- end }}
+    {{- $groups := list }}
+    {{- range $g := ($c.groups | default list) }}{{- $groups = append $groups (include "guacamole.sql" $g) }}{{- end }}
+    {{- range $g := $groups }}
+    INSERT INTO guacamole_entity (name, type) VALUES ({{ $g }}, 'USER_GROUP')
+    ON CONFLICT (type, name) DO NOTHING;
+    INSERT INTO guacamole_user_group (entity_id)
+    SELECT entity_id FROM guacamole_entity WHERE name = {{ $g }} AND type = 'USER_GROUP'
+    ON CONFLICT (entity_id) DO NOTHING;
+    INSERT INTO guacamole_connection_permission (entity_id, connection_id, permission)
+    SELECT entity_id, {{ $conn }}, 'READ'
+    FROM guacamole_entity WHERE name = {{ $g }} AND type = 'USER_GROUP'
+    ON CONFLICT DO NOTHING;
+    {{- end }}
     {{- $keep := concat $users $admins }}
-    -- users removed from the list lose the connection; administrators keep it
+    {{- $keepGroups := concat $groups $adminGroups }}
+    -- users and groups removed from the lists lose the connection; administrators keep it
     DELETE FROM guacamole_connection_permission
     WHERE connection_id = {{ $conn }}
-      AND entity_id NOT IN (SELECT entity_id FROM guacamole_entity WHERE type = 'USER' AND name IN ({{ if $keep }}{{ join ", " $keep }}{{ else }}NULL{{ end }}));
+      AND entity_id NOT IN (SELECT entity_id FROM guacamole_entity
+        WHERE (type = 'USER' AND name IN ({{ if $keep }}{{ join ", " $keep }}{{ else }}NULL{{ end }}))
+           OR (type = 'USER_GROUP' AND name IN ({{ if $keepGroups }}{{ join ", " $keepGroups }}{{ else }}NULL{{ end }})));
     {{- end }}
 
     -- administrators: every system permission, READ on every connection, and
@@ -161,5 +189,31 @@ data:
     SELECT e.entity_id, c.connection_id, 'READ'
     FROM guacamole_entity e, guacamole_connection c
     WHERE e.name = {{ $a }} AND e.type = 'USER'
+    ON CONFLICT DO NOTHING;
+    {{- end }}
+
+    -- administrator groups: the same permissions and mark, for every member
+    -- the issuer names in the groups claim
+    {{- range $g := $adminGroups }}
+    INSERT INTO guacamole_entity (name, type) VALUES ({{ $g }}, 'USER_GROUP')
+    ON CONFLICT (type, name) DO NOTHING;
+    INSERT INTO guacamole_user_group (entity_id)
+    SELECT entity_id FROM guacamole_entity WHERE name = {{ $g }} AND type = 'USER_GROUP'
+    ON CONFLICT (entity_id) DO NOTHING;
+    INSERT INTO guacamole_user_group_attribute (user_group_id, attribute_name, attribute_value)
+    SELECT g.user_group_id, 'guacamole-chart-admin', 'true'
+    FROM guacamole_user_group g JOIN guacamole_entity e ON e.entity_id = g.entity_id
+    WHERE e.name = {{ $g }} AND e.type = 'USER_GROUP'
+    ON CONFLICT DO NOTHING;
+    INSERT INTO guacamole_system_permission (entity_id, permission)
+    SELECT e.entity_id, p.permission::guacamole_system_permission_type
+    FROM guacamole_entity e, (VALUES ('ADMINISTER'), ('AUDIT'), ('CREATE_CONNECTION'), ('CREATE_CONNECTION_GROUP'),
+      ('CREATE_SHARING_PROFILE'), ('CREATE_USER'), ('CREATE_USER_GROUP')) AS p(permission)
+    WHERE e.name = {{ $g }} AND e.type = 'USER_GROUP'
+    ON CONFLICT DO NOTHING;
+    INSERT INTO guacamole_connection_permission (entity_id, connection_id, permission)
+    SELECT e.entity_id, c.connection_id, 'READ'
+    FROM guacamole_entity e, guacamole_connection c
+    WHERE e.name = {{ $g }} AND e.type = 'USER_GROUP'
     ON CONFLICT DO NOTHING;
     {{- end }}

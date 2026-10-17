@@ -101,6 +101,8 @@ spec:
           value: {{ printf "https://%s/" (required "route.hostname is required when oidc.enabled" .Values.route.hostname) | quote }}
         - name: OPENID_USERNAME_CLAIM_TYPE
           value: {{ .Values.oidc.usernameClaim | quote }}
+        - name: OPENID_GROUPS_CLAIM_TYPE
+          value: {{ .Values.oidc.groupsClaim | quote }}
         - name: OPENID_SCOPE
           value: {{ .Values.oidc.scope | quote }}
         - name: EXTENSION_PRIORITY
