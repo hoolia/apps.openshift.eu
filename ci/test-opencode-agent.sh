@@ -48,10 +48,10 @@ for d in yaml.safe_load_all(sys.stdin):
 # default: a working agent, only namespaced objects of the release namespace
 OUT=$(render "${BASE[@]}")
 check default 'obj("Agent")["kind"] == "Agent"'
-for k in Agent PersistentVolumeClaim ConfigMap Service Route NetworkPolicy RoleBinding Secret BuildConfig ImageStream; do has default "kind: $k"; done
+check default '{"Agent", "PersistentVolumeClaim", "ConfigMap", "Service", "Route", "NetworkPolicy", "RoleBinding", "Secret", "BuildConfig", "ImageStream"} <= {d["kind"] for d in docs}'
 for k in ClusterPolicy HTTPRoute AgentgatewayPolicy AgentgatewayBackend KeycloakClient ExternalSecret ReferenceGrant Namespace ClusterRoleBinding; do hasnt default "kind: $k"; done
 check default 'obj("PersistentVolumeClaim", "sam-agent-data")["spec"]["accessModes"] == ["ReadWriteMany"]'
-has default "claimName: sam-agent-data"
+check default 'vol("workspace")["persistentVolumeClaim"]["claimName"] == "sam-agent-data"'
 check default 'alpha()["providers"][0]["code_challenge_method"] == "S256"'
 hasnt default "clientSecretFile"
 hasnt default "storageClassName"
@@ -106,15 +106,17 @@ check npmrc 'cfg()["npmrc"].strip() == "@example:registry=https://npm.example.co
 
 # RollingUpdate with a single-attach volume stalls every rollout
 for m in ReadWriteOnce ReadWriteOncePod; do
-  OUT=$(render "${BASE[@]}" --set storage.accessMode=$m)
-  has "access mode $m rejected" "accessMode"
-  hasnt "access mode $m rejected" "kind: PersistentVolumeClaim"
+  if ERR=$(helm template t "$C" --namespace test "${BASE[@]}" --set storage.accessMode=$m 2>&1 >/dev/null); then
+    echo "FAIL access mode $m: render succeeded"; fail=1
+  else
+    echo "$ERR" | grep -qF "/storage/accessMode" || { echo "FAIL access mode $m: error does not name /storage/accessMode"; fail=1; }
+  fi
 done
 
 # no values at all: the gate renders this, the release name names the agent
 OUT=$(render)
 check "no values agent" 'obj("Agent")["kind"] == "Agent"'
-has "no values" "claimName: t-agent-data"
+check "no values claim" 'vol("workspace")["persistentVolumeClaim"]["claimName"] == "t-agent-data"'
 check "no values route" '"host" not in obj("Route")["spec"] and "cert-manager.io/issuer-kind" not in obj("Route")["metadata"].get("annotations", {})'
 
 OUT=$(render "${BASE[@]}" --set gateway.upstream=https://api.example.com)
@@ -132,7 +134,7 @@ check "issuer" 'alpha()["providers"][0]["oidcConfig"]["issuerURL"] == "https://l
 check "scope" 'alpha()["providers"][0]["scope"] == "openid email profile"'
 
 OUT=$(render "${BASE[@]}" --set secrets.clientSecret=s3cr3t --set secrets.serverPassword=pw)
-has confidential "clientSecretFile"
+check confidential 'alpha()["providers"][0]["clientSecretFile"] == "/var/run/secrets/oidc/clientSecret"'
 hasnt confidential "s3cr3t"
 check confidential 'secret("sam-agent-oidc", "clientSecret") == "s3cr3t" and vol("oidc")["secret"]["secretName"] == "sam-agent-oidc"'
 check "oidc mounted for oauth2-proxy only" '[c["name"] for c in byo()["extraContainers"] if any(m["name"] == "oidc" for m in c.get("volumeMounts", []))] == ["oauth2-proxy"]'
@@ -143,7 +145,7 @@ OUT=$(render "${BASE[@]}" --set secrets.cookieSecret=e9e2334228689ae870e4f029424
 check cookie 'len(secret("sam-agent-cookie-secret", "cookie-secret")) == 32'
 
 OUT=$(render "${BASE[@]}" --set secrets.type=externalSecret --set secrets.externalSecret.storeName=vault-test --set git.url=https://git.example.com/org/site.git)
-has external "kind: ExternalSecret"
+check external 'len(objs("ExternalSecret")) == 4'
 hasnt external "kind: Secret"
 hasnt external "kind: Password"
 check external 'sorted(e["metadata"]["name"] for e in objs("ExternalSecret")) == ["sam-agent-a2a-auth", "sam-agent-cookie-secret", "sam-agent-git-token", "sam-agent-server-password"]'
@@ -152,7 +154,7 @@ check "external defaults" 'all((r["remoteRef"]["conversionStrategy"], r["remoteR
 check "external a2a keys" 'set(obj("ExternalSecret", "sam-agent-a2a-auth")["spec"]["target"]["template"]["data"]) == {"token", "credentials"}'
 check "external public client" 'not obj("ExternalSecret", "sam-agent-oidc")'
 OUT=$(render "${BASE[@]}" --set secrets.type=externalSecret --set secrets.externalSecret.storeName=vault-test --set secrets.externalSecret.items.clientSecret=item-oidc)
-has "external confidential" "clientSecretFile"
+check "external confidential file" 'alpha()["providers"][0]["clientSecretFile"] == "/var/run/secrets/oidc/clientSecret"'
 check "external confidential" 'obj("ExternalSecret", "sam-agent-oidc")["spec"]["data"][0]["remoteRef"]["key"] == "item-oidc"'
 
 OUT=$(render "${BASE[@]}" --set route.labels.x=y)

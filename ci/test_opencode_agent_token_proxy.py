@@ -134,6 +134,15 @@ class TokenFileTest(ProxyCase):
         self.assertEqual(resp.status, 502)
         self.assertEqual(self.upstream.requests, [])
 
+    def test_token_with_newline_returns_502_without_leaking_it(self):
+        self.write_token("bad\nX-Injected: 1")
+        with self.assertLogs(level="ERROR") as logs:
+            _, resp = self.get()
+            body = resp.read().decode()
+        self.assertEqual(resp.status, 502)
+        self.assertEqual(self.upstream.requests, [])
+        self.assertNotIn("bad", body + "".join(logs.output))
+
     def test_empty_token_file_returns_502(self):
         self.write_token("\n")
         _, resp = self.get()

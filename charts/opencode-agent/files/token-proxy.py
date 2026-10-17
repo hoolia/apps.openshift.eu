@@ -160,7 +160,7 @@ class Handler(BaseHTTPRequestHandler):
             conn.request(self.command, (upstream.path.rstrip("/") + self.path), body=body or None, headers=headers)
             resp = conn.getresponse()
             self._relay(resp)
-        except (OSError, http.client.HTTPException) as err:
+        except (OSError, ValueError, http.client.HTTPException) as err:
             logging.error("upstream request failed: %s", type(err).__name__)
             if not self.wfile.closed and not getattr(self, "_started", False):
                 self._error(502, "upstream unreachable")
