@@ -47,11 +47,12 @@ for d in yaml.safe_load_all(sys.stdin):
 
 # default: a working agent, only namespaced objects of the release namespace
 OUT=$(render "${BASE[@]}")
+check default 'obj("Agent")["kind"] == "Agent"'
 for k in Agent PersistentVolumeClaim ConfigMap Service Route NetworkPolicy RoleBinding Secret BuildConfig ImageStream; do has default "kind: $k"; done
 for k in ClusterPolicy HTTPRoute AgentgatewayPolicy AgentgatewayBackend KeycloakClient ExternalSecret ReferenceGrant Namespace ClusterRoleBinding; do hasnt default "kind: $k"; done
-has default "ReadWriteMany"
+check default 'obj("PersistentVolumeClaim", "sam-agent-data")["spec"]["accessModes"] == ["ReadWriteMany"]'
 has default "claimName: sam-agent-data"
-has default "code_challenge_method: S256"
+check default 'alpha()["providers"][0]["code_challenge_method"] == "S256"'
 hasnt default "clientSecretFile"
 hasnt default "storageClassName"
 check default 'obj("PersistentVolumeClaim", "sam-agent-data")["spec"]["resources"]["requests"]["storage"] == "20Gi"'
@@ -68,6 +69,9 @@ check "basic header" 'secret("sam-agent-server-password", "basic-auth-header") =
 check "no oidc secret" 'not obj("Secret", "sam-agent-oidc") and not vol("oidc")'
 check "a2a secret ref" 'any(e.get("valueFrom", {}).get("secretKeyRef", {}).get("name") == "sam-agent-a2a-auth" for e in byo()["env"])'
 check "projected token" 'vol("api-token")["projected"]["sources"][0]["serviceAccountToken"]["expirationSeconds"] == 3600 and vol("api-token")["projected"]["sources"][0]["serviceAccountToken"]["path"] == "token"'
+check "projected audience" '"audience" not in vol("api-token")["projected"]["sources"][0]["serviceAccountToken"]'
+check "token proxy env" 'env("token-proxy")["TOKEN_FILE"] == "/var/run/secrets/api-token/token" and not {"TOKEN_URL", "CLIENT_ID", "CLIENT_SECRET_FILE"} & set(env("token-proxy"))'
+check "token proxy no oidc mount" 'all(m["name"] != "oidc" for m in ctr("token-proxy")["volumeMounts"])'
 check "token mount" 'any(m["mountPath"] == "/var/run/secrets/api-token" and m["name"] == "api-token" for m in ctr("token-proxy")["volumeMounts"])'
 check "chart labels" 'all(d["metadata"]["labels"]["app.kubernetes.io/name"] == "opencode-agent" for d in docs)'
 
@@ -96,36 +100,42 @@ check "rolebinding edit" 'obj("RoleBinding")["roleRef"]["name"] == "edit"'
 check "route timeout" 'obj("Route", "sam-agent")["metadata"]["annotations"]["haproxy.router.openshift.io/timeout"] == "3600s" and obj("Route")["spec"]["host"] == "sam.example.com" and obj("Route")["spec"]["to"]["name"] == "sam-agent-ui"'
 check "route cert-manager" 'obj("Route")["metadata"]["annotations"]["cert-manager.io/issuer-kind"] == "ClusterIssuer" and obj("Route")["metadata"]["annotations"]["cert-manager.io/issuer-name"] == "letsencrypt"'
 check "network policy" 'sorted(r["ports"][0]["port"] for r in obj("NetworkPolicy")["spec"]["ingress"]) == [4180]'
-check "token proxy unchanged" 'env("token-proxy")["CLIENT_SECRET_FILE"].startswith("/var/run/secrets/oidc/")'
 
 OUT=$(render "${BASE[@]}" --set-json 'opencode.npmScopes={"@example":"https://npm.example.com/repo/"}')
 check npmrc 'cfg()["npmrc"].strip() == "@example:registry=https://npm.example.com/repo/"'
 
+# RollingUpdate with a single-attach volume stalls every rollout
+for m in ReadWriteOnce ReadWriteOncePod; do
+  OUT=$(render "${BASE[@]}" --set storage.accessMode=$m)
+  has "access mode $m rejected" "accessMode"
+  hasnt "access mode $m rejected" "kind: PersistentVolumeClaim"
+done
+
 # no values at all: the gate renders this, the release name names the agent
 OUT=$(render)
-has "no values" "kind: Agent"
+check "no values agent" 'obj("Agent")["kind"] == "Agent"'
 has "no values" "claimName: t-agent-data"
 check "no values route" '"host" not in obj("Route")["spec"] and "cert-manager.io/issuer-kind" not in obj("Route")["metadata"].get("annotations", {})'
 
 OUT=$(render "${BASE[@]}" --set gateway.upstream=https://api.example.com)
-has upstream "audience: api.example.com"
+check "upstream audience" 'vol("api-token")["projected"]["sources"][0]["serviceAccountToken"]["audience"] == "api.example.com"'
 check upstream 'env("token-proxy")["UPSTREAM"] == "https://api.example.com"'
 OUT=$(render "${BASE[@]}" --set gateway.upstream=https://api.example.com:8443/v1 --set gateway.audience=other)
-has audience "audience: other"
+check "audience override" 'vol("api-token")["projected"]["sources"][0]["serviceAccountToken"]["audience"] == "other"'
 OUT=$(render "${BASE[@]}" --set gateway.upstream=https://api.example.com:8443/v1)
-has "audience port" "audience: api.example.com"
+check "audience port" 'vol("api-token")["projected"]["sources"][0]["serviceAccountToken"]["audience"] == "api.example.com"'
 
 OUT=$(render "${BASE[@]}" --set oauth.issuerUrl=https://login.example.com/realms/x --set oauth.clientId=c1 --set 'oauth.allowedGroups={team-admins}' --set oauth.groupsClaim=roles)
 check "allowed groups" 'alpha()["providers"][0]["allowedGroups"] == ["team-admins"]'
 check "groups claim" 'alpha()["providers"][0]["oidcConfig"]["groupsClaim"] == "roles"'
 check "issuer" 'alpha()["providers"][0]["oidcConfig"]["issuerURL"] == "https://login.example.com/realms/x" and alpha()["providers"][0]["clientID"] == "c1"'
-check "token url" 'env("token-proxy")["TOKEN_URL"] == "https://login.example.com/realms/x/protocol/openid-connect/token"'
 check "scope" 'alpha()["providers"][0]["scope"] == "openid email profile"'
 
 OUT=$(render "${BASE[@]}" --set secrets.clientSecret=s3cr3t --set secrets.serverPassword=pw)
 has confidential "clientSecretFile"
 hasnt confidential "s3cr3t"
 check confidential 'secret("sam-agent-oidc", "clientSecret") == "s3cr3t" and vol("oidc")["secret"]["secretName"] == "sam-agent-oidc"'
+check "oidc mounted for oauth2-proxy only" '[c["name"] for c in byo()["extraContainers"] if any(m["name"] == "oidc" for m in c.get("volumeMounts", []))] == ["oauth2-proxy"]'
 check "server password value" 'secret("sam-agent-server-password", "basic-auth-header") == "Basic " + base64.b64encode(b"opencode:pw").decode()'
 
 # a cookie secret of another length is hashed to 32 for oauth2-proxy

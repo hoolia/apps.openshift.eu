@@ -158,7 +158,7 @@ serviceAccount:
 storage:
   # work tree, OpenCode home and session store
   size: 20Gi
-  # ReadWriteMany lets a new pod start before the old one stops
+  # the only accepted mode: a rolling update starts the new pod before the old one stops
   accessMode: ReadWriteMany
   # empty: the default storage class
   className: ""

@@ -132,7 +132,7 @@
       "type": "object",
       "properties": {
         "size": {"type": "string", "minLength": 1},
-        "accessMode": {"enum": ["ReadWriteMany", "ReadWriteOnce", "ReadWriteOncePod"]},
+        "accessMode": {"enum": ["ReadWriteMany"]},
         "className": {"type": "string"}
       }
     },

@@ -1,6 +1,5 @@
 {{- $name := include "opencode-agent.name" . -}}
 {{- $home := "/workspace/.home" -}}
-{{- $issuer := .Values.oauth.issuerUrl | trimSuffix "/" -}}
 {{- $confidential := include "opencode-agent.confidential" . -}}
 {{- $audience := include "opencode-agent.audience" . -}}
 apiVersion: kagent.dev/v1alpha2
@@ -199,12 +198,8 @@ spec:
         - python3
         - /app/token-proxy.py
         env:
-        - name: TOKEN_URL
-          value: {{ if $issuer }}{{ printf "%s/protocol/openid-connect/token" $issuer }}{{ end }}
-        - name: CLIENT_ID
-          value: {{ include "opencode-agent.clientId" . | quote }}
-        - name: CLIENT_SECRET_FILE
-          value: /var/run/secrets/oidc/clientSecret
+        - name: TOKEN_FILE
+          value: /var/run/secrets/api-token/token
         - name: UPSTREAM
           value: {{ .Values.gateway.upstream | quote }}
         - name: PORT
@@ -222,11 +217,6 @@ spec:
         - name: token-proxy-code
           mountPath: /app
           readOnly: true
-        {{- if $confidential }}
-        - name: oidc
-          mountPath: /var/run/secrets/oidc
-          readOnly: true
-        {{- end }}
         - name: api-token
           mountPath: /var/run/secrets/api-token
           readOnly: true

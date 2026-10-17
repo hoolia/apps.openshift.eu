@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Forward every request to the gateway with this agent's Keycloak token.
+"""Forward every request to the gateway with this pod's ServiceAccount token.
 
 OpenCode talks to 127.0.0.1:PORT for models (/v1) and A2A calls (/a2a/...).
-The proxy fetches a client-credentials token, caches it until shortly before
-it expires, and replaces any incoming Authorization header with it. Response
-bodies are relayed as they arrive so model streams (SSE) stay live.
+The proxy reads the projected ServiceAccount token on every request, so the
+kubelet's renewal is picked up without a restart, and replaces any incoming
+Authorization header with it. Response bodies are relayed as they arrive so
+model streams (SSE) stay live.
 """
 from __future__ import annotations
 
@@ -13,14 +14,12 @@ import json
 import logging
 import os
 import sys
-import threading
-import time
 import urllib.parse
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
-TOKEN_TIMEOUT = 5
+DEFAULT_TOKEN_FILE = "/var/run/secrets/api-token/token"
 UPSTREAM_TIMEOUT = 600
 CHUNK_SIZE = 8192
 HOP_BY_HOP = frozenset({
@@ -34,7 +33,7 @@ class ConfigError(Exception):
 
 
 class TokenError(Exception):
-    """The Keycloak token endpoint did not hand out a token."""
+    """The projected token file is missing, unreadable or empty."""
 
 
 def _env_int(name: str, default: int) -> int:
@@ -50,22 +49,14 @@ def _env_int(name: str, default: int) -> int:
 
 @dataclass(frozen=True)
 class Settings:
-    token_url: str
-    client_id: str
-    client_secret_file: str
+    token_file: str
     upstream: str
     port: int
-    refresh_margin: int
 
     def validate(self) -> None:
         missing = [
             name
-            for name, value in (
-                ("TOKEN_URL", self.token_url),
-                ("CLIENT_ID", self.client_id),
-                ("CLIENT_SECRET_FILE", self.client_secret_file),
-                ("UPSTREAM", self.upstream),
-            )
+            for name, value in (("TOKEN_FILE", self.token_file), ("UPSTREAM", self.upstream))
             if not value
         ]
         if missing:
@@ -74,12 +65,9 @@ class Settings:
     @staticmethod
     def from_env() -> Settings:
         return Settings(
-            token_url=os.environ.get("TOKEN_URL", "").strip(),
-            client_id=os.environ.get("CLIENT_ID", "").strip(),
-            client_secret_file=os.environ.get("CLIENT_SECRET_FILE", "").strip(),
+            token_file=os.environ.get("TOKEN_FILE", DEFAULT_TOKEN_FILE).strip(),
             upstream=os.environ.get("UPSTREAM", "").strip().rstrip("/"),
             port=_env_int("PORT", 8099),
-            refresh_margin=_env_int("REFRESH_MARGIN_SECONDS", 60),
         )
 
 
@@ -91,64 +79,20 @@ def _connect(url: urllib.parse.SplitResult, timeout: float) -> http.client.HTTPC
 
 
 class TokenSource:
-    """Client-credentials token, cached until margin seconds before expiry."""
+    """The projected ServiceAccount token, read from disk at each call."""
 
     def __init__(self, settings: Settings) -> None:
-        self._settings = settings
-        self._lock = threading.Lock()
-        self._token: str | None = None
-        self._expires = 0.0
+        self._path = settings.token_file
 
     def token(self) -> str:
-        with self._lock:
-            if self._token and time.monotonic() < self._expires - self._settings.refresh_margin:
-                return self._token
-            self._fetch()
-            assert self._token is not None
-            return self._token
-
-    def invalidate(self) -> None:
-        with self._lock:
-            self._token = None
-
-    def _fetch(self) -> None:
-        settings = self._settings
         try:
-            # The Secret may rotate, so it is read at each fetch.
-            with open(settings.client_secret_file, encoding="utf-8") as handle:
-                secret = handle.read().strip()
-            form = urllib.parse.urlencode({
-                "grant_type": "client_credentials",
-                "client_id": settings.client_id,
-                "client_secret": secret,
-            })
-            url = urllib.parse.urlsplit(settings.token_url)
-            conn = _connect(url, TOKEN_TIMEOUT)
-            try:
-                path = url.path or "/"
-                if url.query:
-                    path += f"?{url.query}"
-                conn.request("POST", path, body=form, headers={
-                    "Content-Type": "application/x-www-form-urlencoded",
-                    "Accept": "application/json",
-                })
-                resp = conn.getresponse()
-                payload = resp.read()
-            finally:
-                conn.close()
-            if resp.status != 200:
-                raise TokenError(f"Keycloak token endpoint returned HTTP {resp.status}")
-            data = json.loads(payload)
-            token = data["access_token"]
-            lifetime = float(data.get("expires_in", 0))
-        except TokenError:
-            self._token = None
-            raise
-        except (OSError, http.client.HTTPException, ValueError, KeyError) as err:
-            self._token = None
-            raise TokenError(f"Keycloak token request failed: {type(err).__name__}") from err
-        self._token = token
-        self._expires = time.monotonic() + lifetime
+            with open(self._path, encoding="utf-8") as handle:
+                token = handle.read().strip()
+        except (OSError, ValueError) as err:
+            raise TokenError(f"token file unreadable: {type(err).__name__}") from err
+        if not token:
+            raise TokenError("token file is empty")
+        return token
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -225,8 +169,6 @@ class Handler(BaseHTTPRequestHandler):
             conn.close()
 
     def _relay(self, resp: http.client.HTTPResponse) -> None:
-        if resp.status == 401:
-            self.tokens.invalidate()
         self._started = True
         self.send_response(resp.status)
         has_length = False
