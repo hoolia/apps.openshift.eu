@@ -161,6 +161,14 @@ for v in oauth.issuerUrl=https://login.example.com oauth.clientId=c1 oauth.group
   fi
 done
 
+# the proxy parses route.timeout with Go ParseDuration (no "d"); one address per email value
+NL=$'a@example.org\nb@example.org'
+for v in route.timeout=1d oauth.ownerEmail=owner person.email=sam "oauth.ownerEmail=a b@example.org" "person.email=$NL"; do
+  if helm template t "$C" --namespace test "${BASE[@]}" --set-string "$v" >/dev/null 2>&1; then
+    echo "FAIL invalid value accepted: ${v%%=*}"; fail=1
+  fi
+done
+
 # own ServiceAccount: the chart renders and annotates it
 OUT=$(render "${BASE[@]}" --set serviceAccount.name=robot)
 check "own serviceaccount" 'byo()["serviceAccountName"] == "robot" and "serviceAccountConfig" not in byo() and arg("--openshift-service-account") == ["robot"]'

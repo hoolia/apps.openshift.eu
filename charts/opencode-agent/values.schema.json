@@ -6,7 +6,7 @@
       "type": "object",
       "properties": {
         "name": {"type": "string", "pattern": "^$|^[a-z0-9]([-a-z0-9]{0,40}[a-z0-9])?$"},
-        "email": {"type": "string"},
+        "email": {"type": "string", "pattern": "^$|^[^@\\s]+@[^@\\s]+$"},
         "role": {"type": "string"}
       }
     },
@@ -15,7 +15,7 @@
       "properties": {
         "host": {"type": "string"},
         "labels": {"type": "object", "additionalProperties": {"type": "string"}},
-        "timeout": {"type": "string", "pattern": "^[0-9]+(ms|s|m|h|d)$"},
+        "timeout": {"type": "string", "pattern": "^[0-9]+(ms|s|m|h)$"},
         "annotations": {"type": "object", "additionalProperties": {"type": "string"}}
       }
     },
@@ -23,7 +23,7 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "ownerEmail": {"type": "string"},
+        "ownerEmail": {"type": "string", "pattern": "^$|^[^@\\s]+@[^@\\s]+$"},
         "allowedGroups": {"type": "array", "items": {"type": "string", "minLength": 1}}
       }
     },
