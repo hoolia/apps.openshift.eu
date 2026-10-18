@@ -31,8 +31,10 @@ def vol(name):
         if v["name"] == name: return v
     return {}
 def cfg(): return obj("ConfigMap", "sam-agent-opencode")["data"]
-def proxy(): return obj("ConfigMap", "sam-agent-oauth2-proxy")["data"]
-def alpha(): return yaml.safe_load(proxy()["alpha-config.yaml"])
+def proxy(): return obj("ConfigMap", "sam-agent-oauth-proxy")["data"]
+def args(): return ctr("oauth-proxy").get("args", [])
+def arg(flag): return [a.split("=", 1)[1] for a in args() if a.split("=", 1)[0] == flag]
+def redirect(): return json.loads(byo()["serviceAccountConfig"]["annotations"]["serviceaccounts.openshift.io/oauth-redirectreference.primary"])
 def secret(name, key): return base64.b64decode(obj("Secret", name)["data"][key]).decode()
 sys.exit(0 if ('"$2"') else 1)
 ' 2>/dev/null || { echo "FAIL $1: $2"; fail=1; }
@@ -52,8 +54,20 @@ check default '{"Agent", "PersistentVolumeClaim", "ConfigMap", "Service", "Route
 for k in ClusterPolicy HTTPRoute AgentgatewayPolicy AgentgatewayBackend KeycloakClient ExternalSecret ReferenceGrant Namespace ClusterRoleBinding; do hasnt default "kind: $k"; done
 check default 'obj("PersistentVolumeClaim", "sam-agent-data")["spec"]["accessModes"] == ["ReadWriteMany"]'
 check default 'vol("workspace")["persistentVolumeClaim"]["claimName"] == "sam-agent-data"'
-check default 'alpha()["providers"][0]["code_challenge_method"] == "S256"'
-hasnt default "clientSecretFile"
+# login through the cluster OAuth server; the agent's ServiceAccount is the client
+check "oauth provider" 'arg("--provider") == ["openshift"] and arg("--openshift-service-account") == ["sam-agent"]'
+check "oauth listen" 'arg("--http-address") == ["0.0.0.0:4180"] and arg("--https-address") == [""]'
+check "oauth upstream" 'arg("--upstream") == ["http://127.0.0.1:4096"] and arg("--upstream-timeout") == ["3600s"]'
+check "oauth cookie" 'arg("--cookie-secure") == ["true"] and arg("--cookie-name") == ["_sam_agent"] and any(e["name"] == "OAUTH2_PROXY_COOKIE_SECRET" and e["valueFrom"]["secretKeyRef"] == {"name": "sam-agent-cookie-secret", "key": "cookie-secret"} for e in ctr("oauth-proxy")["env"])'
+# without an email domain the openshift provider admits every email
+check "oauth emails" 'arg("--authenticated-emails-file") == ["/etc/oauth-proxy/emails.txt"] and arg("--email-domain") == [""]'
+check "oauth basic auth" 'arg("--config") == ["/var/run/secrets/opencode/oauth-proxy.cfg"] and arg("--pass-basic-auth") == ["true"]'
+check "oauth no group flag" 'not arg("--openshift-group") and not arg("--openshift-sar")'
+check "oauth probe" 'ctr("oauth-proxy")["readinessProbe"]["httpGet"]["path"] == "/oauth/healthz"'
+check "redirect reference" 'redirect() == {"kind": "OAuthRedirectReference", "apiVersion": "v1", "reference": {"kind": "Route", "name": "sam-agent"}}'
+check "no login role" 'not objs("Role") and [b["metadata"]["name"] for b in objs("RoleBinding")] == ["sam-agent-edit"]'
+check "opencode user" 'env("opencode")["OPENCODE_SERVER_USERNAME"] == "sam" and env("opencode-a2a")["OPENCODE_AUTH_USERNAME"] == "sam"'
+for s in oauth2-proxy oauth2_proxy keycloak issuerURL clientSecret code_challenge oidc; do hasnt default "$s"; done
 hasnt default "storageClassName"
 check default 'obj("PersistentVolumeClaim", "sam-agent-data")["spec"]["resources"]["requests"]["storage"] == "20Gi"'
 check default 'obj("PersistentVolumeClaim", "sam-agent-data")["metadata"]["annotations"]["argocd.argoproj.io/sync-options"] == "Delete=false,Prune=false"'
@@ -65,13 +79,12 @@ check "flock wraps opencode" '"flock -x /workspace/.opencode.lock opencode web" 
 check "adapter readiness" '"readinessProbe" not in byo() or "4096" not in json.dumps(byo()["readinessProbe"])'
 check "generated secrets" 'len(secret("sam-agent-server-password", "password")) == 48 and len(secret("sam-agent-a2a-auth", "token")) == 48 and len(secret("sam-agent-cookie-secret", "cookie-secret")) == 32'
 check "a2a credentials" 'json.loads(secret("sam-agent-a2a-auth", "credentials"))[0]["token"] == secret("sam-agent-a2a-auth", "token")'
-check "basic header" 'secret("sam-agent-server-password", "basic-auth-header") == "Basic " + base64.b64encode(("opencode:" + secret("sam-agent-server-password", "password")).encode()).decode()'
-check "no oidc secret" 'not obj("Secret", "sam-agent-oidc") and not vol("oidc")'
+check "proxy password" 'secret("sam-agent-server-password", "oauth-proxy.cfg") == "basic_auth_password = " + json.dumps(secret("sam-agent-server-password", "password")) + "\n" and "basic-auth-header" not in obj("Secret", "sam-agent-server-password")["data"]'
+check "proxy password mount" 'vol("server-password")["secret"]["items"] == [{"key": "oauth-proxy.cfg", "path": "oauth-proxy.cfg"}] and any(m["name"] == "server-password" and m["mountPath"] == "/var/run/secrets/opencode" for m in ctr("oauth-proxy")["volumeMounts"])'
 check "a2a secret ref" 'any(e.get("valueFrom", {}).get("secretKeyRef", {}).get("name") == "sam-agent-a2a-auth" for e in byo()["env"])'
 check "projected token" 'vol("api-token")["projected"]["sources"][0]["serviceAccountToken"]["expirationSeconds"] == 3600 and vol("api-token")["projected"]["sources"][0]["serviceAccountToken"]["path"] == "token"'
 check "projected audience" '"audience" not in vol("api-token")["projected"]["sources"][0]["serviceAccountToken"]'
 check "token proxy env" 'env("token-proxy")["TOKEN_FILE"] == "/var/run/secrets/api-token/token" and not {"TOKEN_URL", "CLIENT_ID", "CLIENT_SECRET_FILE"} & set(env("token-proxy"))'
-check "token proxy no oidc mount" 'all(m["name"] != "oidc" for m in ctr("token-proxy")["volumeMounts"])'
 check "token mount" 'any(m["mountPath"] == "/var/run/secrets/api-token" and m["name"] == "api-token" for m in ctr("token-proxy")["volumeMounts"])'
 check "chart labels" 'all(d["metadata"]["labels"]["app.kubernetes.io/name"] == "opencode-agent" for d in docs)'
 
@@ -81,21 +94,22 @@ check "pins mcp" '"quay.io/containers/kubernetes_mcp_server:v0.0.67" in [b for b
 check "pins git" '"apk add --no-cache git openssh-client" in [b for b in objs("BuildConfig") if "a2a" not in b["metadata"]["name"]][0]["spec"]["source"]["dockerfile"]'
 check "pins a2a" '"opencode-a2a==1.3.6" in [b for b in objs("BuildConfig") if "a2a" in b["metadata"]["name"]][0]["spec"]["source"]["dockerfile"]'
 check "pins a2a base" '"FROM registry.access.redhat.com/ubi10/python-312-minimal" in [b for b in objs("BuildConfig") if "a2a" in b["metadata"]["name"]][0]["spec"]["source"]["dockerfile"]'
-check "pins oauth2-proxy" 'ctr("oauth2-proxy")["image"] == "quay.io/oauth2-proxy/oauth2-proxy:v7.7.1"'
+check "oauth-proxy image" 'ctr("oauth-proxy")["image"] == "image-registry.openshift-image-registry.svc:5000/openshift/oauth-proxy:v4.4"'
 check "buildconfig names" 'sorted(b["metadata"]["name"].rsplit("-", 1)[0] for b in objs("BuildConfig")) == ["sam-agent-opencode", "sam-agent-opencode-a2a"]'
 check "buildconfig hash" 'all(b["metadata"]["name"].endswith("-" + b["spec"]["output"]["to"]["name"].rsplit("-", 1)[1]) for b in objs("BuildConfig"))'
 check "buildconfig trigger" 'all(b["spec"]["triggers"] == [{"type": "ConfigChange"}] for b in objs("BuildConfig"))'
 check "pod pulls built tag" 'ctr("opencode")["image"].endswith("/test/" + [b for b in objs("BuildConfig") if "a2a" not in b["metadata"]["name"]][0]["spec"]["output"]["to"]["name"]) and byo()["image"].endswith("/test/" + [b for b in objs("BuildConfig") if "a2a" in b["metadata"]["name"]][0]["spec"]["output"]["to"]["name"])'
 check "portable labels" 'byo()["labels"] == {"kagenti.io/type": "agent", "protocol.kagenti.io/a2a": "", "app.kubernetes.io/name": "sam-agent", "app.kubernetes.io/part-of": "test"}'
 check "ports TCP" 'all(p.get("protocol") == "TCP" for c in [byo()] + byo()["extraContainers"] for p in c.get("ports", []))'
-check "containers" 'sorted(c["name"] for c in byo()["extraContainers"]) == ["oauth2-proxy", "opencode", "token-proxy"]'
+check "containers" 'sorted(c["name"] for c in byo()["extraContainers"]) == ["oauth-proxy", "opencode", "token-proxy"]'
 check "adapter env" 'env("opencode-a2a")["A2A_PORT"] == "8080" and env("opencode-a2a")["A2A_CLIENT_ALLOWED_HOSTS"] == "127.0.0.1" and byo()["replicas"] == 1'
 check "role line" '"- I am sales" in cfg()["instructions.md"] and "/etc/opencode-agent/instructions.md" in json.loads(cfg()["opencode.json"])["instructions"]'
 check "agent description" 'obj("Agent")["spec"]["description"] == "OpenCode agent of sam. I am sales"'
 check "local stdio mcp" 'json.loads(cfg()["opencode.json"])["mcp"]["kubernetes"]["type"] == "local" and "--disable-multi-cluster" in json.loads(cfg()["opencode.json"])["mcp"]["kubernetes"]["command"]'
 check "mcp denies secrets" '{"group": "", "version": "v1", "kind": "Secret"} in tomllib.loads(cfg()["kubernetes-mcp-server.toml"])["denied_resources"]'
 check "npmrc empty" 'cfg()["npmrc"].strip() == ""'
-check "serviceaccount" 'byo()["serviceAccountName"] == "sam-agent" and not objs("ServiceAccount") and obj("RoleBinding")["subjects"] == [{"kind": "ServiceAccount", "name": "sam-agent", "namespace": "test"}]'
+# kagent creates the account named after the Agent and annotates it
+check "serviceaccount" '"serviceAccountName" not in byo() and not objs("ServiceAccount") and obj("RoleBinding", "sam-agent-edit")["subjects"] == [{"kind": "ServiceAccount", "name": "sam-agent", "namespace": "test"}]'
 check "rolebinding edit" 'obj("RoleBinding")["roleRef"]["name"] == "edit"'
 check "route timeout" 'obj("Route", "sam-agent")["metadata"]["annotations"]["haproxy.router.openshift.io/timeout"] == "3600s" and obj("Route")["spec"]["host"] == "sam.example.com" and obj("Route")["spec"]["to"]["name"] == "sam-agent-ui"'
 check "route cert-manager" 'obj("Route")["metadata"]["annotations"]["cert-manager.io/issuer-kind"] == "ClusterIssuer" and obj("Route")["metadata"]["annotations"]["cert-manager.io/issuer-name"] == "letsencrypt"'
@@ -127,20 +141,38 @@ check "audience override" 'vol("api-token")["projected"]["sources"][0]["serviceA
 OUT=$(render "${BASE[@]}" --set gateway.upstream=https://api.example.com:8443/v1)
 check "audience port" 'vol("api-token")["projected"]["sources"][0]["serviceAccountToken"]["audience"] == "api.example.com"'
 
-OUT=$(render "${BASE[@]}" --set oauth.issuerUrl=https://login.example.com/realms/x --set oauth.clientId=c1 --set 'oauth.allowedGroups={team-admins}' --set oauth.groupsClaim=roles)
-check "allowed groups" 'alpha()["providers"][0]["allowedGroups"] == ["team-admins"]'
-check "groups claim" 'alpha()["providers"][0]["oidcConfig"]["groupsClaim"] == "roles"'
-check "issuer" 'alpha()["providers"][0]["oidcConfig"]["issuerURL"] == "https://login.example.com/realms/x" and alpha()["providers"][0]["clientID"] == "c1"'
-check "scope" 'alpha()["providers"][0]["scope"] == "openid email profile"'
+# group check: a SAR the chart grants to the allowed groups only
+OUT=$(render "${BASE[@]}" --set 'oauth.allowedGroups={team-admins,ops}')
+check "group sar" 'json.loads(arg("--openshift-sar")[0]) == [{"namespace": "test", "resource": "services/proxy", "resourceName": "sam-agent-ui", "verb": "get"}]'
+check "group flag unused" 'not arg("--openshift-group")'
+check "login role" 'obj("Role", "sam-agent-login")["rules"] == [{"apiGroups": [""], "resources": ["services/proxy"], "resourceNames": ["sam-agent-ui"], "verbs": ["get"]}]'
+check "login binding" 'obj("RoleBinding", "sam-agent-login")["roleRef"] == {"apiGroup": "rbac.authorization.k8s.io", "kind": "Role", "name": "sam-agent-login"} and obj("RoleBinding", "sam-agent-login")["subjects"] == [{"apiGroup": "rbac.authorization.k8s.io", "kind": "Group", "name": "team-admins"}, {"apiGroup": "rbac.authorization.k8s.io", "kind": "Group", "name": "ops"}]'
 
-OUT=$(render "${BASE[@]}" --set secrets.clientSecret=s3cr3t --set secrets.serverPassword=pw)
-check confidential 'alpha()["providers"][0]["clientSecretFile"] == "/var/run/secrets/oidc/clientSecret"'
-hasnt confidential "s3cr3t"
-check confidential 'secret("sam-agent-oidc", "clientSecret") == "s3cr3t" and vol("oidc")["secret"]["secretName"] == "sam-agent-oidc"'
-check "oidc mounted for oauth2-proxy only" '[c["name"] for c in byo()["extraContainers"] if any(m["name"] == "oidc" for m in c.get("volumeMounts", []))] == ["oauth2-proxy"]'
-check "server password value" 'secret("sam-agent-server-password", "basic-auth-header") == "Basic " + base64.b64encode(b"opencode:pw").decode()'
+# the owner is an OpenShift user name; OpenCode sees its local part as the Basic user
+OUT=$(render "${BASE[@]}" --set oauth.ownerEmail=Owner.Name@example.org)
+check "owner override" 'proxy()["emails.txt"].split() == ["Owner.Name@example.org"] and env("opencode")["OPENCODE_SERVER_USERNAME"] == "Owner.Name" and env("opencode-a2a")["OPENCODE_AUTH_USERNAME"] == "Owner.Name"'
+OUT=$(render --set person.name=sam)
+check "nobody logs in" 'proxy()["emails.txt"].strip() == "" and env("opencode")["OPENCODE_SERVER_USERNAME"] == "opencode"'
 
-# a cookie secret of another length is hashed to 32 for oauth2-proxy
+# the Keycloak login values are gone; a stale one fails the render
+for v in oauth.issuerUrl=https://login.example.com oauth.clientId=c1 oauth.groupsClaim=roles; do
+  if helm template t "$C" --namespace test "${BASE[@]}" --set "$v" >/dev/null 2>&1; then
+    echo "FAIL stale value $v accepted"; fail=1
+  fi
+done
+
+# own ServiceAccount: the chart renders and annotates it
+OUT=$(render "${BASE[@]}" --set serviceAccount.name=robot)
+check "own serviceaccount" 'byo()["serviceAccountName"] == "robot" and "serviceAccountConfig" not in byo() and arg("--openshift-service-account") == ["robot"]'
+check "own serviceaccount annotation" 'json.loads(obj("ServiceAccount", "robot")["metadata"]["annotations"]["serviceaccounts.openshift.io/oauth-redirectreference.primary"])["reference"] == {"kind": "Route", "name": "sam-agent"}'
+check "own serviceaccount binding" 'obj("RoleBinding", "sam-agent-edit")["subjects"][0]["name"] == "robot"'
+OUT=$(render "${BASE[@]}" --set serviceAccount.name=sam-agent)
+check "agent-named serviceaccount" '"serviceAccountName" not in byo() and not objs("ServiceAccount") and redirect()["reference"]["name"] == "sam-agent"'
+
+OUT=$(render "${BASE[@]}" --set secrets.serverPassword=pw)
+check "server password value" 'secret("sam-agent-server-password", "oauth-proxy.cfg") == "basic_auth_password = \"pw\"\n"'
+
+# a cookie secret of another length is hashed to 32 for oauth-proxy
 OUT=$(render "${BASE[@]}" --set secrets.cookieSecret=e9e2334228689ae870e4f029424641eabcf5c9efbc2d3772)
 check cookie 'len(secret("sam-agent-cookie-secret", "cookie-secret")) == 32'
 
@@ -152,10 +184,8 @@ check external 'sorted(e["metadata"]["name"] for e in objs("ExternalSecret")) ==
 check "external store" 'all(e["spec"]["secretStoreRef"] == {"kind": "ClusterSecretStore", "name": "vault-test"} for e in objs("ExternalSecret"))'
 check "external defaults" 'all((r["remoteRef"]["conversionStrategy"], r["remoteRef"]["decodingStrategy"], r["remoteRef"]["metadataPolicy"], r["remoteRef"]["nullBytePolicy"]) == ("Default", "None", "None", "Ignore") for e in objs("ExternalSecret") for r in e["spec"]["data"])'
 check "external a2a keys" 'set(obj("ExternalSecret", "sam-agent-a2a-auth")["spec"]["target"]["template"]["data"]) == {"token", "credentials"}'
-check "external public client" 'not obj("ExternalSecret", "sam-agent-oidc")'
-OUT=$(render "${BASE[@]}" --set secrets.type=externalSecret --set secrets.externalSecret.storeName=vault-test --set secrets.externalSecret.items.clientSecret=item-oidc)
-check "external confidential file" 'alpha()["providers"][0]["clientSecretFile"] == "/var/run/secrets/oidc/clientSecret"'
-check "external confidential" 'obj("ExternalSecret", "sam-agent-oidc")["spec"]["data"][0]["remoteRef"]["key"] == "item-oidc"'
+check "external proxy password" 'obj("ExternalSecret", "sam-agent-server-password")["spec"]["target"]["template"]["data"] == {"password": "{{ .value }}", "oauth-proxy.cfg": "basic_auth_password = {{ .value | toJson }}\n"}'
+hasnt external "oidc"
 
 OUT=$(render "${BASE[@]}" --set route.labels.x=y)
 check "route labels" 'obj("Route")["metadata"]["labels"]["x"] == "y" and [d["kind"] for d in docs if "x" in d["metadata"]["labels"]] == ["Route"]'

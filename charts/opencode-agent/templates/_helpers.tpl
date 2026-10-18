@@ -22,16 +22,27 @@ app: kagent
 kagent: {{ include "opencode-agent.name" . }}
 {{- end -}}
 
-{{- define "opencode-agent.clientId" -}}
-{{- default (include "opencode-agent.name" .) .Values.oauth.clientId -}}
+{{/* "true" when the chart renders the ServiceAccount; kagent creates the one named after the Agent */}}
+{{- define "opencode-agent.ownServiceAccount" -}}
+{{- if and .Values.serviceAccount.name (ne .Values.serviceAccount.name (include "opencode-agent.name" .)) }}true{{ end -}}
 {{- end -}}
 
-{{/* "true" when the login client has a secret; empty: a public client with PKCE */}}
-{{- define "opencode-agent.confidential" -}}
-{{- if eq .Values.secrets.type "externalSecret" -}}
-{{- if .Values.secrets.externalSecret.items.clientSecret }}true{{ end -}}
-{{- else if .Values.secrets.clientSecret -}}
-true
+{{/* The ServiceAccount is the OAuth client of the UI login; its redirect goes to the Route */}}
+{{- define "opencode-agent.redirectReference" -}}
+{{- dict "kind" "OAuthRedirectReference" "apiVersion" "v1" "reference" (dict "kind" "Route" "name" (include "opencode-agent.name" .)) | toJson -}}
+{{- end -}}
+
+{{/* OpenShift user name of the only person admitted to the UI */}}
+{{- define "opencode-agent.ownerEmail" -}}
+{{- default .Values.person.email .Values.oauth.ownerEmail -}}
+{{- end -}}
+
+{{/* oauth-proxy sends the local part of the user name as the Basic user */}}
+{{- define "opencode-agent.opencodeUser" -}}
+{{- with include "opencode-agent.ownerEmail" . -}}
+{{- splitList "@" . | first -}}
+{{- else -}}
+opencode
 {{- end -}}
 {{- end -}}
 

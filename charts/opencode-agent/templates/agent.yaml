@@ -1,7 +1,7 @@
 {{- $name := include "opencode-agent.name" . -}}
 {{- $home := "/workspace/.home" -}}
-{{- $confidential := include "opencode-agent.confidential" . -}}
 {{- $audience := include "opencode-agent.audience" . -}}
+{{- $user := include "opencode-agent.opencodeUser" . -}}
 apiVersion: kagent.dev/v1alpha2
 kind: Agent
 metadata:
@@ -19,7 +19,14 @@ spec:
     deployment:
       # OpenCode keeps sessions in a local SQLite file: one replica only
       replicas: 1
+      {{- if include "opencode-agent.ownServiceAccount" . }}
       serviceAccountName: {{ include "opencode-agent.serviceAccountName" . }}
+      {{- else }}
+      # kagent creates the ServiceAccount named after the Agent with this config
+      serviceAccountConfig:
+        annotations:
+          serviceaccounts.openshift.io/oauth-redirectreference.primary: {{ include "opencode-agent.redirectReference" . | quote }}
+      {{- end }}
       # Pod labels, fixed for the life of a release
       labels:
         kagenti.io/type: agent
@@ -29,7 +36,7 @@ spec:
       annotations:
         # Mounted files are not reloaded in place; roll the pod when they change
         checksum/config: {{ include (print $.Template.BasePath "/configmap-opencode.yaml") . | sha256sum }}
-        checksum/oauth2-proxy: {{ include (print $.Template.BasePath "/configmap-oauth2-proxy.yaml") . | sha256sum }}
+        checksum/oauth-proxy: {{ include (print $.Template.BasePath "/configmap-oauth-proxy.yaml") . | sha256sum }}
         checksum/token-proxy: {{ .Files.Get "files/token-proxy.py" | sha256sum }}
       image: {{ include "opencode-agent.a2aImage" . }}
       imagePullPolicy: IfNotPresent
@@ -67,6 +74,8 @@ spec:
         value: http://127.0.0.1:4096
       - name: OPENCODE_WORKSPACE_ROOT
         value: /workspace
+      - name: OPENCODE_AUTH_USERNAME
+        value: {{ $user | quote }}
       - name: OPENCODE_AUTH_PASSWORD
         valueFrom:
           secretKeyRef:
@@ -103,6 +112,8 @@ spec:
           value: {{ $home }}/.cache
         - name: OPENCODE_CONFIG
           value: /etc/opencode-agent/opencode.json
+        - name: OPENCODE_SERVER_USERNAME
+          value: {{ $user | quote }}
         - name: OPENCODE_SERVER_PASSWORD
           valueFrom:
             secretKeyRef:
@@ -139,20 +150,32 @@ spec:
           {{- toYaml .Values.opencode.resources | nindent 10 }}
         securityContext:
           {{- include "opencode-agent.containerSecurityContext" . | nindent 10 }}
-      - name: oauth2-proxy
-        image: {{ .Values.oauth2Proxy.image }}
+      # Login through the cluster OAuth server with the ServiceAccount as client
+      - name: oauth-proxy
+        image: {{ .Values.oauthProxy.image }}
         imagePullPolicy: IfNotPresent
         args:
-        - --alpha-config=/etc/oauth2-proxy/alpha-config.yaml
-        {{- with .Values.route.host }}
-        - --redirect-url=https://{{ . }}/oauth2/callback
+        - --provider=openshift
+        - --openshift-service-account={{ include "opencode-agent.serviceAccountName" . }}
+        - --http-address=0.0.0.0:{{ .Values.oauthProxy.port }}
+        - --https-address=
+        - --upstream=http://127.0.0.1:4096
+        # The UI streams over SSE; keep long requests open
+        - --upstream-timeout={{ .Values.route.timeout }}
+        - --authenticated-emails-file=/etc/oauth-proxy/emails.txt
+        # Without an email domain the openshift provider admits every email
+        - --email-domain=
+        {{- if .Values.oauth.allowedGroups }}
+        # --openshift-group is accepted and ignored; the group check is this SAR
+        - --openshift-sar={{ list (dict "namespace" .Release.Namespace "resource" "services/proxy" "resourceName" (printf "%s-ui" $name) "verb" "get") | toJson }}
         {{- end }}
-        - --authenticated-emails-file=/etc/oauth2-proxy/emails.txt
+        # basic_auth_password: OpenCode's server password, never in the pod spec
+        - --config=/var/run/secrets/opencode/oauth-proxy.cfg
+        - --pass-basic-auth=true
         - --cookie-name=_{{ $name | replace "-" "_" }}
         - --cookie-secure=true
         - --cookie-samesite=lax
         - --skip-provider-button=true
-        - --reverse-proxy=true
         env:
         - name: OAUTH2_PROXY_COOKIE_SECRET
           valueFrom:
@@ -161,34 +184,29 @@ spec:
               key: cookie-secret
         ports:
         - name: ui
-          containerPort: {{ .Values.oauth2Proxy.port }}
+          containerPort: {{ .Values.oauthProxy.port }}
           protocol: TCP
         readinessProbe:
           httpGet:
-            path: /ping
+            path: /oauth/healthz
             port: ui
           initialDelaySeconds: 2
           periodSeconds: 5
         livenessProbe:
           httpGet:
-            path: /ping
+            path: /oauth/healthz
             port: ui
           initialDelaySeconds: 5
           periodSeconds: 10
         volumeMounts:
-        - name: oauth2-proxy-config
-          mountPath: /etc/oauth2-proxy
+        - name: oauth-proxy-config
+          mountPath: /etc/oauth-proxy
           readOnly: true
-        {{- if $confidential }}
-        - name: oidc
-          mountPath: /var/run/secrets/oidc
-          readOnly: true
-        {{- end }}
         - name: server-password
           mountPath: /var/run/secrets/opencode
           readOnly: true
         resources:
-          {{- toYaml .Values.oauth2Proxy.resources | nindent 10 }}
+          {{- toYaml .Values.oauthProxy.resources | nindent 10 }}
         securityContext:
           {{- include "opencode-agent.containerSecurityContext" . | nindent 10 }}
       - name: token-proxy
@@ -231,23 +249,18 @@ spec:
       - name: opencode-config
         configMap:
           name: {{ $name }}-opencode
-      - name: oauth2-proxy-config
+      - name: oauth-proxy-config
         configMap:
-          name: {{ $name }}-oauth2-proxy
+          name: {{ $name }}-oauth-proxy
       - name: token-proxy-code
         configMap:
           name: {{ $name }}-token-proxy
-      {{- if $confidential }}
-      - name: oidc
-        secret:
-          secretName: {{ $name }}-oidc
-      {{- end }}
       - name: server-password
         secret:
           secretName: {{ $name }}-server-password
           items:
-          - key: basic-auth-header
-            path: basic-auth-header
+          - key: oauth-proxy.cfg
+            path: oauth-proxy.cfg
       # The agent's own credential for the gateway, renewed by the kubelet
       - name: api-token
         projected:

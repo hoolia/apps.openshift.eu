@@ -19,7 +19,7 @@ spec:
   ingress:
   - ports:
     - protocol: TCP
-      port: {{ .Values.oauth2Proxy.port }}
+      port: {{ .Values.oauthProxy.port }}
     from:
     - namespaceSelector:
         matchLabels:

@@ -21,19 +21,16 @@
     },
     "oauth": {
       "type": "object",
+      "additionalProperties": false,
       "properties": {
-        "issuerUrl": {"type": "string", "pattern": "^$|^https://"},
-        "clientId": {"type": "string"},
-        "scope": {"type": "string", "minLength": 1},
-        "groupsClaim": {"type": "string", "minLength": 1},
-        "allowedGroups": {"type": "array", "items": {"type": "string"}}
+        "ownerEmail": {"type": "string"},
+        "allowedGroups": {"type": "array", "items": {"type": "string", "minLength": 1}}
       }
     },
     "secrets": {
       "type": "object",
       "properties": {
         "type": {"enum": ["kubernetes", "externalSecret"]},
-        "clientSecret": {"type": "string"},
         "cookieSecret": {"type": "string"},
         "serverPassword": {"type": "string"},
         "a2aToken": {"type": "string"},
@@ -47,7 +44,6 @@
             "items": {
               "type": "object",
               "properties": {
-                "clientSecret": {"type": "string"},
                 "cookieSecret": {"type": "string"},
                 "serverPassword": {"type": "string"},
                 "a2aToken": {"type": "string"},
@@ -108,7 +104,7 @@
         "registry": {"type": "string", "minLength": 1}
       }
     },
-    "oauth2Proxy": {
+    "oauthProxy": {
       "type": "object",
       "properties": {
         "image": {"type": "string", "minLength": 1},

@@ -1,7 +1,7 @@
 person:
   # short lowercase name; objects are named <name>-agent. Empty: the release name
   name: ""
-  # Git identity and the only email admitted to the UI. Empty: nobody logs in
+  # Git identity; also the UI owner when oauth.ownerEmail is empty
   email: ""
   # one line appended to the agent instructions, for example "I am sales"
   role: ""
@@ -19,22 +19,15 @@ route:
     cert-manager.io/issuer-name: letsencrypt
 
 oauth:
-  # OIDC issuer of the UI login, for example https://login.example.com/realms/example
-  issuerUrl: ""
-  # OIDC client of the UI login. Empty: <name>-agent
-  clientId: ""
-  # scopes asked at login
-  scope: openid email profile
-  # token claim that lists the groups of the user
-  groupsClaim: groups
-  # empty: no group check; the owner email is checked always
+  # OpenShift user name (an email) of the only person admitted to the UI.
+  # Empty: person.email; both empty: nobody logs in
+  ownerEmail: ""
+  # OpenShift groups the owner must be in; empty: no group check
   allowedGroups: []
 
 secrets:
   # kubernetes: Secrets from the values below. externalSecret: from a secret store
   type: kubernetes
-  # client secret of the login client. Empty: a public client with PKCE
-  clientSecret: ""
   # empty: generated once and kept on upgrade. A value that is not 16, 24 or
   # 32 characters long is hashed to 32
   cookieSecret: ""
@@ -49,9 +42,8 @@ secrets:
     storeName: ""
     refreshInterval: 1h
     # one vault item per secret; the value is read from the item's password.
-    # Empty name: <name>-agent-<secret>. Empty clientSecret: a public client
+    # Empty name: <name>-agent-<secret>
     items:
-      clientSecret: ""
       cookieSecret: ""
       serverPassword: ""
       a2aToken: ""
@@ -125,9 +117,9 @@ builds:
   # registry of the cluster, where the builds push and the pod pulls
   registry: image-registry.openshift-image-registry.svc:5000
 
-oauth2Proxy:
-  # login proxy in front of the UI
-  image: quay.io/oauth2-proxy/oauth2-proxy:v7.7.1
+oauthProxy:
+  # OpenShift oauth-proxy in front of the UI; the cluster keeps this tag current
+  image: image-registry.openshift-image-registry.svc:5000/openshift/oauth-proxy:v4.4
   # UI port of the pod
   port: 4180
   # login proxy requests and limits
