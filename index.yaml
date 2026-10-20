@@ -531,6 +531,30 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 0.1.0
+    created: "2026-10-20T20:10:47.436795634Z"
+    description: Any streamable HTTP MCP server image for one team, with its credential
+      from a Secret, discovered by an MCP gateway
+    digest: af2e36dddf1f5faa976dec602f14aa93ff90e3cfb48d19ba0320d06bafe493b1
+    home: https://apps.openshift.eu
+    icon: https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/main/docs/logo/light.svg
+    keywords:
+    - ai
+    - mcp
+    maintainers:
+    - name: GRN.CLOUD B.V.
+      url: https://apps.openshift.eu
+    name: mcp-server
+    sources:
+    - https://github.com/hoolia/apps.openshift.eu
+    type: application
+    urls:
+    - https://github.com/hoolia/apps.openshift.eu/releases/download/mcp-server-0.2.0/mcp-server-0.2.0.tgz
+    version: 0.2.0
+  - annotations:
+      charts.openshift.io/name: MCP server
+      charts.openshift.io/provider: GRN.CLOUD B.V.
+    apiVersion: v2
+    appVersion: 0.1.0
     created: "2026-10-20T19:19:28.253151922Z"
     description: Any streamable HTTP MCP server image for one team, with its credential
       from a Secret, discovered by an MCP gateway
@@ -2062,4 +2086,4 @@ entries:
     urls:
     - https://github.com/hoolia/apps.openshift.eu/releases/download/vaultwarden-0.1.0/vaultwarden-0.1.0.tgz
     version: 0.1.0
-generated: "2026-10-20T19:25:57.122760582Z"
+generated: "2026-10-20T20:10:47.436888532Z"
