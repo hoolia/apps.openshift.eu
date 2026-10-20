@@ -147,7 +147,8 @@ for m in ReadWriteOnce ReadWriteOncePod; do
   if ERR=$(helm template t "$C" --namespace test "${BASE[@]}" --set storage.accessMode=$m 2>&1 >/dev/null); then
     echo "FAIL access mode $m: render succeeded"; fail=1
   else
-    echo "$ERR" | grep -qF "/storage/accessMode" || { echo "FAIL access mode $m: error does not name /storage/accessMode"; fail=1; }
+    # Helm 4 names the JSON pointer, Helm 3 the dotted path
+    echo "$ERR" | grep -qE '/storage/accessMode|storage\.accessMode' || { echo "FAIL access mode $m: error does not name storage.accessMode: $ERR"; fail=1; }
   fi
 done
 
