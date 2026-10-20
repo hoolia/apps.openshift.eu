@@ -1734,6 +1734,34 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 1.19.3
+    created: "2026-10-20T19:25:57.122677267Z"
+    description: Personal OpenCode coding agent with a browser UI behind a login,
+      reachable by other agents over A2A
+    digest: 144c0170b91075a26e8da3af4b7f3d12a142f14849707a8590644cddde1128e1
+    home: https://apps.openshift.eu
+    icon: https://opencode.ai/favicon.svg
+    keywords:
+    - ai
+    - agent
+    - opencode
+    - a2a
+    - kagent
+    maintainers:
+    - name: GRN.CLOUD B.V.
+      url: https://apps.openshift.eu
+    name: opencode-agent
+    sources:
+    - https://github.com/anomalyco/opencode
+    - https://github.com/hoolia/apps.openshift.eu
+    type: application
+    urls:
+    - https://github.com/hoolia/apps.openshift.eu/releases/download/opencode-agent-0.2.3/opencode-agent-0.2.3.tgz
+    version: 0.2.3
+  - annotations:
+      charts.openshift.io/name: OpenCode Agent
+      charts.openshift.io/provider: GRN.CLOUD B.V.
+    apiVersion: v2
+    appVersion: 1.19.3
     created: "2026-10-20T18:55:34.076476556Z"
     description: Personal OpenCode coding agent with a browser UI behind a login,
       reachable by other agents over A2A
@@ -2034,4 +2062,4 @@ entries:
     urls:
     - https://github.com/hoolia/apps.openshift.eu/releases/download/vaultwarden-0.1.0/vaultwarden-0.1.0.tgz
     version: 0.1.0
-generated: "2026-10-20T19:19:28.253300129Z"
+generated: "2026-10-20T19:25:57.122760582Z"
