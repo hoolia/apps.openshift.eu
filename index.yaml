@@ -2011,6 +2011,34 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: v1.19.2
+    created: "2026-10-21T05:55:07.550960734Z"
+    description: Qdrant vector database with optional memory tools for AI agents (mcp-server-qdrant)
+      in the release namespace, protected by an API key
+    digest: f4fc7913231aa2267bd118ab66af1dbd9c5fa99882326f9fe17c9d23e98957ea
+    home: https://apps.openshift.eu
+    icon: https://qdrant.tech/favicon/favicon-32x32.png
+    keywords:
+    - ai
+    - vector
+    - rag
+    - agents
+    - qdrant
+    maintainers:
+    - name: GRN.CLOUD B.V.
+      url: https://apps.openshift.eu
+    name: qdrant
+    sources:
+    - https://github.com/qdrant/qdrant
+    - https://github.com/hoolia/apps.openshift.eu
+    type: application
+    urls:
+    - https://github.com/hoolia/apps.openshift.eu/releases/download/qdrant-0.3.0/qdrant-0.3.0.tgz
+    version: 0.3.0
+  - annotations:
+      charts.openshift.io/name: Qdrant
+      charts.openshift.io/provider: GRN.CLOUD B.V.
+    apiVersion: v2
+    appVersion: v1.19.2
     created: "2026-10-21T05:45:50.709951847Z"
     description: Qdrant vector database with optional memory tools for AI agents (mcp-server-qdrant)
       in the release namespace, protected by an API key
@@ -2171,4 +2199,4 @@ entries:
     urls:
     - https://github.com/hoolia/apps.openshift.eu/releases/download/vaultwarden-0.1.0/vaultwarden-0.1.0.tgz
     version: 0.1.0
-generated: "2026-10-21T05:45:50.710064425Z"
+generated: "2026-10-21T05:55:07.551108062Z"
