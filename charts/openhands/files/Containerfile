@@ -1,0 +1,53 @@
+ARG CLI_IMAGE
+ARG BASE_IMAGE
+FROM ${CLI_IMAGE} AS cli
+
+FROM ${BASE_IMAGE}
+ARG GO_VERSION
+ARG ARGOCD_VERSION
+ARG ALERTMANAGER_VERSION
+ARG HELM_VERSION
+ARG KUSTOMIZE_VERSION
+ARG YQ_VERSION
+ARG GLAB_VERSION
+USER root
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ca-certificates curl git jq make \
+    python3 python3-pip python3-venv python3-yaml openssh-client \
+ && rm -rf /var/lib/apt/lists/*
+COPY --from=cli /usr/bin/oc /usr/local/bin/oc
+RUN set -eux; cd /tmp; \
+    ln -s oc /usr/local/bin/kubectl; \
+    curl -fsSLo /usr/local/bin/argocd "https://github.com/argoproj/argo-cd/releases/download/v${ARGOCD_VERSION}/argocd-linux-amd64"; \
+    curl -fsSL "https://github.com/prometheus/alertmanager/releases/download/v${ALERTMANAGER_VERSION}/alertmanager-${ALERTMANAGER_VERSION}.linux-amd64.tar.gz" \
+      | tar -xz --strip-components=1 -C /usr/local/bin "alertmanager-${ALERTMANAGER_VERSION}.linux-amd64/amtool"; \
+    curl -fsSL "https://get.helm.sh/helm-v${HELM_VERSION}-linux-amd64.tar.gz" \
+      | tar -xz --strip-components=1 -C /usr/local/bin linux-amd64/helm; \
+    curl -fsSL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv${KUSTOMIZE_VERSION}/kustomize_v${KUSTOMIZE_VERSION}_linux_amd64.tar.gz" \
+      | tar -xz -C /usr/local/bin kustomize; \
+    curl -fsSLo /usr/local/bin/yq "https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_amd64"; \
+    curl -fsSL "https://gitlab.com/gitlab-org/cli/-/releases/v${GLAB_VERSION}/downloads/glab_${GLAB_VERSION}_linux_amd64.tar.gz" \
+      | tar -xz --strip-components=1 -C /usr/local/bin bin/glab; \
+    curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" | tar -xz -C /usr/local; \
+    chmod 0755 /usr/local/bin/oc /usr/local/bin/argocd /usr/local/bin/amtool /usr/local/bin/helm \
+      /usr/local/bin/kustomize /usr/local/bin/yq /usr/local/bin/glab
+# arbitrary UID: the home and the passwd file belong to group 0
+RUN set -eux; \
+    printf '%s\n' '#!/bin/sh' \
+      'if ! whoami >/dev/null 2>&1; then' \
+      '  echo "agent:x:$(id -u):0:agent:${HOME}:/bin/bash" >> /etc/passwd' \
+      'fi' \
+      'exec /opt/agent-canvas/entrypoint.sh "$@"' > /usr/local/bin/openhands-uid-entrypoint; \
+    chmod 0755 /usr/local/bin/openhands-uid-entrypoint; \
+    for d in /home/openhands /projects /openhands; do \
+      [ -e "$d" ] && chgrp -R 0 "$d" && chmod -R g=u "$d"; \
+    done; \
+    chmod g=u /etc/passwd
+ENV HOME=/home/openhands \
+    PATH=/usr/local/go/bin:/home/openhands/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+USER 10001:0
+# HOME=/tmp: the check must not leave tool config dirs in the image home
+RUN set -eux; export HOME=/tmp; oc version --client; kubectl version --client; argocd version --client --short; \
+    amtool --version; helm version --short; kustomize version; yq --version; glab --version; \
+    go version; python3 --version; git --version; jq --version
+ENTRYPOINT ["tini", "--", "/usr/local/bin/openhands-uid-entrypoint"]

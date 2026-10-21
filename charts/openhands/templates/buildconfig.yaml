@@ -1,0 +1,76 @@
+{{- if .Values.build.enabled }}
+{{- $name := include "openhands.name" . }}
+{{- if ne .Values.build.output.kind "DockerImage" }}
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "openhands.labels" . | nindent 4 }}
+    app.kubernetes.io/component: build
+spec:
+  lookupPolicy:
+    local: true
+---
+{{- end }}
+# the name hash makes ConfigChange rebuild when the Containerfile or a version changes
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  name: {{ $name }}-{{ include "openhands.buildHash" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "openhands.labels" . | nindent 4 }}
+    app.kubernetes.io/component: build
+spec:
+  runPolicy: Serial
+  source:
+    type: Dockerfile
+    dockerfile: |
+      {{- .Files.Get "files/Containerfile" | nindent 6 }}
+  strategy:
+    type: Docker
+    dockerStrategy:
+      buildArgs:
+      - name: CLI_IMAGE
+        value: {{ .Values.build.cliImage | quote }}
+      - name: BASE_IMAGE
+        value: {{ printf "%s:%s" .Values.image.repository .Values.image.tag | quote }}
+      - name: GO_VERSION
+        value: {{ .Values.build.versions.go | quote }}
+      - name: ARGOCD_VERSION
+        value: {{ .Values.build.versions.argocd | quote }}
+      - name: ALERTMANAGER_VERSION
+        value: {{ .Values.build.versions.alertmanager | quote }}
+      - name: HELM_VERSION
+        value: {{ .Values.build.versions.helm | quote }}
+      - name: KUSTOMIZE_VERSION
+        value: {{ .Values.build.versions.kustomize | quote }}
+      - name: YQ_VERSION
+        value: {{ .Values.build.versions.yq | quote }}
+      - name: GLAB_VERSION
+        value: {{ .Values.build.versions.glab | quote }}
+  output:
+    {{- if eq .Values.build.output.kind "DockerImage" }}
+    to:
+      kind: DockerImage
+      name: {{ include "openhands.image" . }}
+    {{- with .Values.build.output.pushSecret }}
+    pushSecret:
+      name: {{ . }}
+    {{- end }}
+    {{- else }}
+    to:
+      kind: ImageStreamTag
+      name: {{ $name }}:{{ include "openhands.imageTag" . }}
+    {{- end }}
+  {{- with .Values.build.nodeSelector }}
+  nodeSelector:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  triggers:
+  - type: ConfigChange
+  resources:
+    {{- toYaml .Values.build.resources | nindent 4 }}
+{{- end }}

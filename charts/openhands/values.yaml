@@ -1,0 +1,141 @@
+image:
+  # upstream all-in-one image (frontend, agent-server, automation); used as is
+  # when build.enabled is false, else the base of the build
+  repository: ghcr.io/openhands/agent-canvas
+  tag: 1.25.0
+  pullPolicy: IfNotPresent
+
+build:
+  # build the image with the toolset below in the project
+  enabled: true
+  # image the oc binary is copied from; pin the one of your cluster
+  # (oc -n openshift get is cli)
+  cliImage: quay.io/openshift/origin-cli:4.20
+  versions:
+    go: 1.27.1
+    argocd: 3.5.4
+    alertmanager: 0.34.1
+    helm: 3.22.0
+    kustomize: 5.8.2
+    yq: 4.54.1
+    glab: 1.121.0
+  # ImageStreamTag: push to an ImageStream in the project.
+  # DockerImage: push to output.name with output.pushSecret
+  output:
+    kind: ImageStreamTag
+    name: ""
+    pushSecret: ""
+  # node labels for the build pod
+  nodeSelector: {}
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 4Gi
+
+route:
+  # empty: OpenShift assigns a host under the default application domain
+  host: ""
+  # extra labels on the Route only, for example to pick a router shard
+  labels: {}
+  # the UI holds long-lived WebSockets; the router must not cut idle streams
+  timeout: 3600s
+  # used when a host is set; certificate issued by cert-manager
+  annotations:
+    cert-manager.io/issuer-kind: ClusterIssuer
+    cert-manager.io/issuer-name: letsencrypt
+
+oauth:
+  # OpenShift groups admitted to the UI; empty: nobody logs in
+  allowedGroups: []
+
+secrets:
+  # kubernetes: Secrets from the values below. externalSecret: from a secret store
+  type: kubernetes
+  # agent-server API key the browser enters once. Empty: generated once
+  sessionApiKey: ""
+  # settings encryption key. Empty: generated once
+  secretKey: ""
+  # oauth-proxy cookie secret. Empty: generated once
+  cookieSecret: ""
+  # access token for git.host, also used by glab; glab merge requests need scope api
+  gitToken: ""
+  externalSecret:
+    storeKind: ClusterSecretStore
+    storeName: ""
+    refreshInterval: 1h
+    # one vault item per secret, value from the item's password.
+    # Empty name: <release>-<secret>
+    items:
+      sessionApiKey: ""
+      secretKey: ""
+      cookieSecret: ""
+      gitToken: ""
+
+git:
+  # Git host (no scheme) the token is sent to; empty: no token configured
+  host: ""
+  # commit identity
+  userName: ""
+  userEmail: ""
+
+gateway:
+  # model and MCP gateway the token proxy forwards to, for example https://api.example.com
+  upstream: ""
+  # audience of the agent's ServiceAccount token. Empty: the host of upstream
+  audience: ""
+
+llm:
+  # default model, in LiteLLM form, for example openai/<model> for an
+  # OpenAI-compatible gateway. Empty: chosen in the UI. Written into the
+  # settings when the pod starts after this value changed
+  model: ""
+
+# MCP servers reached through the token proxy: {name, path, timeout} with path
+# on gateway.upstream and timeout in seconds (default 60), for example
+# {name: public, path: /mcp/public}. Written like llm.model
+mcpServers: []
+
+# extra environment for the agent-canvas container (name: value)
+env: {}
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 2Gi
+  limits:
+    memory: 8Gi
+
+oauthProxy:
+  # OpenShift oauth-proxy in front of the UI; the cluster keeps this tag current
+  image: image-registry.openshift-image-registry.svc:5000/openshift/oauth-proxy:v4.4
+  port: 4180
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      memory: 128Mi
+
+tokenProxy:
+  # image that runs the token proxy script
+  image: registry.access.redhat.com/ubi9/python-312-minimal
+  # loopback port the agent sends model and MCP calls to
+  port: 8099
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      memory: 128Mi
+
+nodeSelector: {}
+affinity: {}
+
+storage:
+  # settings, conversations and the workspace
+  size: 20Gi
+  accessMode: ReadWriteOnce
+  # empty: the default storage class
+  className: ""
