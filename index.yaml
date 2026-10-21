@@ -2005,6 +2005,35 @@ entries:
     urls:
     - https://github.com/hoolia/apps.openshift.eu/releases/download/playwright-mcp-0.1.0/playwright-mcp-0.1.0.tgz
     version: 0.1.0
+  qdrant:
+  - annotations:
+      charts.openshift.io/name: Qdrant
+      charts.openshift.io/provider: GRN.CLOUD B.V.
+    apiVersion: v2
+    appVersion: v1.19.2
+    created: "2026-10-21T05:11:19.411119053Z"
+    description: Qdrant vector database for agents and RAG workloads in the release
+      namespace, protected by an API key
+    digest: 908c7235e378376b96e186044927df657e8375512131c7a0709c77624c00c0ee
+    home: https://apps.openshift.eu
+    icon: https://qdrant.tech/favicon/favicon-32x32.png
+    keywords:
+    - ai
+    - vector
+    - rag
+    - agents
+    - qdrant
+    maintainers:
+    - name: GRN.CLOUD B.V.
+      url: https://apps.openshift.eu
+    name: qdrant
+    sources:
+    - https://github.com/qdrant/qdrant
+    - https://github.com/hoolia/apps.openshift.eu
+    type: application
+    urls:
+    - https://github.com/hoolia/apps.openshift.eu/releases/download/qdrant-0.1.0/qdrant-0.1.0.tgz
+    version: 0.1.0
   vaultwarden:
   - annotations:
       charts.openshift.io/name: Vaultwarden
@@ -2114,4 +2143,4 @@ entries:
     urls:
     - https://github.com/hoolia/apps.openshift.eu/releases/download/vaultwarden-0.1.0/vaultwarden-0.1.0.tgz
     version: 0.1.0
-generated: "2026-10-20T21:32:34.949152597Z"
+generated: "2026-10-21T05:11:19.411285881Z"
