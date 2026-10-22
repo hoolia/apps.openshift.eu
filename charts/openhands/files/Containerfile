@@ -27,7 +27,8 @@ COPY --from=tools /usr/share/ansible/collections /usr/share/ansible/collections
 {{- end }}
 COPY install-tools.sh verify-tools.sh tools.txt checks.txt /tmp/build/
 RUN sh /tmp/build/install-tools.sh
-# arbitrary UID: the home and the passwd file belong to group 0
+# arbitrary UID: the home and the passwd file belong to group 0.
+# The frontend listens on loopback, behind the login proxy, so it may embed the session key
 RUN set -eux; \
     printf '%s\n' '#!/bin/sh' \
       'if ! whoami >/dev/null 2>&1; then' \
@@ -35,6 +36,8 @@ RUN set -eux; \
       'fi' \
       'exec /opt/agent-canvas/entrypoint.sh "$@"' > /usr/local/bin/openhands-uid-entrypoint; \
     chmod 0755 /usr/local/bin/openhands-uid-entrypoint; \
+    sed -i 's/--host :: \\$/--host 127.0.0.1 \\/' /opt/agent-canvas/entrypoint.sh; \
+    [ "$(grep -c -- '--host 127.0.0.1 \\$' /opt/agent-canvas/entrypoint.sh)" = 2 ]; \
     for d in /home/openhands /projects /openhands; do \
       [ -e "$d" ] && chgrp -R 0 "$d" && chmod -R g=u "$d"; \
     done; \

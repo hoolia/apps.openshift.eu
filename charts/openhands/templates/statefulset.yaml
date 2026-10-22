@@ -44,9 +44,7 @@ spec:
         env:
         - name: HOME
           value: /home/openhands
-        # the session key stays out of the page; the browser enters it once
-        - name: AGENT_CANVAS_ALLOW_LAN_SESSION_KEY
-          value: "false"
+        # the frontend listens on loopback only (see Containerfile) and embeds this key
         - name: LOCAL_BACKEND_API_KEY
           valueFrom:
             secretKeyRef:
@@ -101,25 +99,21 @@ spec:
               command:
               - python3
               - /opt/openhands-scripts/seed-settings.py
-        ports:
-        - name: canvas
-          containerPort: 8000
-          protocol: TCP
+        # frontend and agent-server listen on 127.0.0.1, so the probes run inside the container
         startupProbe:
-          httpGet:
-            path: /alive
-            port: canvas
+          exec:
+            command: [curl, -sf, -o, /dev/null, http://127.0.0.1:8000/alive]
           periodSeconds: 5
+          timeoutSeconds: 5
           failureThreshold: 60
         readinessProbe:
-          httpGet:
-            path: /alive
-            port: canvas
+          exec:
+            command: [curl, -sf, -o, /dev/null, http://127.0.0.1:8000/alive]
           periodSeconds: 10
+          timeoutSeconds: 5
         livenessProbe:
-          httpGet:
-            path: /alive
-            port: canvas
+          exec:
+            command: [curl, -sf, -o, /dev/null, http://127.0.0.1:8000/alive]
           periodSeconds: 30
           timeoutSeconds: 5
           failureThreshold: 5

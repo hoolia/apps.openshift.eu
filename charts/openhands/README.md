@@ -4,7 +4,7 @@
 
 Runs one shared OpenHands Agent Canvas (frontend, agent-server and automation in one image) in your project, for a team that works with it in the browser behind an OpenShift login. Every conversation runs in the same pod, with the same shell, the same volume and the same ServiceAccount, which has the `edit` role in the project only. OpenHands sub-agents run inside that pod.
 
-One pod holds three containers: `agent-canvas`, the OpenShift `oauth-proxy` in front of it, and a token proxy on 127.0.0.1 that adds the pod's ServiceAccount token to every model and MCP call to `gateway.upstream`. Only the login proxy is in a Service; the agent-server additionally requires its session API key, so a pod in the same project that reaches the agent-canvas port directly still cannot drive the agent.
+One pod holds three containers: `agent-canvas`, the OpenShift `oauth-proxy` in front of it, and a token proxy on 127.0.0.1 that adds the pod's ServiceAccount token to every model and MCP call to `gateway.upstream`. Only the login proxy is in a Service. The frontend listens on 127.0.0.1 behind it and hands the session API key to the logged-in browser, so the backend is configured on the first visit; the agent-server and automation ports still require that key, so a pod in the same project that reaches them directly cannot drive the agent.
 
 With `build.enabled` the chart builds the image in the project from the upstream image. It adds Debian packages (`git`, `jq`, `make`, `ssh`, `curl`, `aws`, `psql`, `mariadb`, `skopeo`, `tmux`, `dig`, `rsync`, Java 21, `pdftotext`) and the Python, npm and pip tools in `build.tools` at their pinned versions. With `build.toolsImage` it also copies every binary in that image's `/usr/local/bin`, its Go toolchain, `/tools`, `/opt/sonar-scanner` and Ansible collections, so the agent gets exactly the command-line toolset of, for example, an `opencode-agent` image. The build runs every tool once as a non-root user and fails when one does not start. The image runs under the `restricted-v2` SCC with an arbitrary UID.
 
@@ -21,7 +21,7 @@ helm install team grncloud/openhands \
   --set git.host=git.example.com --set secrets.gitToken=<token>
 ```
 
-Objects are named after the release. Read the address and the session API key:
+Objects are named after the release. Read the address (the session API key, for API clients, is the Secret `<release>-session-api-key`):
 
 ```bash
 oc get route team -o jsonpath='https://{.spec.host}/canvas/{"\n"}'
@@ -53,6 +53,6 @@ oc extract secret/team-session-api-key --keys=value --to=-
 
 ## Delivery instructions
 
-Open `https://<route.host>/canvas/` and log in with OpenShift. On the first visit the UI asks for the session API key; paste the value of the Secret `<release>-session-api-key`. In **Settings**, check the model and the MCP servers. Clone repositories into `~/workspace`; git sends the token to `git.host` only, and `glab` uses the same token.
+Open `https://<route.host>/canvas/` and log in with OpenShift; the backend is already connected. A new browser shows a welcome wizard once: choose **Skip for now**, because its LLM step proposes its own default model in place of `llm.model`. In **Settings**, check the model and the MCP servers. Clone repositories into `~/workspace`; git sends the token to `git.host` only, and `glab` uses the same token.
 
 Everyone admitted to the UI uses the same pod, the same ServiceAccount, the same git identity and sees every conversation. The agent's shell sees the git token in its environment and can print it into a conversation, which sends it to the model; give it a token you can rotate. OpenHands adds a `Co-authored-by: openhands` trailer to the commits it writes unless told otherwise.
