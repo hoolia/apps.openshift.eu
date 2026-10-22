@@ -2135,6 +2135,33 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 1.25.0
+    created: "2026-10-22T09:08:35.593033191Z"
+    description: Shared OpenHands Agent Canvas coding agent with a browser UI behind
+      an OpenShift login
+    digest: de9138f1d107592ae9416e67e67694b05c3303813811b31e1df337f2834607dd
+    home: https://apps.openshift.eu
+    icon: https://raw.githubusercontent.com/OpenHands/OpenHands/main/docs/static/img/logo.png
+    keywords:
+    - ai
+    - agent
+    - openhands
+    - coding
+    maintainers:
+    - name: GRN.CLOUD B.V.
+      url: https://apps.openshift.eu
+    name: openhands
+    sources:
+    - https://github.com/OpenHands/OpenHands
+    - https://github.com/hoolia/apps.openshift.eu
+    type: application
+    urls:
+    - https://github.com/hoolia/apps.openshift.eu/releases/download/openhands-0.1.1/openhands-0.1.1.tgz
+    version: 0.1.1
+  - annotations:
+      charts.openshift.io/name: OpenHands
+      charts.openshift.io/provider: GRN.CLOUD B.V.
+    apiVersion: v2
+    appVersion: 1.25.0
     created: "2026-10-22T08:07:25.479535804Z"
     description: Shared OpenHands Agent Canvas coding agent with a browser UI behind
       an OpenShift login
@@ -2489,4 +2516,4 @@ entries:
     urls:
     - https://github.com/hoolia/apps.openshift.eu/releases/download/vaultwarden-0.1.0/vaultwarden-0.1.0.tgz
     version: 0.1.0
-generated: "2026-10-22T08:07:25.479712727Z"
+generated: "2026-10-22T09:08:35.593176429Z"
