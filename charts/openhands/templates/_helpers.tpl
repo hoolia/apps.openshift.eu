@@ -53,9 +53,31 @@ the cluster, else a new random one. Takes value, existing (Secret data), key, le
 {{- end -}}
 {{- end -}}
 
-{{/* A changed Containerfile or toolset gets a new image tag */}}
+{{- define "openhands.containerfile" -}}
+{{- tpl (.Files.Get "files/Containerfile") . -}}
+{{- end -}}
+
+{{/* tools.txt for install-tools.sh: "<kind> <command> <keep> <args>" per line */}}
+{{- define "openhands.toolsTxt" -}}
+{{- range .Values.build.tools -}}
+{{ .kind }} {{ .command }} {{ default false .keep }} {{ default "" .args }}
+{{ end -}}
+{{- end -}}
+
+{{/* checks.txt for verify-tools.sh: base checks, tools image checks, one per tool */}}
+{{- define "openhands.checksTxt" -}}
+{{ .Files.Get "files/checks-base.txt" }}
+{{- if .Values.build.toolsImage }}
+{{ .Files.Get "files/checks-tools.txt" }}
+{{- end }}
+{{- range .Values.build.tools }}
+{{ .check }}
+{{- end }}
+{{- end -}}
+
+{{/* A changed Containerfile, build script or toolset gets a new image tag */}}
 {{- define "openhands.buildHash" -}}
-{{- list (.Files.Get "files/Containerfile") (toJson .Values.build.versions) .Values.build.cliImage .Values.image.tag | join "\n" | sha256sum | trunc 8 -}}
+{{- list (include "openhands.containerfile" .) (.Files.Get "files/install-tools.sh") (.Files.Get "files/verify-tools.sh") (include "openhands.toolsTxt" .) (include "openhands.checksTxt" .) | join "\n" | sha256sum | trunc 8 -}}
 {{- end -}}
 
 {{- define "openhands.imageTag" -}}
@@ -95,9 +117,14 @@ seccompProfile:
 {{- if $llm }}{{ toJson $llm }}{{ end -}}
 {{- end -}}
 
-{{/* MCP servers the seed script writes, one "<name> <url> <timeout>" per line */}}
+{{/* MCP servers the seed script writes: JSON map of name to server settings */}}
 {{- define "openhands.seedMcp" -}}
+{{- $servers := dict -}}
 {{- range .Values.mcpServers -}}
-{{ .name }} http://127.0.0.1:{{ $.Values.tokenProxy.port }}{{ .path }} {{ default 60 .timeout }}
-{{ end -}}
+{{- $_ := set $servers .name (dict "url" (printf "http://127.0.0.1:%v%s" $.Values.tokenProxy.port .path) "transport" "streamable-http" "timeout" (default 60 .timeout) "enabled" (ne .enabled false)) -}}
+{{- end -}}
+{{- if .Values.kubernetesMcpServer.enabled -}}
+{{- $_ := set $servers "kubernetes" (dict "command" "/tools/kubernetes-mcp-server" "args" (list "--config" "/opt/openhands-scripts/kubernetes-mcp-server.toml" "--disable-multi-cluster") "transport" "stdio" "timeout" 60 "passEnv" (list "KUBERNETES_SERVICE_HOST" "KUBERNETES_SERVICE_PORT")) -}}
+{{- end -}}
+{{- toJson $servers -}}
 {{- end -}}

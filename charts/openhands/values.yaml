@@ -8,17 +8,30 @@ image:
 build:
   # build the image with the toolset below in the project
   enabled: true
-  # image the oc binary is copied from; pin the one of your cluster
-  # (oc -n openshift get is cli)
-  cliImage: quay.io/openshift/origin-cli:4.20
-  versions:
-    go: 1.27.1
-    argocd: 3.5.4
-    alertmanager: 0.34.1
-    helm: 3.22.0
-    kustomize: 5.8.2
-    yq: 4.54.1
-    glab: 1.121.0
+  # image whose /usr/local/bin binaries, /usr/local/go, /tools, /opt/sonar-scanner and
+  # Ansible collections are copied in, for example an opencode-agent image. Empty:
+  # only the Debian packages and the tools below
+  toolsImage: ""
+  # pull secret for toolsImage and the base image; empty: the builder's own
+  pullSecret: ""
+  # Python (uv), npm and pip tools; keep: true leaves the base image's own command
+  # in place (agent-canvas starts its automation server with its uvicorn)
+  tools:
+  - {kind: uv, command: mkdocs, args: "mkdocs==1.6.1 --with mkdocs-material", check: "mkdocs --version"}
+  - {kind: uv, command: ansible, args: "ansible-core==2.21.5", check: "ansible --version"}
+  - {kind: uv, command: hf, args: "huggingface_hub[cli]==2.2.0", check: "hf version"}
+  - {kind: uv, command: fastapi, args: "fastapi[standard]==0.159.1", check: "fastapi --version"}
+  - {kind: uv, command: uvicorn, keep: true, args: "uvicorn==0.54.0", check: "uvicorn --version"}
+  - {kind: uv, command: semgrep, args: "semgrep==1.182.0", check: "semgrep --version"}
+  - {kind: uv, command: checkov, args: "--python 3.12 checkov==3.3.30", check: "checkov --version"}
+  - {kind: uv, command: open-terminal, args: "open-terminal==0.14.2", check: "open-terminal --help"}
+  - {kind: uv, command: jupyter-server, args: "jupyter-server==2.21.1 --with ipykernel", check: "jupyter-server --version"}
+  - {kind: npm, command: "@bitwarden/cli@2026.10.0", check: "bw --version"}
+  - {kind: npm, command: "@higgsfield/cli@1.2.2", check: "higgsfield --version"}
+  - {kind: npm, command: "confluence-cli@2.30.4", check: "confluence --version"}
+  - {kind: npm, command: "renovate@44.176.1", check: "renovate --version"}
+  - {kind: npm, command: "snyk@1.1308.2", check: "snyk --version"}
+  - {kind: pip, command: "atlassian-python-api==5.0.5", check: "python3 -c 'import atlassian, importlib.metadata as m; print(m.version(\"atlassian-python-api\"))'"}
   # ImageStreamTag: push to an ImageStream in the project.
   # DockerImage: push to output.name with output.pushSecret
   output:
@@ -32,7 +45,7 @@ build:
       cpu: 100m
       memory: 256Mi
     limits:
-      memory: 4Gi
+      memory: 6Gi
 
 route:
   # empty: OpenShift assigns a host under the default application domain
@@ -92,10 +105,20 @@ llm:
   # settings when the pod starts after this value changed
   model: ""
 
-# MCP servers reached through the token proxy: {name, path, timeout} with path
-# on gateway.upstream and timeout in seconds (default 60), for example
-# {name: public, path: /mcp/public}. Written like llm.model
+# MCP servers reached through the token proxy: {name, path, timeout, enabled} with
+# path on gateway.upstream, timeout in seconds (default 60) and enabled (default
+# true), for example {name: public, path: /mcp/public}. Written like llm.model.
+# The agent-server lists all enabled servers within 30 s together: one slow server
+# leaves the agent without any MCP tools
 mcpServers: []
+
+kubernetesMcpServer:
+  # local stdio MCP server "kubernetes" with the pod's ServiceAccount; needs
+  # /tools/kubernetes-mcp-server, which build.toolsImage provides
+  enabled: false
+  # kinds the server refuses to read or write
+  deniedResources:
+  - {group: "", version: v1, kind: Secret}
 
 # extra environment for the agent-canvas container (name: value)
 env: {}

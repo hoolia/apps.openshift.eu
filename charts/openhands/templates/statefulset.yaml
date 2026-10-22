@@ -22,7 +22,7 @@ spec:
       labels:
         {{- include "openhands.selectorLabels" . | nindent 8 }}
       annotations:
-        checksum/scripts: {{ list (.Files.Get "files/token-proxy.py") (.Files.Get "files/seed-settings.sh") | join "\n" | sha256sum }}
+        checksum/scripts: {{ include (print $.Template.BasePath "/configmap-scripts.yaml") . | sha256sum }}
     spec:
       serviceAccountName: {{ $name }}
       {{- with .Values.nodeSelector }}
@@ -99,8 +99,8 @@ spec:
           postStart:
             exec:
               command:
-              - sh
-              - /opt/openhands-scripts/seed-settings.sh
+              - python3
+              - /opt/openhands-scripts/seed-settings.py
         ports:
         - name: canvas
           containerPort: 8000
@@ -148,8 +148,8 @@ spec:
         - --upstream=http://127.0.0.1:8000
         - --upstream-timeout={{ .Values.route.timeout }}
         - --email-domain=*
-        # --openshift-group is ignored; the check is this SAR. create, because cluster-reader holds get
-        - --openshift-sar={{ list (dict "namespace" .Release.Namespace "resource" "services/proxy" "resourceName" (printf "%s-ui" $name) "verb" "create") | toJson }}
+        # --openshift-group is accepted and ignored; the group check is this SAR
+        - --openshift-sar={{ list (dict "namespace" .Release.Namespace "resource" "services/proxy" "resourceName" (printf "%s-ui" $name) "verb" "get") | toJson }}
         - --pass-basic-auth=false
         - --cookie-name=_{{ $name | replace "-" "_" }}
         - --cookie-secure=true

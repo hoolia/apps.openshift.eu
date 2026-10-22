@@ -6,7 +6,9 @@ Runs one shared OpenHands Agent Canvas (frontend, agent-server and automation in
 
 One pod holds three containers: `agent-canvas`, the OpenShift `oauth-proxy` in front of it, and a token proxy on 127.0.0.1 that adds the pod's ServiceAccount token to every model and MCP call to `gateway.upstream`. Only the login proxy is in a Service; the agent-server additionally requires its session API key, so a pod in the same project that reaches the agent-canvas port directly still cannot drive the agent.
 
-With `build.enabled` the chart builds the image in the project from the upstream image and adds `oc`, `kubectl`, `argocd`, `amtool`, `helm`, `kustomize`, `yq`, `glab`, Go, Python 3 with `pip`, `git`, `jq`, `make` and `ssh`, each at the version in `build.versions`. The image runs under the `restricted-v2` SCC with an arbitrary UID.
+With `build.enabled` the chart builds the image in the project from the upstream image. It adds Debian packages (`git`, `jq`, `make`, `ssh`, `curl`, `aws`, `psql`, `mariadb`, `skopeo`, `tmux`, `dig`, `rsync`, Java 21, `pdftotext`) and the Python, npm and pip tools in `build.tools` at their pinned versions. With `build.toolsImage` it also copies every binary in that image's `/usr/local/bin`, its Go toolchain, `/tools`, `/opt/sonar-scanner` and Ansible collections, so the agent gets exactly the command-line toolset of, for example, an `opencode-agent` image. The build runs every tool once as a non-root user and fails when one does not start. The image runs under the `restricted-v2` SCC with an arbitrary UID.
+
+With `kubernetesMcpServer.enabled` the agent also gets a local MCP server `kubernetes` (`/tools/kubernetes-mcp-server`, from the tools image) that acts with the pod's ServiceAccount on its own project and refuses the kinds in `kubernetesMcpServer.deniedResources`.
 
 ## Install
 
@@ -28,8 +30,9 @@ oc extract secret/team-session-api-key --keys=value --to=-
 
 - `image.repository`, `image.tag` (default: `ghcr.io/openhands/agent-canvas`, `1.25.0`): Upstream image, and the base of the build.
 - `build.enabled` (default: true): Build the image with the toolset in the project.
-- `build.cliImage` (default: `quay.io/openshift/origin-cli:4.20`): Image `oc` is copied from; pin your cluster's.
-- `build.versions` (default: see `values.yaml`): Version of each downloaded tool.
+- `build.toolsImage` (default: empty): Image whose binaries, Go toolchain, `/tools`, `/opt/sonar-scanner` and Ansible collections are copied in. Empty: Debian packages and `build.tools` only.
+- `build.pullSecret` (default: empty): Pull secret for `build.toolsImage` and the base image.
+- `build.tools` (default: see `values.yaml`): `{kind: uv|npm|pip, command, args, check}` per tool; `check` is the command the build runs to prove it starts. A `uv` tool whose command the base image already has is kept.
 - `build.output.kind` (default: `ImageStreamTag`): `ImageStreamTag` pushes to an ImageStream in the project; `DockerImage` pushes to `build.output.name` with `build.output.pushSecret`.
 - `route.host` (default: empty): Hostname of the UI. Empty: OpenShift assigns one.
 - `route.labels` (default: empty): Extra labels on the Route only.
@@ -42,7 +45,9 @@ oc extract secret/team-session-api-key --keys=value --to=-
 - `gateway.upstream` (default: empty): OpenAI-compatible model and MCP gateway; the ServiceAccount token is its credential.
 - `gateway.audience` (default: the host of `gateway.upstream`): Audience of that token.
 - `llm.model` (default: empty): Default model in LiteLLM form, for example `openai/<model>`.
-- `mcpServers` (default: empty): `{name, path}` per MCP server on `gateway.upstream`.
+- `mcpServers` (default: empty): `{name, path, timeout}` per MCP server on `gateway.upstream`.
+- `kubernetesMcpServer.enabled` (default: false): Local MCP server `kubernetes`; needs `build.toolsImage` with `/tools/kubernetes-mcp-server`.
+- `kubernetesMcpServer.deniedResources` (default: `Secret`): Kinds that server refuses.
 - `env` (default: empty): Extra environment for `agent-canvas`.
 - `storage.size`, `storage.className`, `storage.accessMode` (default: `20Gi`, default class, `ReadWriteOnce`): Volume for settings, conversations and `~/workspace`.
 

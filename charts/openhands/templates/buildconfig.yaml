@@ -1,5 +1,6 @@
 {{- if .Values.build.enabled }}
 {{- $name := include "openhands.name" . }}
+{{- $hash := include "openhands.buildHash" . }}
 {{- if ne .Values.build.output.kind "DockerImage" }}
 apiVersion: image.openshift.io/v1
 kind: ImageStream
@@ -14,11 +15,30 @@ spec:
     local: true
 ---
 {{- end }}
-# the name hash makes ConfigChange rebuild when the Containerfile or a version changes
+# build context of the Containerfile; the name hash keeps a running build's inputs fixed
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name }}-build-{{ $hash }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "openhands.labels" . | nindent 4 }}
+    app.kubernetes.io/component: build
+data:
+  install-tools.sh: |
+{{ .Files.Get "files/install-tools.sh" | indent 4 }}
+  verify-tools.sh: |
+{{ .Files.Get "files/verify-tools.sh" | indent 4 }}
+  tools.txt: |
+{{ include "openhands.toolsTxt" . | indent 4 }}
+  checks.txt: |
+{{ include "openhands.checksTxt" . | indent 4 }}
+---
+# the name hash makes ConfigChange rebuild when the Containerfile or the toolset changes
 apiVersion: build.openshift.io/v1
 kind: BuildConfig
 metadata:
-  name: {{ $name }}-{{ include "openhands.buildHash" . }}
+  name: {{ $name }}-{{ $hash }}
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "openhands.labels" . | nindent 4 }}
@@ -28,29 +48,20 @@ spec:
   source:
     type: Dockerfile
     dockerfile: |
-      {{- .Files.Get "files/Containerfile" | nindent 6 }}
+      {{- include "openhands.containerfile" . | nindent 6 }}
+    configMaps:
+    - configMap:
+        name: {{ $name }}-build-{{ $hash }}
   strategy:
     type: Docker
     dockerStrategy:
-      buildArgs:
-      - name: CLI_IMAGE
-        value: {{ .Values.build.cliImage | quote }}
-      - name: BASE_IMAGE
-        value: {{ printf "%s:%s" .Values.image.repository .Values.image.tag | quote }}
-      - name: GO_VERSION
-        value: {{ .Values.build.versions.go | quote }}
-      - name: ARGOCD_VERSION
-        value: {{ .Values.build.versions.argocd | quote }}
-      - name: ALERTMANAGER_VERSION
-        value: {{ .Values.build.versions.alertmanager | quote }}
-      - name: HELM_VERSION
-        value: {{ .Values.build.versions.helm | quote }}
-      - name: KUSTOMIZE_VERSION
-        value: {{ .Values.build.versions.kustomize | quote }}
-      - name: YQ_VERSION
-        value: {{ .Values.build.versions.yq | quote }}
-      - name: GLAB_VERSION
-        value: {{ .Values.build.versions.glab | quote }}
+      {{- with .Values.build.pullSecret }}
+      pullSecret:
+        name: {{ . }}
+      {{- end }}
+      env:
+      - name: BUILD_LOGLEVEL
+        value: "0"
   output:
     {{- if eq .Values.build.output.kind "DockerImage" }}
     to:
