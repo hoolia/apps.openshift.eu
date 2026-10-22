@@ -37,7 +37,8 @@ oc extract secret/team-session-api-key --keys=value --to=-
 - `route.host` (default: empty): Hostname of the UI. Empty: OpenShift assigns one.
 - `route.labels` (default: empty): Extra labels on the Route only.
 - `route.timeout` (default: 3600s): Router timeout; the UI holds WebSockets open.
-- `oauth.allowedGroups` (default: empty): OpenShift groups admitted to the UI. Empty: everyone who may edit the project.
+- `oauth.ownerEmail` (default: empty): OpenShift user name (an email) of the only person admitted. Empty: `oauth.allowedGroups`; both empty: everyone who may edit the project.
+- `oauth.allowedGroups` (default: empty): OpenShift groups admitted. Only their members log in: the chart grants them the verb `login` on `services/proxy` of the UI Service, which `admin` and `edit` do not hold, and the login proxy checks that permission. With an owner, the owner must also be in one of them.
 - `secrets.type` (default: `kubernetes`): `kubernetes` or `externalSecret`. With `externalSecret`, the git token and every secret with an item name come from the store; the others are generated in the project.
 - `secrets.sessionApiKey`, `secrets.secretKey`, `secrets.cookieSecret` (default: generated once): Agent-server API key, settings encryption key, login cookie secret.
 - `secrets.gitToken` (default: empty): Access token for `git.host`, also used by `glab`. `git` needs `write_repository`; `glab` merge requests need `api`.

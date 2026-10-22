@@ -60,7 +60,10 @@ route:
     cert-manager.io/issuer-name: letsencrypt
 
 oauth:
-  # OpenShift groups admitted to the UI; empty: everyone who may edit the project
+  # OpenShift user name (an email) of the only person admitted. Empty: allowedGroups
+  ownerEmail: ""
+  # OpenShift groups admitted (with ownerEmail: the owner must be in one).
+  # Both empty: everyone who may edit the project
   allowedGroups: []
 
 secrets:

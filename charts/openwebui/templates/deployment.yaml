@@ -214,8 +214,8 @@ spec:
         - --email-domain=
         {{- if or .Values.oauth.allowedGroups (not $owner) }}
         # --openshift-group is accepted and ignored; the group check is this SAR.
-        # Without an owner it admits everyone who may edit the project
-        - --openshift-sar={{ list (dict "namespace" .Release.Namespace "resource" "services/proxy" "resourceName" $name "verb" "get") | toJson }}
+        # groups: verb login, granted by the login Role only; neither: get, project editors
+        - --openshift-sar={{ list (dict "namespace" .Release.Namespace "resource" "services/proxy" "resourceName" $name "verb" (ternary "login" "get" (not (empty .Values.oauth.allowedGroups)))) | toJson }}
         {{- end }}
         # X-Forwarded-Email is set from the session and replaces any sent by the client
         - --pass-user-headers=true
