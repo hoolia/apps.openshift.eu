@@ -152,6 +152,13 @@ mcpDiscovery:
     limits:
       memory: 96Mi
 
+# MCP servers added in the UI that log in with OAuth return to
+# https://<route.host>/mcp-oauth/callback instead of localhost, which a hosted agent's
+# browser cannot reach; needs build.enabled and route.host. One login runs at a time
+mcpOAuth:
+  # loopback port of the agent-server's callback listener; 0: upstream localhost redirect
+  callbackPort: 18765
+
 kubernetesMcpServer:
   # local stdio MCP server "kubernetes" with the pod's ServiceAccount; needs
   # /tools/kubernetes-mcp-server, which build.toolsImage provides
