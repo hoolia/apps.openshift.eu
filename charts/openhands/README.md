@@ -30,7 +30,7 @@ oc get route team -o jsonpath='https://{.spec.host}/canvas/{"\n"}'
 oc extract secret/team-session-api-key --keys=value --to=-
 ```
 
-- `image.repository`, `image.tag` (default: `ghcr.io/openhands/agent-canvas`, `1.30.0`): Upstream image, and the base of the build.
+- `image.repository`, `image.tag` (default: `ghcr.io/openhands/agent-canvas`, `1.33.0`): Upstream image, and the base of the build.
 - `build.enabled` (default: true): Build the image with the toolset in the project.
 - `build.toolsImage` (default: empty): Image whose binaries, Go toolchain, `/tools`, `/opt/sonar-scanner` and Ansible collections are copied in. Empty: Debian packages and `build.tools` only.
 - `build.pullSecret` (default: empty): Pull secret for `build.toolsImage` and the base image.

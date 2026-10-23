@@ -2,7 +2,7 @@ image:
   # upstream all-in-one image (frontend, agent-server, automation); used as is
   # when build.enabled is false, else the base of the build
   repository: ghcr.io/openhands/agent-canvas
-  tag: 1.30.0
+  tag: 1.33.0
   pullPolicy: IfNotPresent
 
 build:
