@@ -53,6 +53,7 @@ oc extract secret/team-session-api-key --keys=value --to=-
 - `mcpDiscovery.enabled` (default: true): MCP servers from the project's `RemoteMCPServer` objects; needs the kagent CRDs, does nothing without them.
 - `mcpDiscovery.interval` (default: 60): Seconds between two passes.
 - `mcpDiscovery.labelSelector` (default: empty): Only `RemoteMCPServer` objects with these labels.
+- `mcpDiscovery.clusterRole` (default: `kagent-remotemcpserver-view`): ClusterRole of the kagent installation that reads `RemoteMCPServer` objects, bound in the release namespace; empty for no binding.
 - `git.uiSecretName` (default: `GITLAB_TOKEN`): Secrets store name of the git token the UI reads; `GITHUB_TOKEN` for a GitHub host, empty to not write it.
 - `kubernetesMcpServer.enabled` (default: false): Local MCP server `kubernetes`; needs `build.toolsImage` with `/tools/kubernetes-mcp-server`.
 - `kubernetesMcpServer.deniedResources` (default: `Secret`): Kinds that server refuses.

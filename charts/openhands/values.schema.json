@@ -272,6 +272,9 @@
         },
         "resources": {
           "type": "object"
+        },
+        "clusterRole": {
+          "type": "string"
         }
       }
     }

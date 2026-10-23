@@ -142,6 +142,9 @@ mcpDiscovery:
   interval: 60
   # only RemoteMCPServers with these labels, for example key=value. Empty: all
   labelSelector: ""
+  # ClusterRole, installed with kagent, that reads RemoteMCPServers; bound in the
+  # release namespace. Empty: no binding (the ServiceAccount's edit role may cover it)
+  clusterRole: kagent-remotemcpserver-view
   resources:
     requests:
       cpu: 5m
