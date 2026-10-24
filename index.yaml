@@ -300,6 +300,40 @@ entries:
     urls:
     - https://github.com/hoolia/apps.openshift.eu/releases/download/guacamole-0.1.0/guacamole-0.1.0.tgz
     version: 0.1.0
+  kagent:
+  - annotations:
+      charts.openshift.io/name: kagent
+      charts.openshift.io/provider: GRN.CLOUD B.V.
+    apiVersion: v2
+    appVersion: 0.9.6
+    created: "2026-10-24T12:40:36.553356452Z"
+    dependencies:
+    - alias: upstream
+      name: kagent
+      repository: oci://ghcr.io/kagent-dev/kagent/helm
+      version: 0.9.6
+    description: kagent agent controller and UI for one tenant behind the OpenShift
+      login; the platform kagent-operator provides the CRDs and the access to team
+      namespaces
+    digest: a86015379215ec8a1a11035f4b97b7ed6be1fd7c3fae8b10bfbc2083e4cf85ea
+    home: https://apps.openshift.eu
+    icon: https://raw.githubusercontent.com/kagent-dev/kagent/main/img/icon-light.svg
+    keywords:
+    - ai
+    - agents
+    - kagent
+    - mcp
+    maintainers:
+    - name: GRN.CLOUD B.V.
+      url: https://apps.openshift.eu
+    name: kagent
+    sources:
+    - https://github.com/kagent-dev/kagent
+    - https://github.com/hoolia/apps.openshift.eu
+    type: application
+    urls:
+    - https://github.com/hoolia/apps.openshift.eu/releases/download/kagent-0.1.0/kagent-0.1.0.tgz
+    version: 0.1.0
   mailu:
   - annotations:
       charts.openshift.io/name: Mailu
@@ -2802,4 +2836,4 @@ entries:
     urls:
     - https://github.com/hoolia/apps.openshift.eu/releases/download/vaultwarden-0.1.0/vaultwarden-0.1.0.tgz
     version: 0.1.0
-generated: "2026-10-24T09:18:42.346834271Z"
+generated: "2026-10-24T12:40:36.553489274Z"
