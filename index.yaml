@@ -162,6 +162,34 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 19.3.1
+    created: "2026-10-24T18:13:04.593225502Z"
+    description: GitLab instance for source code, merge requests and pipelines, run
+      by the GitLab operator
+    digest: 05de55a2823c0895ea57f4a3ef552d6fa83f07e3cb5e472ac521605743185ae9
+    home: https://apps.openshift.eu
+    icon: https://avatars.githubusercontent.com/u/1086321?s=200
+    keywords:
+    - git
+    - devops
+    - ci
+    - gitlab
+    maintainers:
+    - name: GRN.CLOUD B.V.
+      url: https://apps.openshift.eu
+    name: gitlab
+    sources:
+    - https://gitlab.com/gitlab-org/cloud-native/gitlab-operator
+    - https://gitlab.com/gitlab-org/charts/gitlab
+    - https://github.com/hoolia/apps.openshift.eu
+    type: application
+    urls:
+    - https://github.com/hoolia/apps.openshift.eu/releases/download/gitlab-0.1.4/gitlab-0.1.4.tgz
+    version: 0.1.4
+  - annotations:
+      charts.openshift.io/name: GitLab
+      charts.openshift.io/provider: GRN.CLOUD B.V.
+    apiVersion: v2
+    appVersion: 19.3.1
     created: "2026-10-24T09:17:54.785127861Z"
     description: GitLab instance for source code, merge requests and pipelines, run
       by the GitLab operator
@@ -2923,4 +2951,4 @@ entries:
     urls:
     - https://github.com/hoolia/apps.openshift.eu/releases/download/vaultwarden-0.1.0/vaultwarden-0.1.0.tgz
     version: 0.1.0
-generated: "2026-10-24T18:09:38.788232227Z"
+generated: "2026-10-24T18:13:04.594929219Z"
