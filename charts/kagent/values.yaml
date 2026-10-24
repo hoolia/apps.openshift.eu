@@ -78,6 +78,11 @@ networkPolicy:
   # namespaces whose agent pods reach the controller API (sessions, A2A).
   # Empty: the release namespace only
   agentNamespaceSelector: {}
+  # agent pods within those namespaces; the controller trusts the identity a caller
+  # sends (trusted-proxy), so admit only the agents
+  agentPodSelector:
+    matchLabels:
+      app.kubernetes.io/managed-by: kagent
 
 # Overrides of the upstream kagent chart (alias upstream). Set rbac.namespaces to the
 # release namespace (Argo CD: parameter upstream.rbac.namespaces[0]=$ARGOCD_APP_NAMESPACE):

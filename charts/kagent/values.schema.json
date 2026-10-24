@@ -120,6 +120,9 @@
         },
         "agentNamespaceSelector": {
           "type": "object"
+        },
+        "agentPodSelector": {
+          "type": "object"
         }
       }
     },

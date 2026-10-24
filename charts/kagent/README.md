@@ -43,7 +43,7 @@ With Argo CD, set the namespace from the destination: `spec.source.helm.paramete
 - `database.cnpg.instances` (default: 1): One instance has no PodDisruptionBudget, so a node drain restarts it; two or more get one.
 - `database.cnpg.storage.size`, `storage.storageClass`, `imageName`, `resources` (default: 1Gi, cluster default, operator default, empty).
 - `database.cnpg.operatorNamespaceSelector` (default: `kubernetes.io/metadata.name: openshift-operators`): Namespace of the CloudNativePG operator, admitted to the instances.
-- `networkPolicy.enabled` (default: true), `networkPolicy.agentNamespaceSelector` (default: empty): Namespaces whose agent pods reach the controller API. With `route.host` the router also reaches cert-manager's HTTP-01 solver.
+- `networkPolicy.enabled` (default: true), `networkPolicy.agentNamespaceSelector` (default: empty): Namespaces whose agent pods reach the controller API on port 8083. `networkPolicy.agentPodSelector` (default: `app.kubernetes.io/managed-by: kagent`) limits it to the agent pods; empty admits every pod of those namespaces. With `route.host` the router also reaches cert-manager's HTTP-01 solver.
 - `upstream.providers` (default: upstream OpenAI with Secret `kagent-openai`): The default model. Create the API key Secret, or point `upstream.providers.openAI.config.baseUrl` at an OpenAI-compatible gateway.
 - `upstream.controller.env` (default: empty): Extra controller environment, for example `WATCH_NAMESPACES` from a pod annotation the platform writes.
 

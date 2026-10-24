@@ -156,8 +156,15 @@ spec:
   policyTypes:
   - Ingress
   ingress:
-  - from:
+  - ports:
+    - protocol: TCP
+      port: 8083
+    from:
     - namespaceSelector:
         {{- toYaml . | nindent 8 }}
+      {{- with $.Values.networkPolicy.agentPodSelector }}
+      podSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
 {{- end }}
 {{- end }}
