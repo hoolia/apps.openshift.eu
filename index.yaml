@@ -2516,6 +2516,33 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 0.12.3
+    created: "2026-10-24T18:09:38.788061099Z"
+    description: Personal Open WebUI chat for one person behind the OpenShift login,
+      with models from an OpenAI-compatible gateway
+    digest: 9713a269136bf3964cfff2e505b8889a1601951fac68af2777f310c1f828f54c
+    home: https://apps.openshift.eu
+    icon: https://raw.githubusercontent.com/open-webui/open-webui/main/static/favicon.png
+    keywords:
+    - ai
+    - chat
+    - llm
+    - open-webui
+    maintainers:
+    - name: GRN.CLOUD B.V.
+      url: https://apps.openshift.eu
+    name: openwebui
+    sources:
+    - https://github.com/open-webui/open-webui
+    - https://github.com/hoolia/apps.openshift.eu
+    type: application
+    urls:
+    - https://github.com/hoolia/apps.openshift.eu/releases/download/openwebui-0.2.3/openwebui-0.2.3.tgz
+    version: 0.2.3
+  - annotations:
+      charts.openshift.io/name: Open WebUI
+      charts.openshift.io/provider: GRN.CLOUD B.V.
+    apiVersion: v2
+    appVersion: 0.12.3
     created: "2026-10-24T09:17:20.569305711Z"
     description: Personal Open WebUI chat for one person behind the OpenShift login,
       with models from an OpenAI-compatible gateway
@@ -2896,4 +2923,4 @@ entries:
     urls:
     - https://github.com/hoolia/apps.openshift.eu/releases/download/vaultwarden-0.1.0/vaultwarden-0.1.0.tgz
     version: 0.1.0
-generated: "2026-10-24T15:58:36.322298187Z"
+generated: "2026-10-24T18:09:38.788232227Z"
