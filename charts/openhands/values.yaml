@@ -23,6 +23,7 @@ build:
   - {kind: uv, command: fastapi, args: "fastapi[standard]==0.159.1", check: "fastapi --version"}
   - {kind: uv, command: uvicorn, keep: true, args: "uvicorn==0.54.0", check: "uvicorn --version"}
   - {kind: uv, command: semgrep, args: "semgrep==1.182.0", check: "semgrep --version"}
+  - {kind: uv, command: ruff, args: "ruff==0.17.1", check: "ruff --version"}
   - {kind: uv, command: checkov, args: "--python 3.12 checkov==3.3.30", check: "checkov --version"}
   - {kind: uv, command: open-terminal, args: "open-terminal==0.14.2", check: "open-terminal --help"}
   - {kind: uv, command: jupyter-server, args: "jupyter-server==2.21.1 --with ipykernel", check: "jupyter-server --version"}
