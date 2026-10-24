@@ -85,7 +85,7 @@ a2a:
   # Callers of the agent's tenant reach it with their own bearer JWT, next to the static
   # credentials: a ServiceAccount token from a namespace <tenant> or <tenant>-*, or an
   # OIDC token whose groups claim holds <tenant> or <tenant>-*. kagent forwards its
-  # caller's token. Needs adapter 2.0.0+hoolia.2 or later
+  # caller's token. Needs the adapter version above or later
   tenantAuth:
     enabled: true
     # empty: the release namespace up to its first "-"
