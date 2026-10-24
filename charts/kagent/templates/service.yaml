@@ -1,3 +1,4 @@
+{{- if eq .Values.login.provider "openshift" }}
 apiVersion: v1
 kind: Service
 metadata:
@@ -14,3 +15,4 @@ spec:
     port: {{ .Values.login.port }}
     targetPort: http
     protocol: TCP
+{{- end }}

@@ -1,3 +1,4 @@
+{{- if eq .Values.login.provider "openshift" }}
 {{- $name := include "tenant.login" . }}
 # Login through the cluster OAuth server with the ServiceAccount as client
 apiVersion: apps/v1
@@ -72,3 +73,4 @@ spec:
           capabilities:
             drop:
             - ALL
+{{- end }}

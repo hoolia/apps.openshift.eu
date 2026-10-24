@@ -15,6 +15,7 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "provider": {"enum": ["openshift", "oidc"]},
         "allowedGroups": {"type": "array", "items": {"type": "string", "minLength": 1}},
         "loginClusterRole": {"type": "string"},
         "image": {"type": "string", "minLength": 1},

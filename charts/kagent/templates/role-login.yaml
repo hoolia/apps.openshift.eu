@@ -1,4 +1,4 @@
-{{- if .Values.login.allowedGroups }}
+{{- if and (eq .Values.login.provider "openshift") .Values.login.allowedGroups }}
 {{- $name := include "tenant.login" . }}
 {{- $clusterRole := .Values.login.loginClusterRole }}
 {{- if not $clusterRole }}

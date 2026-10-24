@@ -11,6 +11,10 @@ route:
     cert-manager.io/issuer-name: letsencrypt
 
 login:
+  # openshift: OpenShift oauth-proxy, one shared kagent user (controller auth mode
+  # unsecure). oidc: upstream oauth2-proxy against an OIDC provider, a kagent user per
+  # person (set upstream.oauth2-proxy and upstream.controller.auth.mode trusted-proxy)
+  provider: openshift
   # OpenShift groups admitted, strictly. Empty: everyone who may edit the project
   allowedGroups: []
   # ClusterRole holding the verb login on services/proxy that allowedGroups are bound

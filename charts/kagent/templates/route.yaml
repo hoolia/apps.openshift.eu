@@ -20,7 +20,7 @@ spec:
   {{- end }}
   to:
     kind: Service
-    name: {{ include "tenant.login" . }}
+    name: {{ include "tenant.frontService" . }}
     weight: 100
   port:
     targetPort: http
