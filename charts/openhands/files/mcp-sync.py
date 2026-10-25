@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """Keep the agent-server MCP servers in step with the namespace's RemoteMCPServers.
 
-Every interval it lists the kagent RemoteMCPServers of the pod's namespace and writes
-one MCP server per object: a URL on gateway.upstream goes through the token proxy, any
+Every interval it lists the kagent RemoteMCPServers of the pod's namespace, plus those
+of other namespaces of the tenant that the ConfigMap INDEX_CONFIGMAP in the tenant's home
+namespace names and that the pod's ServiceAccount may read (a denied read is skipped, so
+Kubernetes RBAC decides what the agent sees), and writes one MCP server per object: a URL on gateway.upstream goes through the token proxy, any
 other URL is used as is, except when the object needs headers from a Secret. Entries
-it wrote carry DESCRIPTION_PREFIX; those whose object is gone are removed, a same-named
+it wrote carry DESCRIPTION_PREFIX; a name that occurs in two namespaces becomes
+<namespace>-<name> for the other namespace; those whose object is gone are removed, a same-named
 entry the user added wins, and the user's enabled switch is kept. Without the kagent
 CRDs it writes nothing. It also writes GIT_SECRET_NAME into the secrets store, which
 turns on the UI's git provider features. Never exits on an error.
@@ -38,6 +41,10 @@ INTERVAL = int(os.environ.get("INTERVAL", "60"))
 SELECTOR = os.environ.get("LABEL_SELECTOR", "")
 DISCOVERY = os.environ.get("DISCOVERY", "true") == "true"
 DESCRIPTION_PREFIX = "RemoteMCPServer "
+# the tenant's index of servers the whole tenant may use; the home namespace is
+# HOME_NAMESPACE, else the part of the pod's namespace before the first dash
+INDEX_CONFIGMAP = os.environ.get("INDEX_CONFIGMAP", "")
+HOME_NAMESPACE = os.environ.get("HOME_NAMESPACE", "")
 # icon URL of a server: this annotation on the RemoteMCPServer, else the logo of a known name
 ICON_ANNOTATION = "openhands.dev/icon"
 SIMPLE_ICONS = "https://cdn.simpleicons.org/"
@@ -113,6 +120,25 @@ def remote_mcp_servers(namespace: str) -> list[dict] | None:
     except (OSError, ValueError) as err:
         log(f"listing RemoteMCPServers: {err}")
         return None
+
+
+def indexed_servers(namespace: str) -> list[dict]:
+    """RemoteMCPServers of other namespaces named in the tenant's index and readable."""
+    home = HOME_NAMESPACE or namespace.split("-", 1)[0]
+    if not INDEX_CONFIGMAP or not home:
+        return []
+    status, cm = kube("GET", f"/api/v1/namespaces/{home}/configmaps/{INDEX_CONFIGMAP}")
+    if status != 200:
+        return []
+    found = []
+    for ref in filter(None, (cm.get("data") or {}).get("servers", "").split(",")):
+        ns, _, name = ref.partition("/")
+        if not name or ns == namespace:
+            continue
+        status, obj = kube("GET", f"/apis/kagent.dev/v1alpha2/namespaces/{ns}/remotemcpservers/{name}")
+        if status == 200:
+            found.append(obj)
+    return found
 
 
 def kube(method: str, path: str, body: dict | None = None) -> tuple[int, dict]:
@@ -322,16 +348,20 @@ def sync(namespace: str, current: dict) -> None:
     objects = remote_mcp_servers(namespace)
     if objects is None:
         return
+    # this agent's own UI entries already reach the servers it published
+    objects = [o for o in objects if o["metadata"]["name"] not in OWN]
+    own_names = {o["metadata"]["name"] for o in objects}
     wanted = {}
-    for obj in objects:
-        if obj["metadata"]["name"] in OWN:
-            # this agent's own UI entry already reaches it directly
-            continue
+    for obj in objects + indexed_servers(namespace):
+        meta = obj["metadata"]
+        key = meta["name"]
+        if meta["namespace"] != namespace and key in own_names | set(wanted):
+            key = f"{meta['namespace']}-{meta['name']}"
         server = to_server(obj)
         if server is None:
-            log(f"skipped {obj['metadata']['name']}: needs headers from a Secret")
+            log(f"skipped {meta['namespace']}/{meta['name']}: needs headers from a Secret")
         else:
-            wanted[obj["metadata"]["name"]] = server
+            wanted[key] = server
     for name, server in wanted.items():
         have = current.get(name)
         if have is None:

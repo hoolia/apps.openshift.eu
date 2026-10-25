@@ -67,6 +67,8 @@ oc extract secret/team-session-api-key --keys=value --to=-
 - `mcpDiscovery.interval` (default: 60): Seconds between two passes.
 - `mcpDiscovery.labelSelector` (default: empty): Only `RemoteMCPServer` objects with these labels.
 - `mcpDiscovery.clusterRole` (default: `kagent-remotemcpserver-view`): ClusterRole of the kagent installation that reads `RemoteMCPServer` objects, bound in the release namespace; empty for no binding.
+- `mcpDiscovery.index.configMap` (default: `mcp-servers`): ConfigMap in the tenant's home namespace naming the tenant-wide `RemoteMCPServer` objects of other namespaces (`servers`: `<namespace>/<name>,...`). Each is read with the agent's own ServiceAccount, so Kubernetes RBAC decides what the agent sees; a denied read is skipped. A name that also exists in the own namespace becomes `<namespace>-<name>`. Empty: the own namespace only.
+- `mcpDiscovery.index.homeNamespace` (default: empty): namespace holding that ConfigMap; empty takes the part of the release namespace before the first dash.
 - `a2a.enabled` (default: true): The A2A server sidecar; see Purpose.
 - `a2a.port` (default: 8090): Container port of the A2A server.
 - `a2a.description` (default: empty): Description on the agent card and in kagent.
