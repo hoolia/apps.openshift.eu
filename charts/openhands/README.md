@@ -40,6 +40,7 @@ oc extract secret/team-session-api-key --keys=value --to=-
 - `build.enabled` (default: true): Build the image with the toolset in the project.
 - `build.toolsImage` (default: empty): Image whose binaries, Go toolchain, `/tools`, `/opt/sonar-scanner` and Ansible collections are copied in. Empty: Debian packages and `build.tools` only.
 - `build.pullSecret` (default: empty): Pull secret for `build.toolsImage` and the base image.
+- `build.maxUploadMB` (default: `10240`): Largest file in MB the browser attaches to a chat message, per file and in total. `0`: no limit.
 - `build.tools` (default: see `values.yaml`): `{kind: uv|npm|pip, command, args, check}` per tool; `check` is the command the build runs to prove it starts. A `uv` tool whose command the base image already has is kept.
 - `build.output.kind` (default: `ImageStreamTag`): `ImageStreamTag` pushes to an ImageStream in the project; `DockerImage` pushes to `build.output.name` with `build.output.pushSecret`.
 - `route.host` (default: empty): Hostname of the UI. Empty: OpenShift assigns one.
