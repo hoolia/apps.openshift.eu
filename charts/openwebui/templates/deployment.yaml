@@ -270,11 +270,11 @@ spec:
           value: {{ .Values.gateway.upstream | quote }}
         - name: PORT
           value: {{ .Values.tokenProxy.port | quote }}
-        {{- with .Values.tokenProxy.keycloak }}
+        {{- with .Values.tokenProxy.agentToken }}
         {{- if .tokenUrl }}
-        - name: KEYCLOAK_TOKEN_URL
+        - name: AGENT_TOKEN_URL
           value: {{ .tokenUrl | quote }}
-        - name: KEYCLOAK_PATHS
+        - name: AGENT_TOKEN_PATHS
           value: {{ join "," .paths | quote }}
         {{- end }}
         {{- end }}
@@ -293,9 +293,9 @@ spec:
         - name: api-token
           mountPath: /var/run/secrets/api-token
           readOnly: true
-        {{- if .Values.tokenProxy.keycloak.tokenUrl }}
-        - name: keycloak-token
-          mountPath: /var/run/secrets/keycloak-token
+        {{- if .Values.tokenProxy.agentToken.tokenUrl }}
+        - name: agent-token
+          mountPath: /var/run/secrets/agent-token
           readOnly: true
         {{- end }}
         resources:
@@ -319,14 +319,14 @@ spec:
               {{- end }}
               expirationSeconds: 3600
               path: token
-      {{- with .Values.tokenProxy.keycloak }}
+      {{- with .Values.tokenProxy.agentToken }}
       {{- if .tokenUrl }}
       # Proves the instance's identity to the OpenID Connect provider; short-lived as it asks
-      - name: keycloak-token
+      - name: agent-token
         projected:
           sources:
           - serviceAccountToken:
-              audience: {{ required "tokenProxy.keycloak.audience is required with tokenUrl" .audience }}
+              audience: {{ required "tokenProxy.agentToken.audience is required with tokenUrl" .audience }}
               expirationSeconds: 600
               path: token
       {{- end }}

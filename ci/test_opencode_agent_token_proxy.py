@@ -212,7 +212,7 @@ class SettingsTest(unittest.TestCase):
                     os.environ[key] = value
 
 
-class FakeKeycloak:
+class FakeTokenEndpoint:
     """Token endpoint: records each grant form, answers with a numbered access token."""
 
     def __init__(self, status=200):
@@ -242,70 +242,70 @@ class FakeKeycloak:
         self.url = f"http://127.0.0.1:{self.server.server_port}/realms/r/protocol/openid-connect/token"
 
 
-class KeycloakTokenTest(ProxyCase):
-    def start_keycloak(self, status=200):
-        self.keycloak = FakeKeycloak(status)
+class AgentTokenTest(ProxyCase):
+    def start_token_endpoint(self, status=200):
+        self.token_endpoint = FakeTokenEndpoint(status)
         self.assertion_file = os.path.join(os.path.dirname(self.token_file), "keycloak-token")
         with open(self.assertion_file, "w") as handle:
-            handle.write("sa-for-keycloak\n")
+            handle.write("sa-for-the-realm\n")
         self.settings = tp.Settings(
             token_file=self.token_file, upstream=self.upstream.url, port=0,
-            keycloak_token_url=self.keycloak.url, keycloak_assertion_file=self.assertion_file,
-            keycloak_paths=("/mcp",))
+            agent_token_url=self.token_endpoint.url, agent_token_assertion_file=self.assertion_file,
+            agent_token_paths=("/mcp",))
         self.proxy = tp.build_server(self.settings, port=0)
         threading.Thread(target=self.proxy.serve_forever, daemon=True).start()
         self.addCleanup(self.proxy.shutdown)
         self.addCleanup(self.proxy.server_close)
         self.port = self.proxy.server_port
 
-    def test_mcp_path_carries_the_keycloak_token(self):
-        self.start_keycloak()
+    def test_mcp_path_carries_the_agent_token(self):
+        self.start_token_endpoint()
         _, resp = self.get("/mcp/hoolia-aib/nextcloud")
         resp.read()
         self.assertEqual(self.upstream.requests[0][2]["Authorization"], "Bearer kc-1")
-        form = self.keycloak.forms[0]
+        form = self.token_endpoint.forms[0]
         self.assertEqual(form["grant_type"], "client_credentials")
         self.assertEqual(form["client_assertion_type"], "urn:ietf:params:oauth:client-assertion-type:jwt-bearer")
-        self.assertEqual(form["client_assertion"], "sa-for-keycloak")
+        self.assertEqual(form["client_assertion"], "sa-for-the-realm")
 
     def test_model_path_keeps_the_serviceaccount_token(self):
-        self.start_keycloak()
+        self.start_token_endpoint()
         _, resp = self.get("/v1/models")
         resp.read()
         self.assertEqual(self.upstream.requests[0][2]["Authorization"], "Bearer projected-1")
-        self.assertEqual(self.keycloak.forms, [])
+        self.assertEqual(self.token_endpoint.forms, [])
 
-    def test_keycloak_token_is_reused_until_it_expires(self):
-        self.start_keycloak()
+    def test_agent_token_is_reused_until_it_expires(self):
+        self.start_token_endpoint()
         for _ in range(3):
             _, resp = self.get("/mcp/public")
             resp.read()
-        self.assertEqual(len(self.keycloak.forms), 1)
+        self.assertEqual(len(self.token_endpoint.forms), 1)
         self.assertEqual([r[2]["Authorization"] for r in self.upstream.requests], ["Bearer kc-1"] * 3)
 
-    def test_keycloak_refusal_returns_502_and_never_forwards(self):
-        self.start_keycloak(status=401)
+    def test_token_endpoint_refusal_returns_502_and_never_forwards(self):
+        self.start_token_endpoint(status=401)
         with self.assertLogs(level="ERROR") as logs:
             _, resp = self.get("/mcp/public")
             body = resp.read().decode()
         self.assertEqual(resp.status, 502)
         self.assertEqual(self.upstream.requests, [])
-        self.assertNotIn("sa-for-keycloak", body + "".join(logs.output))
+        self.assertNotIn("sa-for-the-realm", body + "".join(logs.output))
 
-    def test_without_keycloak_settings_mcp_keeps_the_serviceaccount_token(self):
+    def test_without_agent_token_settings_mcp_keeps_the_serviceaccount_token(self):
         _, resp = self.get("/mcp/public")
         resp.read()
         self.assertEqual(self.upstream.requests[0][2]["Authorization"], "Bearer projected-1")
 
-    def test_settings_from_env_read_the_keycloak_variables(self):
-        keys = ("UPSTREAM", "KEYCLOAK_TOKEN_URL", "KEYCLOAK_ASSERTION_FILE", "KEYCLOAK_PATHS")
+    def test_settings_from_env_read_the_agent_token_variables(self):
+        keys = ("UPSTREAM", "AGENT_TOKEN_URL", "AGENT_TOKEN_ASSERTION_FILE", "AGENT_TOKEN_PATHS")
         saved = {k: os.environ.pop(k, None) for k in keys}
         try:
-            os.environ.update({"UPSTREAM": "http://x", "KEYCLOAK_TOKEN_URL": "http://k/token",
-                               "KEYCLOAK_PATHS": "/mcp, /a2a"})
+            os.environ.update({"UPSTREAM": "http://x", "AGENT_TOKEN_URL": "http://k/token",
+                               "AGENT_TOKEN_PATHS": "/mcp, /a2a"})
             s = tp.Settings.from_env()
-            self.assertEqual(s.keycloak_paths, ("/mcp", "/a2a"))
-            self.assertEqual(s.keycloak_assertion_file, "/var/run/secrets/keycloak-token/token")
+            self.assertEqual(s.agent_token_paths, ("/mcp", "/a2a"))
+            self.assertEqual(s.agent_token_assertion_file, "/var/run/secrets/agent-token/token")
         finally:
             for key, value in saved.items():
                 os.environ.pop(key, None)
