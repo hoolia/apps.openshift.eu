@@ -6,6 +6,12 @@ The proxy reads the projected ServiceAccount token on every request, so the
 kubelet's renewal is picked up without a restart, and replaces any incoming
 Authorization header with it. Response bodies are relayed as they arrive so
 model streams (SSE) stay live.
+
+With KEYCLOAK_TOKEN_URL set, requests under KEYCLOAK_PATHS (default /mcp)
+carry the agent's own Keycloak token instead: a client_credentials grant
+authenticated with a second projected ServiceAccount token whose audience
+is the realm (federated client authentication), kept until shortly before
+it expires.
 """
 from __future__ import annotations
 
@@ -14,12 +20,19 @@ import json
 import logging
 import os
 import sys
+import threading
+import time
 import urllib.parse
+import urllib.request
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
 DEFAULT_TOKEN_FILE = "/var/run/secrets/api-token/token"
+DEFAULT_ASSERTION_FILE = "/var/run/secrets/keycloak-token/token"
+ASSERTION_TYPE = "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"
+# renew this many seconds before the Keycloak token expires
+RENEW_MARGIN = 15
 UPSTREAM_TIMEOUT = 600
 CHUNK_SIZE = 8192
 HOP_BY_HOP = frozenset({
@@ -52,6 +65,9 @@ class Settings:
     token_file: str
     upstream: str
     port: int
+    keycloak_token_url: str = ""
+    keycloak_assertion_file: str = DEFAULT_ASSERTION_FILE
+    keycloak_paths: tuple[str, ...] = ("/mcp",)
 
     def validate(self) -> None:
         missing = [
@@ -64,10 +80,14 @@ class Settings:
 
     @staticmethod
     def from_env() -> Settings:
+        paths = tuple(p.strip() for p in os.environ.get("KEYCLOAK_PATHS", "/mcp").split(",") if p.strip())
         return Settings(
             token_file=os.environ.get("TOKEN_FILE", DEFAULT_TOKEN_FILE).strip(),
             upstream=os.environ.get("UPSTREAM", "").strip().rstrip("/"),
             port=_env_int("PORT", 8099),
+            keycloak_token_url=os.environ.get("KEYCLOAK_TOKEN_URL", "").strip(),
+            keycloak_assertion_file=os.environ.get("KEYCLOAK_ASSERTION_FILE", DEFAULT_ASSERTION_FILE).strip(),
+            keycloak_paths=paths,
         )
 
 
@@ -95,12 +115,55 @@ class TokenSource:
         return token
 
 
+class KeycloakSource:
+    """The agent's Keycloak token, from a federated client_credentials grant, cached."""
+
+    def __init__(self, settings: Settings) -> None:
+        self._url = settings.keycloak_token_url
+        self._assertion = TokenSource(Settings(settings.keycloak_assertion_file, "", 0))
+        self._lock = threading.Lock()
+        self._token = ""
+        self._expires = 0.0
+
+    def token(self) -> str:
+        with self._lock:
+            if self._token and time.monotonic() < self._expires:
+                return self._token
+            form = urllib.parse.urlencode({
+                "grant_type": "client_credentials",
+                "client_assertion_type": ASSERTION_TYPE,
+                "client_assertion": self._assertion.token(),
+            }).encode()
+            request = urllib.request.Request(self._url, data=form, method="POST",
+                                             headers={"Content-Type": "application/x-www-form-urlencoded"})
+            try:
+                with urllib.request.urlopen(request, timeout=30) as resp:
+                    answer = json.loads(resp.read())
+            except (OSError, ValueError) as err:
+                raise TokenError(f"keycloak token request failed: {type(err).__name__}") from err
+            token = answer.get("access_token") if isinstance(answer, dict) else None
+            if not isinstance(token, str) or not token or any(c in token for c in "\r\n"):
+                raise TokenError("keycloak answered without a usable access token")
+            lifetime = answer.get("expires_in")
+            lifetime = lifetime if isinstance(lifetime, (int, float)) else 60
+            self._token = token
+            self._expires = time.monotonic() + max(lifetime - RENEW_MARGIN, 0)
+            return token
+
+
 class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
     server_version = "token-proxy"
     sys_version = ""
     settings: Settings
     tokens: TokenSource
+    keycloak: KeycloakSource | None
+
+    def _source(self) -> TokenSource | KeycloakSource:
+        path = self.path.split("?", 1)[0]
+        if self.keycloak and any(path == p or path.startswith(p.rstrip("/") + "/") for p in self.settings.keycloak_paths):
+            return self.keycloak
+        return self.tokens
 
     def log_message(self, fmt: str, *args: Any) -> None:
         logging.info("%s", fmt % args)
@@ -140,7 +203,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         body = self._read_body()
         try:
-            token = self.tokens.token()
+            token = self._source().token()
         except TokenError as err:
             logging.error("%s", err)
             self._error(502, str(err))
@@ -220,6 +283,7 @@ def build_server(settings: Settings, port: int | None = None) -> ThreadingHTTPSe
     handler = type("BoundHandler", (Handler,), {
         "settings": settings,
         "tokens": TokenSource(settings),
+        "keycloak": KeycloakSource(settings) if settings.keycloak_token_url else None,
     })
     server = ThreadingHTTPServer(("127.0.0.1", settings.port if port is None else port), handler)
     server.daemon_threads = True
