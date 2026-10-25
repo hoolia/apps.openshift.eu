@@ -275,18 +275,6 @@
         },
         "clusterRole": {
           "type": "string"
-        },
-        "index": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "configMap": {
-              "type": "string"
-            },
-            "homeNamespace": {
-              "type": "string"
-            }
-          }
         }
       }
     },

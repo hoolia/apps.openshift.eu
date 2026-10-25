@@ -179,13 +179,6 @@ mcpDiscovery:
   # ClusterRole, installed with kagent, that reads RemoteMCPServers; bound in the
   # release namespace. Empty: no binding (the ServiceAccount's edit role may cover it)
   clusterRole: kagent-remotemcpserver-view
-  # ConfigMap in the tenant's home namespace that names the tenant-wide servers of
-  # other namespaces; each is read with the agent's own rights, so RBAC decides what
-  # it sees. Empty configMap: the own namespace only
-  index:
-    configMap: mcp-servers
-    # empty: the part of the release namespace before the first dash
-    homeNamespace: ""
   resources:
     requests:
       cpu: 5m

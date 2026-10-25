@@ -269,10 +269,6 @@ spec:
           value: {{ .Values.mcpDiscovery.enabled | quote }}
         - name: LABEL_SELECTOR
           value: {{ .Values.mcpDiscovery.labelSelector | quote }}
-        - name: INDEX_CONFIGMAP
-          value: {{ .Values.mcpDiscovery.index.configMap | quote }}
-        - name: HOME_NAMESPACE
-          value: {{ .Values.mcpDiscovery.index.homeNamespace | quote }}
         - name: UPSTREAM
           value: {{ .Values.gateway.upstream | quote }}
         - name: TOKEN_PROXY_PORT

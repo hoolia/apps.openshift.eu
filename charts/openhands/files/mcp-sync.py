@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """Keep the agent-server MCP servers in step with the namespace's RemoteMCPServers.
 
-Every interval it lists the kagent RemoteMCPServers of the pod's namespace, plus those
-of other namespaces of the tenant that the ConfigMap INDEX_CONFIGMAP in the tenant's home
-namespace names and that the pod's ServiceAccount may read (a denied read is skipped, so
+Every interval it lists the OpenShift Projects the pod's ServiceAccount may see and the
+kagent RemoteMCPServers in each (a namespace that refuses the list is skipped, so
 Kubernetes RBAC decides what the agent sees), and writes one MCP server per object: a URL on gateway.upstream goes through the token proxy, any
 other URL is used as is, except when the object needs headers from a Secret. Entries
 it wrote carry DESCRIPTION_PREFIX; a name that occurs in two namespaces becomes
@@ -41,10 +40,6 @@ INTERVAL = int(os.environ.get("INTERVAL", "60"))
 SELECTOR = os.environ.get("LABEL_SELECTOR", "")
 DISCOVERY = os.environ.get("DISCOVERY", "true") == "true"
 DESCRIPTION_PREFIX = "RemoteMCPServer "
-# the tenant's index of servers the whole tenant may use; the home namespace is
-# HOME_NAMESPACE, else the part of the pod's namespace before the first dash
-INDEX_CONFIGMAP = os.environ.get("INDEX_CONFIGMAP", "")
-HOME_NAMESPACE = os.environ.get("HOME_NAMESPACE", "")
 # icon URL of a server: this annotation on the RemoteMCPServer, else the logo of a known name
 ICON_ANNOTATION = "openhands.dev/icon"
 SIMPLE_ICONS = "https://cdn.simpleicons.org/"
@@ -122,22 +117,20 @@ def remote_mcp_servers(namespace: str) -> list[dict] | None:
         return None
 
 
-def indexed_servers(namespace: str) -> list[dict]:
-    """RemoteMCPServers of other namespaces named in the tenant's index and readable."""
-    home = HOME_NAMESPACE or namespace.split("-", 1)[0]
-    if not INDEX_CONFIGMAP or not home:
-        return []
-    status, cm = kube("GET", f"/api/v1/namespaces/{home}/configmaps/{INDEX_CONFIGMAP}")
+def visible_servers(namespace: str) -> list[dict]:
+    """RemoteMCPServers of the other Projects the ServiceAccount may see and list."""
+    status, projects = kube("GET", "/apis/project.openshift.io/v1/projects")
     if status != 200:
         return []
+    query = "?labelSelector=" + urllib.parse.quote(SELECTOR) if SELECTOR else ""
     found = []
-    for ref in filter(None, (cm.get("data") or {}).get("servers", "").split(",")):
-        ns, _, name = ref.partition("/")
-        if not name or ns == namespace:
+    for project in projects.get("items", []):
+        ns = project["metadata"]["name"]
+        if ns == namespace:
             continue
-        status, obj = kube("GET", f"/apis/kagent.dev/v1alpha2/namespaces/{ns}/remotemcpservers/{name}")
+        status, listed = kube("GET", f"/apis/kagent.dev/v1alpha2/namespaces/{ns}/remotemcpservers{query}")
         if status == 200:
-            found.append(obj)
+            found.extend(listed.get("items", []))
     return found
 
 
@@ -352,7 +345,7 @@ def sync(namespace: str, current: dict) -> None:
     objects = [o for o in objects if o["metadata"]["name"] not in OWN]
     own_names = {o["metadata"]["name"] for o in objects}
     wanted = {}
-    for obj in objects + indexed_servers(namespace):
+    for obj in objects + visible_servers(namespace):
         meta = obj["metadata"]
         key = meta["name"]
         if meta["namespace"] != namespace and key in own_names | set(wanted):
