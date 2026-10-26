@@ -45,6 +45,14 @@ pre{background:#0d2719;color:#e6f2ec;padding:12px;border-radius:8px;overflow-x:a
 .btn:hover{background:#eef7f1}
 .btn.cta{background:var(--cta);border-color:var(--cta);color:#000}
 .btn.cta:hover{background:var(--primary);color:#fff;border-color:var(--cta)}
+.side input[type=search]{width:100%;font:inherit;font-size:14px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;margin:0 0 16px;background:#fff}
+.facet{margin:0 0 16px}
+.facet h3{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:0 0 6px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font:500 13px Karla,system-ui,sans-serif;border:1px solid var(--border);background:#fff;color:var(--heading);border-radius:999px;padding:3px 10px;cursor:pointer}
+.chip[aria-pressed=true]{background:var(--primary);border-color:var(--primary);color:#fff}
+.tags{display:flex;flex-wrap:wrap;gap:4px;margin:0 0 12px}
+.tag{font-size:11px;background:#eef7f1;color:var(--primary);border-radius:999px;padding:1px 8px}
 footer{max-width:1240px;margin:0 auto;padding:0 24px 32px;font-size:14px;color:#cfe3d7}
 footer a{color:#fff}
 @media (max-width:800px){.layout{grid-template-columns:1fr}.mast span{display:none}}
@@ -61,6 +69,9 @@ footer a{color:#fff}
 <p class="lead">Applications for the GRN.CLOUD platform. Deploy one in your own project from the console, or install the chart yourself with Helm. No cluster-admin rights needed.</p>
 <div class="layout">
 <aside class="side">
+<h2>Find</h2>
+<input id="q" type="search" placeholder="Search name, description, keyword" aria-label="Search charts">
+<div id="facets"></div>
 <h2>Deploy from the console</h2>
 <p>The Deploy button opens the managed version in console.grn.cloud: pick your project, fill in a name, and Argo CD installs and updates the application.</p>
 <h2>Install with Helm</h2>
@@ -78,39 +89,121 @@ helm search repo grncloud</pre>
 </main>
 <footer>GRN.CLOUD B.V. - charts are open source, see each chart's README for values and delivery notes.</footer>
 <script>
-fetch('index.yaml').then(function (r) { return r.text(); }).then(function (t) {
-  var charts = [], cur = null, first = false;
+// facets: type from the keywords, category and bundle from the mcp.openshift.eu annotations
+var FACETS = [
+  { key: 'type', title: 'Type', label: { app: 'Applications', server: 'MCP servers', bundle: 'MCP bundles' } },
+  { key: 'category', title: 'Category' },
+  { key: 'bundle', title: 'Bundle' }
+];
+var state = { q: '', type: '', category: '', bundle: '' };
+try {
+  new URLSearchParams(location.hash.slice(1)).forEach(function (v, k) { if (k in state) state[k] = v; });
+} catch (e) {}
+
+function parse(t) {
+  var charts = [], cur = null, first = false, inKw = false;
   t.split('\n').forEach(function (l) {
     var m = /^  ([a-z0-9-]+):\s*$/.exec(l);
-    if (m) { cur = { id: m[1] }; charts.push(cur); first = false; return; }
+    if (m) { cur = { id: m[1], keywords: [] }; charts.push(cur); first = false; inKw = false; return; }
     if (!cur) return;
     if (/^  - /.test(l)) { if (first) { cur.done = true; } first = true; l = '    ' + l.slice(4); }
     if (cur.done) return;
-    m = /^    (description|version|appVersion|icon):\s*(.*)$/.exec(l) || /^      charts\.openshift\.io\/(name|provider):\s*(.*)$/.exec(l);
+    if (/^    keywords:\s*$/.test(l)) { inKw = true; return; }
+    if (inKw) {
+      m = /^    - (.*)$/.exec(l);
+      if (m) { cur.keywords.push(m[1].replace(/^["']|["']$/g, '')); return; }
+      inKw = false;
+    }
+    m = /^    (description|version|appVersion|icon):\s*(.*)$/.exec(l) ||
+      /^      charts\.openshift\.io\/(name|provider):\s*(.*)$/.exec(l) ||
+      /^      mcp\.openshift\.eu\/(category|bundle|server):\s*(.*)$/.exec(l);
     if (m && cur[m[1]] === undefined) cur[m[1]] = m[2].replace(/^["']|["']$/g, '');
   });
-  if (!charts.length) return;
-  var box = document.getElementById('charts');
-  box.textContent = '';
-  document.getElementById('count').textContent = charts.length + ' items';
-  function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e; }
   charts.forEach(function (c) {
+    c.type = c.keywords.indexOf('mcp-bundle') >= 0 ? 'bundle' : (c.keywords.indexOf('mcp-server') >= 0 ? 'server' : 'app');
+    c.text = [c.id, c.name, c.description].concat(c.keywords).join(' ').toLowerCase();
+  });
+  return charts;
+}
+
+function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e; }
+
+function render(charts) {
+  var box = document.getElementById('charts');
+  var shown = charts.filter(function (c) {
+    return (!state.q || c.text.indexOf(state.q.toLowerCase()) >= 0) &&
+      FACETS.every(function (f) { return !state[f.key] || c[f.key] === state[f.key]; });
+  });
+  box.textContent = '';
+  document.getElementById('count').textContent = shown.length + ' of ' + charts.length + ' items';
+  shown.forEach(function (c) {
     var d = el('article', 'card');
     var hd = el('div', 'hd');
     var img = el('img'); img.alt = ''; img.loading = 'lazy'; img.src = c.icon || 'favicon.svg';
     img.onerror = function () { img.onerror = null; img.src = 'favicon.svg'; };
-    hd.appendChild(img); hd.appendChild(el('span', 'badge', 'Helm Chart'));
+    hd.appendChild(img); hd.appendChild(el('span', 'badge', FACETS[0].label[c.type] === 'Applications' ? 'Helm Chart' : FACETS[0].label[c.type].replace(/s$/, '')));
     d.appendChild(hd);
     d.appendChild(el('h3', '', c.name || c.id));
     d.appendChild(el('div', 'prov', 'Provided by ' + (c.provider || 'GRN.CLOUD B.V.')));
+    if (c.category || c.bundle) {
+      var tags = el('div', 'tags');
+      [c.category, c.bundle].forEach(function (t) { if (t) tags.appendChild(el('span', 'tag', t)); });
+      d.appendChild(tags);
+    }
     d.appendChild(el('p', 'desc', c.description || ''));
     d.appendChild(el('div', 'ver', 'Chart ' + (c.version || '') + (c.appVersion ? ' - app ' + c.appVersion : '')));
     var b = el('div', 'btns');
     var s = el('a', 'btn', 'Source'); s.href = 'https://github.com/hoolia/apps.openshift.eu/tree/main/charts/' + c.id;
-    var p = el('a', 'btn cta', 'Deploy'); p.href = 'https://console.grn.cloud/catalog/instantiate-template?template=' + c.id + '-managed&template-ns=openshift';
-    b.appendChild(s); b.appendChild(p); d.appendChild(b);
+    b.appendChild(s);
+    // a single MCP server is deployed through its bundle's managed version
+    if (c.type !== 'server') {
+      var p = el('a', 'btn cta', 'Deploy'); p.href = 'https://console.grn.cloud/catalog/instantiate-template?template=' + c.id + '-managed&template-ns=openshift';
+      b.appendChild(p);
+    }
+    d.appendChild(b);
     box.appendChild(d);
   });
+}
+
+function facets(charts) {
+  var root = document.getElementById('facets');
+  root.textContent = '';
+  FACETS.forEach(function (f) {
+    var values = [];
+    charts.forEach(function (c) { if (c[f.key] && values.indexOf(c[f.key]) < 0) values.push(c[f.key]); });
+    if (!values.length) return;
+    values.sort();
+    var sec = el('div', 'facet');
+    sec.appendChild(el('h3', '', f.title));
+    var chips = el('div', 'chips');
+    [''].concat(values).forEach(function (v) {
+      var n = charts.filter(function (c) { return !v || c[f.key] === v; }).length;
+      var chip = el('button', 'chip', (v ? (f.label && f.label[v]) || v : 'All') + ' (' + n + ')');
+      chip.type = 'button';
+      chip.setAttribute('aria-pressed', String(state[f.key] === v));
+      chip.onclick = function () { state[f.key] = v; update(charts); };
+      chips.appendChild(chip);
+    });
+    sec.appendChild(chips);
+    root.appendChild(sec);
+  });
+}
+
+function update(charts) {
+  var h = new URLSearchParams();
+  Object.keys(state).forEach(function (k) { if (state[k]) h.set(k, state[k]); });
+  try { history.replaceState(null, '', h.toString() ? '#' + h.toString() : location.pathname); } catch (e) {}
+  facets(charts);
+  render(charts);
+}
+
+fetch('index.yaml').then(function (r) { return r.text(); }).then(function (t) {
+  var charts = parse(t);
+  if (!charts.length) return;
+  var q = document.getElementById('q');
+  q.value = state.q;
+  q.oninput = function () { state.q = q.value; update(charts); };
+  update(charts);
 }).catch(function () {});
 </script>
 </body>
