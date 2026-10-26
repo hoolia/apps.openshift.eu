@@ -19,6 +19,8 @@ maintainers:
 annotations:
   charts.openshift.io/name: Bifrost
   charts.openshift.io/provider: GRN.CLOUD B.V.
+  apps.openshift.eu/category: ai-gateway
+  apps.openshift.eu/vendor: Maxim AI
 dependencies:
 - name: bifrost
   version: 2.1.23

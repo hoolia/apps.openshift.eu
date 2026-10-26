@@ -9,6 +9,7 @@ icon: https://playwright.dev/img/playwright-logo.svg
 keywords:
 - ai
 - mcp
+- mcp-server
 - playwright
 - browser
 sources:
@@ -20,3 +21,5 @@ maintainers:
 annotations:
   charts.openshift.io/name: Playwright MCP
   charts.openshift.io/provider: GRN.CLOUD B.V.
+  apps.openshift.eu/category: automation
+  apps.openshift.eu/vendor: Microsoft
