@@ -74,6 +74,8 @@ Every object a chart renders from its own templates carries these labels in
 - `ci/check.sh` fails when an object lacks one of the five labels.
 - The number of an `argocd.argoproj.io/sync-wave` annotation is a quoted literal in the
   template, not a value.
+- A label or annotation that changes how a chart or an agent behaves is documented in
+  `docs/conventions/`, in the same pull request that introduces it.
 - Labels that select pods are fixed for the life of a release. A selector, the labels of a
   pod template and the labels of a volume claim template never change between two versions
   of a chart: a selector cannot be changed on upgrade, and a changed pod template restarts
@@ -112,6 +114,22 @@ Every object a chart renders from its own templates carries these labels in
 - `README.md` of a chart has exactly the sections Purpose, Install and Delivery
   instructions.
 
+### MCP catalog
+
+- An MCP server chart is named `mcp-<server>`, a bundle of them `mcp-bundle-<bundle>`;
+  `mcp-all` holds every bundle as a switch. A bundle depends on its server charts with
+  `repository: file://../mcp-<server>`, an alias in camelCase and
+  `condition: <alias>.enabled`.
+- The `RemoteMCPServer` of a server chart carries the labels `mcp.openshift.eu/server`,
+  `mcp.openshift.eu/bundle` and `mcp.openshift.eu/category`, and
+  `mcp.openshift.eu/addon: "true"` when agents opt in to it. A server whose users log in
+  with OAuth carries `openhands.dev/auth: oauth2`, `openhands.dev/oauth-scopes`
+  (read-only by default, write scopes behind a value) and, for a pre-registered client,
+  `openhands.dev/oauth-client`.
+- `Chart.yaml` repeats them as annotations (`mcp.openshift.eu/server`, `/bundle`,
+  `/category`, `/auth`) and as keywords (`mcp`, `mcp-server` or `mcp-bundle`, the
+  bundle and the category), which the website and the console catalog filter on.
+
 ### Release notes
 
 - Every chart version has release notes in `release-notes/<chart>/<version>.md`, in the
@@ -137,6 +155,9 @@ Every object a chart renders from its own templates carries these labels in
   images the chart renders, made by `ci/sbom.py` with syft) to the GitHub Release. An image
   built in the cluster's own registry cannot be scanned from outside; the SBOM lists it as
   `unscanned`.
+- A chart whose `Chart.yaml` carries the annotation `mcp.openshift.eu/server` is an MCP
+  server chart: the release also attaches `<chart>-<version>.server.json` in the MCP
+  Registry format (github.com/modelcontextprotocol/registry), made by `ci/server_json.py`.
 
 ### Upgrades
 
