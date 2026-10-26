@@ -1,0 +1,265 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "global": {
+      "type": "object"
+    },
+    "team": {
+      "type": "string"
+    },
+    "tenant": {
+      "type": "string"
+    },
+    "enabled": {
+      "type": "boolean"
+    },
+    "nameOverride": {
+      "type": "string",
+      "maxLength": 63
+    },
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "repository": {
+          "type": "string"
+        },
+        "tag": {
+          "type": "string"
+        },
+        "pullPolicy": {
+          "type": "string",
+          "enum": [
+            "Always",
+            "IfNotPresent",
+            "Never"
+          ]
+        }
+      }
+    },
+    "documentServer": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "url": {
+          "type": "string",
+          "anyOf": [
+            {
+              "maxLength": 0
+            },
+            {
+              "pattern": "^https?://"
+            }
+          ]
+        },
+        "existingSecret": {
+          "type": "string"
+        },
+        "jwtSecretKey": {
+          "type": "string",
+          "minLength": 1
+        },
+        "secretSuffix": {
+          "type": "string",
+          "minLength": 1
+        },
+        "jwtAlgorithm": {
+          "type": "string",
+          "enum": [
+            "HS256",
+            "HS384",
+            "HS512"
+          ]
+        },
+        "jwtExpiresIn": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "outputFileMaxBytes": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "fileUrlAllowedOrigins": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "http": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "publicUrl": {
+          "type": "string"
+        },
+        "allowedHosts": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "corsAllowedOrigins": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "trustProxy": {
+          "type": "string"
+        },
+        "rateLimitMaxRequests": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "secrets": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "kubernetes",
+            "externalSecret"
+          ]
+        },
+        "jwtSecret": {
+          "type": "string"
+        },
+        "externalSecret": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "storeKind": {
+              "type": "string",
+              "enum": [
+                "ClusterSecretStore",
+                "SecretStore"
+              ]
+            },
+            "storeName": {
+              "type": "string"
+            },
+            "refreshInterval": {
+              "type": "string"
+            },
+            "item": {
+              "type": "string"
+            },
+            "property": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      }
+    },
+    "port": {
+      "type": "integer",
+      "minimum": 1024,
+      "maximum": 65535,
+      "not": {
+        "enum": [
+          8080,
+          8443
+        ]
+      }
+    },
+    "mcp": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "appProtocol": {
+          "type": "string"
+        },
+        "labelDomain": {
+          "type": "string"
+        },
+        "server": {
+          "type": "string",
+          "minLength": 1
+        },
+        "bundle": {
+          "type": "string"
+        },
+        "category": {
+          "type": "string"
+        }
+      }
+    },
+    "service": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "labels": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "annotations": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "resources": {
+      "type": "object"
+    },
+    "networkPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "ingressNamespaces": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "egress": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "exceptCidrs": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "extraExceptCidrs": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "dnsNamespace": {
+              "type": "string"
+            },
+            "dnsPort": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        }
+      }
+    }
+  }
+}

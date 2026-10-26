@@ -1,0 +1,28 @@
+apiVersion: v2
+name: mcp-onlyoffice
+description: ONLYOFFICE Docs MCP server for the agents of a project; creates, opens, edits and saves Word, Excel, PowerPoint and PDF documents in the editor of an ONLYOFFICE Document Server
+type: application
+version: 0.1.0
+appVersion: "0.0.1"
+home: https://apps.openshift.eu
+icon: https://cdn.simpleicons.org/onlyoffice
+keywords:
+- ai
+- mcp
+- mcp-server
+- onlyoffice
+- documents
+- office
+- productivity
+sources:
+- https://github.com/hoolia/apps.openshift.eu
+- https://github.com/ONLYOFFICE/docs-mcp
+maintainers:
+- name: GRN.CLOUD B.V.
+  url: https://apps.openshift.eu
+annotations:
+  charts.openshift.io/name: ONLYOFFICE Docs MCP server
+  charts.openshift.io/provider: GRN.CLOUD B.V.
+  mcp.openshift.eu/server: onlyoffice
+  mcp.openshift.eu/bundle: onlyoffice
+  mcp.openshift.eu/category: documents

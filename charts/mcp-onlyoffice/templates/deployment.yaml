@@ -1,0 +1,107 @@
+{{- if .Values.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "mcp-onlyoffice.name" . }}
+  namespace: {{ include "mcp-onlyoffice.namespace" . }}
+  labels:
+    app: {{ include "mcp-onlyoffice.name" . }}
+    app.kubernetes.io/name: mcp-onlyoffice
+    app.kubernetes.io/component: server
+    {{- include "mcp-onlyoffice.commonLabels" . | nindent 4 }}
+    {{- include "mcp-onlyoffice.catalogLabels" . | nindent 4 }}
+spec:
+  # editor sessions live in the memory of one process: save_file and the editor's
+  # long-poll must reach the same replica
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "mcp-onlyoffice.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "mcp-onlyoffice.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: server
+    spec:
+      # the server needs no Kubernetes API access
+      automountServiceAccountToken: false
+      containers:
+      - name: server
+        image: "{{ required "image.repository is required" .Values.image.repository }}:{{ required "image.tag is required" .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        args:
+        - --http
+        - --host
+        - 0.0.0.0
+        - --port
+        - {{ .Values.port | quote }}
+        env:
+        - name: HOME
+          value: /tmp
+        - name: DOCUMENT_SERVER_BASE_URL
+          value: {{ required "documentServer.url is required" .Values.documentServer.url | quote }}
+        - name: DOCUMENT_SERVER_JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "mcp-onlyoffice.jwtSecret" . }}
+              key: {{ .Values.documentServer.jwtSecretKey }}
+        - name: DOCUMENT_SERVER_JWT_ALGORITHM
+          value: {{ .Values.documentServer.jwtAlgorithm | quote }}
+        - name: DOCUMENT_SERVER_JWT_EXPIRES_IN
+          value: {{ .Values.documentServer.jwtExpiresIn | quote }}
+        - name: DOCUMENT_SERVER_OUTPUT_FILE_MAX_BYTES
+          value: {{ .Values.documentServer.outputFileMaxBytes | quote }}
+        {{- with .Values.fileUrlAllowedOrigins }}
+        - name: FILE_URL_ALLOWED_ORIGINS
+          value: {{ join "," . | quote }}
+        {{- end }}
+        {{- with .Values.http.publicUrl }}
+        - name: HTTP_PUBLIC_URL
+          value: {{ . | quote }}
+        {{- end }}
+        {{- with .Values.http.allowedHosts }}
+        - name: HTTP_ALLOWED_HOSTS
+          value: {{ join "," . | quote }}
+        {{- end }}
+        {{- with .Values.http.corsAllowedOrigins }}
+        - name: HTTP_CORS_ALLOWED_ORIGINS
+          value: {{ join "," . | quote }}
+        {{- end }}
+        - name: HTTP_TRUST_PROXY
+          value: {{ .Values.http.trustProxy | quote }}
+        - name: HTTP_RATE_LIMIT_MAX_REQUESTS
+          value: {{ .Values.http.rateLimitMaxRequests | quote }}
+        ports:
+        - name: mcp
+          containerPort: {{ .Values.port }}
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: mcp
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: mcp
+          initialDelaySeconds: 20
+          periodSeconds: 30
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+      volumes:
+      - name: tmp
+        emptyDir: {}
+{{- end }}

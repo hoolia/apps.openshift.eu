@@ -1,0 +1,117 @@
+# Team of the tenant the server serves: the chart puts every object into <tenant>-<team>, a
+# namespace the team already has. Empty: the release namespace
+team: ""
+# Tenant the server belongs to; required with team
+tenant: ""
+
+# switch of this server when a bundle chart includes it
+enabled: true
+
+# name of the server's objects and of the server on an MCP gateway (tools <name>_*).
+# Empty: mcp.server
+nameOverride: ""
+
+# ONLYOFFICE docs-mcp image. ONLYOFFICE publishes no image: build one from
+# https://github.com/ONLYOFFICE/docs-mcp (its Dockerfile) and set it here
+image:
+  repository: ""
+  tag: ""
+  pullPolicy: IfNotPresent
+
+documentServer:
+  # Public URL of the ONLYOFFICE Document Server, e.g. https://office-office.example.com;
+  # the browser of the person who opens the editor loads it too
+  url: ""
+  # Existing Secret with the Document Server's JWT secret under jwtSecretKey. Empty:
+  # <release>-<secretSuffix>, written from secrets below
+  existingSecret: ""
+  jwtSecretKey: jwt-secret
+  # name suffix of the chart's own JWT Secret
+  secretSuffix: onlyoffice-jwt
+  # HS256, HS384 or HS512
+  jwtAlgorithm: HS256
+  # lifetime of a signed editor configuration, in seconds
+  jwtExpiresIn: 60
+  # largest Document Server output file the server reads back on save, in bytes
+  outputFileMaxBytes: 10485760
+
+# Origins, hosts or wildcard domains (*.example.com) the server may open remote files
+# from, e.g. the Nextcloud that holds the documents. Empty: no remote file URL opens
+fileUrlAllowedOrigins: []
+
+http:
+  # Public URL of the server, the widget domain of the embedded editor; its host is then
+  # the only Host header accepted besides allowedHosts. Empty: no Host check
+  publicUrl: ""
+  # Host headers accepted besides publicUrl's host; set publicUrl or leave both empty
+  allowedHosts: []
+  # browser origins allowed by CORS; empty: none
+  corsAllowedOrigins: []
+  # proxy hops in front of the server (the MCP gateway)
+  trustProxy: "1"
+  # requests per client per minute
+  rateLimitMaxRequests: 120
+
+secrets:
+  # kubernetes: the JWT Secret from jwtSecret. externalSecret: from a secret store
+  type: kubernetes
+  # JWT secret of the Document Server. Empty: no Secret, and the server does not start
+  # until one exists
+  jwtSecret: ""
+  externalSecret:
+    storeKind: ClusterSecretStore
+    storeName: ""
+    refreshInterval: 1h
+    # vault item with the JWT secret. Empty: <release>-<secretSuffix>
+    item: ""
+    # property of the item that holds the JWT secret
+    property: login.password
+
+# container port of the server; not 80, 443, 8080 or 8443 (open to every project)
+port: 13001
+
+mcp:
+  # Service port appProtocol an MCP gateway discovers; empty leaves it unset
+  appProtocol: agentgateway.dev/mcp
+  # prefix of the catalog labels
+  labelDomain: mcp.openshift.eu
+  # <labelDomain>/server
+  server: onlyoffice
+  # <labelDomain>/bundle
+  bundle: onlyoffice
+  # <labelDomain>/category
+  category: documents
+
+service:
+  # extra labels on the Service, for example the gateway's exposure label
+  labels: {}
+  annotations:
+    openhands.dev/icon: https://cdn.simpleicons.org/onlyoffice
+
+# requests and limits of the server
+resources:
+  requests:
+    cpu: 10m
+    memory: 96Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+networkPolicy:
+  enabled: true
+  # Namespaces (label selectors) that may call the server besides its own, e.g. the gateway's
+  ingressNamespaces: []
+  egress:
+    # The server reaches public addresses only (the Document Server and the file origins)
+    enabled: true
+    exceptCidrs:
+    - 10.0.0.0/8
+    - 172.16.0.0/12
+    - 192.168.0.0/16
+    - 100.64.0.0/10
+    - 169.254.0.0/16
+    - 127.0.0.0/8
+    # Your own public ranges
+    extraExceptCidrs: []
+    dnsNamespace: openshift-dns
+    dnsPort: 5353

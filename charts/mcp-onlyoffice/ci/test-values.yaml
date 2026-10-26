@@ -1,0 +1,9 @@
+image:
+  repository: registry.example.com/onlyoffice/docs-mcp
+  tag: 0.0.1
+documentServer:
+  url: https://documentserver.example.com
+fileUrlAllowedOrigins:
+- files.example.com
+secrets:
+  jwtSecret: test-only-not-a-secret
