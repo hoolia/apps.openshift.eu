@@ -1,0 +1,97 @@
+apiVersion: v1
+entries:
+  atlassian-mcp:
+  - annotations:
+      charts.openshift.io/name: Atlassian MCP server
+      charts.openshift.io/provider: GRN.CLOUD B.V.
+    apiVersion: v2
+    appVersion: 0.23.1
+    description: Jira and Confluence MCP server (sooperset/mcp-atlassian) for a tenant
+      or one of its teams, with each caller's own Atlassian account or a shared one
+    icon: https://cdn.simpleicons.org/atlassian
+    keywords:
+    - ai
+    - mcp
+    - jira
+    name: atlassian-mcp
+    version: 0.1.0
+  mcp-all:
+  - annotations:
+      charts.openshift.io/name: MCP catalog
+      mcp.openshift.eu/bundle: all
+    description: Every MCP bundle of the catalog as a switch
+    keywords:
+    - mcp
+    - mcp-bundle
+    name: mcp-all
+    version: 0.1.0
+  mcp-bundle-google-workspace:
+  - annotations:
+      charts.openshift.io/name: Google Workspace MCP bundle
+      mcp.openshift.eu/bundle: google-workspace
+      mcp.openshift.eu/category: productivity
+    dependencies:
+    - alias: gmail
+      name: mcp-gmail
+      repository: file://../mcp-gmail
+      version: 0.1.0
+    description: Google Workspace MCP servers for the agents of a project
+    keywords:
+    - mcp
+    - mcp-bundle
+    name: mcp-bundle-google-workspace
+    version: 0.1.0
+  mcp-gmail:
+  - annotations:
+      charts.openshift.io/name: Gmail MCP server
+      mcp.openshift.eu/bundle: google-workspace
+      mcp.openshift.eu/category: productivity
+      mcp.openshift.eu/server: gmail
+    description: Google's hosted Gmail MCP server
+    keywords:
+    - mcp
+    - mcp-server
+    name: mcp-gmail
+    version: 0.1.0
+  mcp-sonarqube:
+  - annotations:
+      charts.openshift.io/name: SonarQube MCP server
+      mcp.openshift.eu/category: code-quality
+      mcp.openshift.eu/server: sonarqube
+    description: SonarQube MCP server
+    keywords:
+    - mcp
+    name: mcp-sonarqube
+    version: 0.1.0
+  nextcloud:
+  - annotations:
+      charts.openshift.io/name: Nextcloud
+      charts.openshift.io/provider: GRN.CLOUD B.V.
+    appVersion: 34.0.5
+    dependencies:
+    - name: nextcloud
+      repository: https://nextcloud.github.io/helm/
+      version: 9.1.4
+    description: "Nextcloud files: calendar and contacts"
+    keywords:
+    - files
+    - collaboration
+    name: nextcloud
+    version: 0.8.0
+  - annotations:
+      charts.openshift.io/name: Nextcloud old
+    description: an older version
+    name: nextcloud
+    version: 0.7.0
+  openhands:
+  - annotations:
+      charts.openshift.io/name: OpenHands
+    appVersion: 1.33.0
+    description: Shared OpenHands Agent Canvas coding agent
+    keywords:
+    - ai
+    - agent
+    - mcp
+    name: openhands
+    version: 0.10.0
+generated: "2026-10-26T19:00:00Z"
