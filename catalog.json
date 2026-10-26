@@ -1,0 +1,173 @@
+{
+ "charts": {
+  "atlassian-mcp": {
+   "category": "productivity",
+   "type": "mcp-server",
+   "vendor": "sooperset"
+  },
+  "bifrost": {
+   "category": "ai-gateway",
+   "type": "app",
+   "vendor": "Maxim AI"
+  },
+  "gitlab": {
+   "category": "devops",
+   "type": "app",
+   "vendor": "GitLab Inc."
+  },
+  "guacamole": {
+   "category": "remote-access",
+   "type": "app",
+   "vendor": "Apache Software Foundation"
+  },
+  "kagent": {
+   "category": "ai-agent",
+   "type": "app",
+   "vendor": "CNCF"
+  },
+  "mailu": {
+   "category": "collaboration",
+   "type": "app",
+   "vendor": "Mailu"
+  },
+  "mcp-all": {
+   "bundle": "all",
+   "category": "productivity",
+   "type": "mcp-bundle",
+   "vendor": "GRN.CLOUD B.V."
+  },
+  "mcp-bundle-google-workspace": {
+   "bundle": "google-workspace",
+   "category": "productivity",
+   "type": "mcp-bundle",
+   "vendor": "GRN.CLOUD B.V."
+  },
+  "mcp-bundle-microsoft-365": {
+   "bundle": "microsoft-365",
+   "category": "productivity",
+   "type": "mcp-bundle",
+   "vendor": "GRN.CLOUD B.V."
+  },
+  "mcp-gmail": {
+   "bundle": "google-workspace",
+   "category": "productivity",
+   "server": "gmail",
+   "type": "mcp-server",
+   "vendor": "Google"
+  },
+  "mcp-google-calendar": {
+   "bundle": "google-workspace",
+   "category": "productivity",
+   "server": "google-calendar",
+   "type": "mcp-server",
+   "vendor": "Google"
+  },
+  "mcp-google-docs": {
+   "bundle": "google-workspace",
+   "category": "productivity",
+   "server": "google-docs",
+   "type": "mcp-server",
+   "vendor": "Google"
+  },
+  "mcp-google-drive": {
+   "bundle": "google-workspace",
+   "category": "productivity",
+   "server": "google-drive",
+   "type": "mcp-server",
+   "vendor": "Google"
+  },
+  "mcp-google-sheets": {
+   "bundle": "google-workspace",
+   "category": "productivity",
+   "server": "google-sheets",
+   "type": "mcp-server",
+   "vendor": "Google"
+  },
+  "mcp-microsoft-365": {
+   "bundle": "microsoft-365",
+   "category": "productivity",
+   "server": "microsoft-365",
+   "type": "mcp-server",
+   "vendor": "Softeria"
+  },
+  "mcp-officeagent": {
+   "bundle": "officeagent",
+   "category": "documents",
+   "server": "officeagent",
+   "type": "mcp-server",
+   "vendor": "ilia-sokolov"
+  },
+  "mcp-server": {
+   "category": "custom",
+   "type": "mcp-server",
+   "vendor": "GRN.CLOUD B.V."
+  },
+  "mcp-slack": {
+   "bundle": "slack",
+   "category": "collaboration",
+   "server": "slack",
+   "type": "mcp-server",
+   "vendor": "korotovsky"
+  },
+  "mkdocs": {
+   "category": "documentation",
+   "type": "app",
+   "vendor": "MkDocs"
+  },
+  "n8n": {
+   "category": "automation",
+   "type": "app",
+   "vendor": "n8n GmbH"
+  },
+  "nextcloud": {
+   "category": "collaboration",
+   "type": "app",
+   "vendor": "Nextcloud GmbH"
+  },
+  "nexus": {
+   "category": "devops",
+   "type": "app",
+   "vendor": "Sonatype"
+  },
+  "odoo": {
+   "category": "business",
+   "type": "app",
+   "vendor": "Odoo S.A."
+  },
+  "omniroute": {
+   "category": "ai-gateway",
+   "type": "app",
+   "vendor": "diegosouzapw"
+  },
+  "opencode-agent": {
+   "category": "ai-agent",
+   "type": "app",
+   "vendor": "Anomaly"
+  },
+  "openhands": {
+   "category": "ai-agent",
+   "type": "app",
+   "vendor": "All Hands AI"
+  },
+  "openwebui": {
+   "category": "ai-chat",
+   "type": "app",
+   "vendor": "Open WebUI"
+  },
+  "playwright-mcp": {
+   "category": "automation",
+   "type": "mcp-server",
+   "vendor": "Microsoft"
+  },
+  "qdrant": {
+   "category": "database",
+   "type": "app",
+   "vendor": "Qdrant"
+  },
+  "vaultwarden": {
+   "category": "security",
+   "type": "app",
+   "vendor": "Vaultwarden"
+  }
+ }
+}
