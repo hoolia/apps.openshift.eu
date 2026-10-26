@@ -338,6 +338,23 @@ mailu:
       annotations:
         argocd.argoproj.io/sync-options: Delete=false,Prune=false
 
+# Office documents MCP server for the project's agents, in the same project; its values
+# are those of the mcp-officeagent chart
+mcp-officeagent:
+  enabled: true
+  documents:
+    persistence:
+      # the agents' documents survive deleting the Application, as the files do
+      annotations:
+        argocd.argoproj.io/sync-options: Delete=false,Prune=false
+  service:
+    # extra labels on the Service, for example the exposure label of an MCP gateway
+    labels: {}
+  networkPolicy:
+    # namespaces (label selectors) that may call the server besides its own, e.g. the
+    # namespace of an MCP gateway
+    ingressNamespaces: []
+
 global:
   # DKIM signing key of the mail server, made by cert-manager; the platform then
   # publishes the DKIM record. Set at install, see the mailu chart.

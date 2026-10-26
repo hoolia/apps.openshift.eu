@@ -8,6 +8,8 @@ through the platform's MariaDB operator, and an OnlyOffice document server. Arou
 it runs Redis, the push server for the clients (notify_push) and the whiteboard backend.
 Nextcloud Talk with its signaling, TURN and recording servers, an AI assistant on an
 OpenAI-compatible API, a database backup to object storage and monitoring are optional.
+For the project's agents the chart runs an Office documents MCP server (the
+`mcp-officeagent` chart) in the same project.
 
 ## Install
 
@@ -38,6 +40,9 @@ password:
 | `cache.enabled` | `true` | Redis for file locking and cache. Always runs when notify_push, the whiteboard or the worker is on. |
 | `notifyPush.enabled` | `true` | Push server for the desktop and mobile clients, under `/push`. |
 | `whiteboard.enabled` | `true` | Backend of the whiteboard app, under `/whiteboard`. |
+| `mcp-officeagent.enabled` | `true` | Run the Office documents MCP server for agents in the same project. Its values are those of the `mcp-officeagent` chart, under `mcp-officeagent`. |
+| `mcp-officeagent.service.labels` | empty | Extra labels on the MCP server's Service, for example the exposure label of an MCP gateway. |
+| `mcp-officeagent.networkPolicy.ingressNamespaces` | empty | Namespaces (label selectors) that may call the MCP server besides the own project, for example the namespace of an MCP gateway. |
 | `taskprocessing.enabled` | `false` | Worker that runs queued tasks at once. Always runs when `ai.enabled`. |
 | `ai.enabled` | `false` | Assistant and the OpenAI integration app. Also runs the worker and Redis. |
 | `ai.url` | empty | Address of the OpenAI-compatible API, ending in `/v1`. Required with `ai.enabled`. |
@@ -100,6 +105,31 @@ Nextcloud and the worker:
     oc rollout restart deployment/nextcloud-taskprocessing
 
 The second command applies only with `ai.enabled` or `taskprocessing.enabled`.
+
+## Office documents for agents
+
+The `mcp-officeagent` server (OfficeAgent.NET) creates, reads and edits Word, PowerPoint
+and Excel files itself, headless. It does not use the OnlyOffice document server and has
+no access to the files in Nextcloud. Its Service carries the agentgateway discovery keys
+(`appProtocol: agentgateway.dev/mcp`, `agentgateway.dev/mcp-path: /`,
+`agentgateway.dev/mcp-target-name: officeagent`), so an MCP gateway that selects Services
+by these keys publishes it with tools named `officeagent_*`. Its documents claim
+`officeagent-documents` survives deleting the Application, as the Nextcloud volumes do.
+
+An agent that holds both this server and a Nextcloud MCP server (WebDAV tools) edits a
+document of a Nextcloud user in four steps:
+
+1. Read the file with the Nextcloud MCP server.
+2. Import it into the `session` connection with `officeagent_import_document_content`
+   and edit it there.
+3. Export the result with `officeagent_export_document_content`.
+4. Write it back to the same path with the Nextcloud MCP server.
+
+Nextcloud keeps the previous content as a version of the file, so a user restores it
+under Versions in the file's details.
+
+A second MCP server for live co-editing in the open document may be added to this chart
+later.
 
 ## Nextcloud versions
 
@@ -182,3 +212,8 @@ untouched. Install the skipped release first. A new install starts at the latest
 - Monitoring creates ServiceMonitors and a PrometheusRule in your project. A project
   admin may create these where the platform runs monitoring for user workloads; the
   metrics and alerts then show under Observe in the console of your project.
+- The Office documents MCP server answers the own project. For agents behind an MCP
+  gateway in another namespace, add that namespace to
+  `mcp-officeagent.networkPolicy.ingressNamespaces` and set the gateway's exposure label,
+  if it has one, in `mcp-officeagent.service.labels`. Set
+  `mcp-officeagent.enabled=false` when the project's agents need no Office documents.
