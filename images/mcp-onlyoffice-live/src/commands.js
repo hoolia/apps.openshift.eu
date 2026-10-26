@@ -59,6 +59,13 @@ const cell = {
     for (var i = 0; i < lines.length; i++) start.GetRows(i + 1).GetCells(1, 1).SetValue(lines[i]);
     return { inserted: lines.length, cell: addr };
   }`,
+  replace: `function () {
+    var ws = Api.GetActiveSheet(), used = ws.GetUsedRange(), s = Asc.scope, n = 0;
+    used.ForEach(function (c) { var v = c.GetValue(); if (typeof v === 'string' && v.indexOf(s.search) !== -1) n++; });
+    used.Replace({ What: s.search, Replacement: s.replacement, LookAt: 'xlPart', SearchOrder: 'xlByRows',
+      SearchDirection: 'xlNext', MatchCase: s.matchCase, ReplaceAll: s.all });
+    return { replaced: s.all ? n : Math.min(n, 1) };
+  }`,
   comment: `function () {
     var ws = Api.GetActiveSheet(), r = ws.GetRange(Asc.scope.search);
     r.AddComment(Asc.scope.comment, Asc.scope.author); return { added: true };
@@ -91,6 +98,27 @@ const slide = {
     return { inserted: lines.length, slide: p.GetSlidesCount() };
   }`,
 };
+
+// a slide paragraph that contains the text gets the new text as one run
+slide.replace = `function () {
+  var p = Api.GetPresentation(), s = Asc.scope, n = 0;
+  for (var i = 0; i < p.GetSlidesCount(); i++) {
+    var shapes = p.GetSlideByIndex(i).GetAllShapes();
+    for (var j = 0; j < shapes.length; j++) {
+      var c = shapes[j].GetDocContent && shapes[j].GetDocContent();
+      if (!c) continue;
+      for (var k = 0; k < c.GetElementsCount(); k++) {
+        var e = c.GetElement(k); if (!e.GetText) continue;
+        var t = e.GetText().replace(/[\\r\\n]+$/, '');
+        if (t.indexOf(s.search) === -1 || (!s.all && n > 0)) continue;
+        var nt = s.all ? t.split(s.search).join(s.replacement) : t.replace(s.search, s.replacement);
+        n += s.all ? t.split(s.search).length - 1 : 1;
+        e.RemoveAllElements(); e.AddText(nt);
+      }
+    }
+  }
+  return { replaced: n };
+}`;
 
 const byEditor = { word, cell, slide };
 
