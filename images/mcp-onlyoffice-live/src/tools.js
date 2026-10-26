@@ -113,6 +113,9 @@ function register(server, { sessions, nextcloud, config, credential }) {
       await sessions.method(s, 'PasteText', [replacement]);
       return text({ replaced: 1, matches: found });
     }
+    if (s.editor !== 'word') {
+      return text(await sessions.command(s, forEditor(s.editor).replace, { search, replacement, all, matchCase }));
+    }
     let before = null;
     if (s.editor === 'word') before = await sessions.command(s, forEditor('word').count, { search, matchCase }, false);
     await sessions.method(s, 'SearchAndReplace', [{ searchString: search, replaceString: replacement, matchCase }]);

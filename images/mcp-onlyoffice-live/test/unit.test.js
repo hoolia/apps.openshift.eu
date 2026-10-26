@@ -173,3 +173,13 @@ test('browserUrl moves the editor link to the public origin', () => {
   assert.strictEqual(browserUrl('https://a/apps/x', ''), 'https://a/apps/x');
   assert.strictEqual(load({ NEXTCLOUD_PUBLIC_URL: 'https://c.example.com/' }).publicUrl, 'https://c.example.com');
 });
+
+test('every editor snippet is a function expression that parses', () => {
+  const c = require('../src/commands');
+  for (const type of ['word', 'cell', 'slide']) {
+    for (const [name, src] of Object.entries(c.forEditor(type))) {
+      assert.doesNotThrow(() => new Function(`return (${src});`), `${type}.${name}`);
+    }
+  }
+  assert.throws(() => c.forEditor('pdf'), /unsupported/);
+});
