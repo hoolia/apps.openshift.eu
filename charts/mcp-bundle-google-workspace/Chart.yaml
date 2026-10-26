@@ -28,6 +28,7 @@ maintainers:
 annotations:
   charts.openshift.io/name: Google Workspace MCP bundle
   charts.openshift.io/provider: GRN.CLOUD B.V.
+  apps.openshift.eu/vendor: GRN.CLOUD B.V.
   mcp.openshift.eu/bundle: google-workspace
   mcp.openshift.eu/category: productivity
   mcp.openshift.eu/auth: oauth2

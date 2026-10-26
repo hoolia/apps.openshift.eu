@@ -12,6 +12,8 @@ A key not listed here changes no behaviour.
 | `mcp.openshift.eu/category` | label, Chart.yaml annotation | RemoteMCPServer, Service | MCP server chart | catalog | [MCP catalog labels](mcp-catalog.md) |
 | `mcp.openshift.eu/addon` | label | RemoteMCPServer | MCP server chart | agent chart | [MCP catalog labels](mcp-catalog.md) |
 | `mcp.openshift.eu/auth` | Chart.yaml annotation | Chart.yaml | MCP server chart | catalog | [MCP catalog labels](mcp-catalog.md) |
+| `apps.openshift.eu/category` | Chart.yaml annotation | Chart.yaml | every chart | chart website | [Chart catalog annotations](chart-catalog.md) |
+| `apps.openshift.eu/vendor` | Chart.yaml annotation | Chart.yaml | every chart | chart website | [Chart catalog annotations](chart-catalog.md) |
 | `openhands.dev/icon` | annotation | RemoteMCPServer | MCP server chart, platform | `openhands` | [MCP catalog labels](mcp-catalog.md) |
 | `openhands.dev/auth` | annotation | RemoteMCPServer | MCP server chart | `openhands` | [Agent OAuth login](oauth.md) |
 | `openhands.dev/oauth-scopes` | annotation | RemoteMCPServer | MCP server chart | `openhands` | [Agent OAuth login](oauth.md) |
@@ -31,6 +33,7 @@ The values of the `openhands` chart that act on these labels, `mcp.labelDomain`,
 
 - A chart holds no platform, company or tenant name and no domain name, except the label
   domain `mcp.openshift.eu`, which is the neutral prefix of the MCP catalog.
+  The `apps.openshift.eu/` keys stay in `Chart.yaml` and render into no object.
 - A label or annotation that a chart sets for the console or for reporting goes on the
   object's own metadata, never on a pod template: a changed pod template restarts every pod.
 - A key that changes behaviour gets a row in the table above and a section on its page in
