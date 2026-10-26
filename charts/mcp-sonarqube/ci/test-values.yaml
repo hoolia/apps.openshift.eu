@@ -1,0 +1,14 @@
+sonarqube:
+  url: https://sonarqube.example.org
+credentials:
+  mode: broker
+broker:
+  adminTokenSecret: sonarqube-admin
+  cluster: example
+  issuers:
+  - issuer: https://kubernetes.default.svc
+    jwksUri: https://kubernetes.default.svc/openid/v1/jwks
+    kind: kubernetes
+    audiences:
+    - mcp.example.org
+    caFile: /etc/kube-ca/ca.crt

@@ -1,0 +1,96 @@
+{{- if not .Values.sonarqube.url }}{{ fail "sonarqube.url is required" }}{{ end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ include "mcp-sonarqube.namespace" . }}
+  labels:
+    app: {{ .Release.Name }}
+    app.kubernetes.io/name: mcp-sonarqube
+    app.kubernetes.io/component: server
+    app.kubernetes.io/instance: {{ .Release.Name | quote }}
+    app.openshift.io/runtime: java
+    {{- include "mcp-sonarqube.commonLabels" . | nindent 4 }}
+    {{- include "mcp-sonarqube.catalogLabels" . | nindent 4 }}
+  annotations:
+    app.openshift.io/vcs-uri: https://github.com/SonarSource/sonarqube-mcp-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "mcp-sonarqube.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "mcp-sonarqube.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      # the server needs no Kubernetes API access
+      automountServiceAccountToken: false
+      containers:
+      - name: server
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        env:
+        - name: HOME
+          value: /tmp
+        # every request carries its caller's SonarQube user token in Authorization
+        - name: SONARQUBE_TRANSPORT
+          value: http
+        - name: SONARQUBE_HTTP_HOST
+          value: 0.0.0.0
+        - name: SONARQUBE_HTTP_PORT
+          value: {{ .Values.port | quote }}
+        - name: SONARQUBE_URL
+          value: {{ .Values.sonarqube.url | quote }}
+        - name: SONARQUBE_READ_ONLY
+          value: {{ .Values.sonarqube.readOnly | quote }}
+        {{- with .Values.sonarqube.toolsets }}
+        - name: SONARQUBE_TOOLSETS
+          value: {{ . | quote }}
+        {{- end }}
+        - name: STORAGE_PATH
+          value: /app/storage
+        - name: JAVA_OPTS
+          value: -XX:MaxRAMPercentage=70
+        ports:
+        - name: mcp
+          containerPort: {{ .Values.port }}
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: mcp
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: mcp
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+        - name: storage
+          mountPath: /app/storage
+      volumes:
+      - name: tmp
+        emptyDir: {}
+      - name: storage
+        emptyDir: {}
