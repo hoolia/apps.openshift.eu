@@ -132,6 +132,12 @@
                 "ReadWriteOncePod",
                 "ReadWriteMany"
               ]
+            },
+            "annotations": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
             }
           }
         }

@@ -69,7 +69,7 @@ helm install office grncloud/mcp-officeagent
 - `documents.allowedExtensions` (default: `.docx`, `.pptx`, `.xlsx` and the image types `.png`, `.jpg`, `.jpeg`, `.gif`, `.svg`): Files the connection serves; an image in it can be inserted by id.
 - `documents.defaultChangeMode` (default: `Direct`): Mode of an operation that states none. A deck refuses `Tracked`, so `Direct` serves both; a Word edit asks for `"mode": "Tracked"` itself.
 - `documents.maximumBytes` (default: 100 MiB): Size cap per document.
-- `documents.persistence.enabled` (default: true): A PersistentVolumeClaim of `documents.persistence.size` (default `1Gi`) in `documents.persistence.storageClass` (default: the cluster default); `false` uses an emptyDir. `documents.persistence.existingClaim` uses a claim you have. The chart's claim is kept on uninstall.
+- `documents.persistence.enabled` (default: true): A PersistentVolumeClaim of `documents.persistence.size` (default `1Gi`) in `documents.persistence.storageClass` (default: the cluster default); `false` uses an emptyDir. `documents.persistence.existingClaim` uses a claim you have. The chart's claim is kept on uninstall; `documents.persistence.annotations` (default: none) adds annotations to it.
 - `port` (default: 13080): Container and Service port.
 - `runAsUser` (default: empty): User ID of the server. OpenShift assigns one; on Kubernetes without that assignment set `1654`, the image's app user.
 - `mcp.appProtocol` (default: `agentgateway.dev/mcp`): Service port appProtocol for gateway discovery.
