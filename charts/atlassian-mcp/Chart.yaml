@@ -9,6 +9,7 @@ icon: https://cdn.simpleicons.org/atlassian
 keywords:
 - ai
 - mcp
+- mcp-server
 - jira
 - confluence
 sources:
@@ -20,3 +21,5 @@ maintainers:
 annotations:
   charts.openshift.io/name: Atlassian MCP server
   charts.openshift.io/provider: GRN.CLOUD B.V.
+  apps.openshift.eu/category: productivity
+  apps.openshift.eu/vendor: sooperset

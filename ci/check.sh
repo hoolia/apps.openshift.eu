@@ -49,6 +49,8 @@ done
 for f in charts/*/files/token-proxy.py; do
   cmp -s "$f" images/agent-identity/token-proxy.py || { echo "FAIL $f differs from images/agent-identity/token-proxy.py"; fail=1; }
 done
+# every chart names its category and vendor for the chart website
+python3 ci/catalog.py --check || fail=1
 if command -v gitleaks >/dev/null; then
   gitleaks detect --source . --no-git --redact >/dev/null || { echo "FAIL gitleaks"; fail=1; }
 else

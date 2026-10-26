@@ -20,6 +20,8 @@ maintainers:
 annotations:
   charts.openshift.io/name: kagent
   charts.openshift.io/provider: GRN.CLOUD B.V.
+  apps.openshift.eu/category: ai-agent
+  apps.openshift.eu/vendor: CNCF
 dependencies:
 # parent and upstream chart are both named kagent
 - name: kagent

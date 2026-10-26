@@ -98,6 +98,10 @@ Every object a chart renders from its own templates carries these labels in
 - `Chart.yaml` has `apiVersion: v2`, a `description`, a `version` in semantic versioning
   and an `appVersion`. A change to a chart raises its `version`: patch for a fix, minor for
   a new value or feature, major for a change that needs an action from the user.
+- `Chart.yaml` has the annotations `apps.openshift.eu/category` and
+  `apps.openshift.eu/vendor` for the chart website; an MCP chart may take its category from
+  `mcp.openshift.eu/category`. A change to these two alone raises no `version`: the website
+  reads them from `main`. See `docs/conventions/chart-catalog.md`.
 - A named template is prefixed with the chart name, or with `wrapper.` in a chart that
   wraps a dependency, so it cannot collide with a template of a subchart. The label helper
   always carries the chart name; a chart with a dependency checks that no packaged subchart

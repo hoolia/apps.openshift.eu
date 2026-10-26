@@ -21,6 +21,8 @@ maintainers:
 annotations:
   charts.openshift.io/name: Mailu
   charts.openshift.io/provider: GRN.CLOUD B.V.
+  apps.openshift.eu/category: collaboration
+  apps.openshift.eu/vendor: Mailu
 dependencies:
 - name: mailu
   alias: upstream
