@@ -57,6 +57,16 @@
         "allowedIdentity": {"type": "string"},
         "groups": {"type": "array", "items": {"type": "string"}},
         "tokenDays": {"type": "integer", "minimum": 2},
+        "identityProvider": {"enum": ["sonarqube", "oidc"]},
+        "oidc": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "providerKey": {"type": "string", "minLength": 1},
+            "groupsClaim": {"type": "string", "minLength": 1},
+            "groupPrefix": {"type": "string", "pattern": "^([A-Za-z0-9][A-Za-z0-9._-]*)?$"}
+          }
+        },
         "resources": {"type": "object"}
       }
     },

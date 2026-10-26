@@ -5,6 +5,10 @@ An MCP gateway sends every request's Authorization header here (external authori
 The broker verifies the JWT itself against the configured issuers, maps it to one SonarQube
 login per agent, creates that user on first use, mints a user token for it and answers 200
 with `Authorization: Bearer <token>`, which the gateway sends on to the MCP server.
+
+Identity provider sonarqube: the user is non-local with SonarQube as its provider. Identity
+provider oidc: the user belongs to the OpenID Connect provider of plugin sonar-auth-oidc, as a
+browser login would create it, and its SonarQube groups follow the token's tenant groups.
 Standard library only.
 """
 from __future__ import annotations
@@ -28,6 +32,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
 LOGIN_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,99}$")
+GROUP_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,254}$")
+USERS_V2 = "/api/v2/users-management/users"
 SERVICE_ACCOUNT_PREFIX = "service-account-"
 TOKEN_PREFIX = "mcp-broker-"
 # DigestInfo of SHA-256 in an RSASSA-PKCS1-v1_5 signature
@@ -158,6 +164,37 @@ def identity(issuer: Issuer, claims: dict[str, Any], cluster: str) -> str:
     return login
 
 
+@dataclass(frozen=True)
+class External:
+    """The identity sonar-auth-oidc records for a browser login of the same caller."""
+    login: str
+    id: str
+
+
+def external(issuer: Issuer, claims: dict[str, Any], login: str) -> External:
+    if issuer.kind == "kubernetes":
+        return External(login, str(claims.get("sub") or login))
+    # login strategy "Preferred username" (plugin default): external login preferred_username,
+    # external id the subject
+    sub = str(claims.get("sub", ""))
+    if not sub:
+        raise Denied("token has no subject", 403)
+    return External(str(claims.get("preferred_username", "")), sub)
+
+
+def tenant_groups(issuer: Issuer, claims: dict[str, Any], claim: str, prefix: str) -> frozenset[str] | None:
+    """The token's groups that start with prefix; None when the token cannot say (no sync)."""
+    if not prefix:
+        return None
+    value = claims.get(claim)
+    if value is None:
+        # Keycloak leaves out an empty groups claim; a ServiceAccount token never has one
+        return frozenset() if issuer.kind == "oidc" else None
+    names = value if isinstance(value, list) else str(value).split(",")
+    return frozenset(n.strip() for n in names
+                     if isinstance(n, str) and n.strip().startswith(prefix) and GROUP_RE.match(n.strip()))
+
+
 class SonarQube:
     def __init__(self, url: str, token: str, ca_file: str | None = None) -> None:
         self.url = url.rstrip("/")
@@ -165,13 +202,18 @@ class SonarQube:
         self.context = _context(ca_file)
 
     def call(self, method: str, path: str, params: dict[str, str] | None = None,
-             token: str | None = None) -> Any:
+             token: str | None = None, body: dict[str, Any] | None = None) -> Any:
         query = urllib.parse.urlencode(params or {})
-        url = self.url + path + ("?" + query if query and method == "GET" else "")
+        url = self.url + path + ("?" + query if query and (method == "GET" or body is not None) else "")
+        content_type = "application/x-www-form-urlencoded"
         data = query.encode() if method == "POST" else None
+        if body is not None:
+            # Web API v2: JSON, and JSON merge patch for PATCH
+            content_type = "application/merge-patch+json" if method == "PATCH" else "application/json"
+            data = json.dumps(body).encode()
         req = urllib.request.Request(url, data=data, method=method, headers={
             "Authorization": "Bearer " + (token or self.token),
-            "Content-Type": "application/x-www-form-urlencoded"})
+            "Content-Type": content_type})
         try:
             with urllib.request.urlopen(req, timeout=20, context=self.context) as r:
                 body = r.read()
@@ -205,6 +247,54 @@ class SonarQube:
                 except UpstreamError as exc:
                     logging.warning("adding %s to group %s: %s", login, group, exc)
 
+    def ensure_oidc_user(self, login: str, ext: External, provider: str, groups: list[str]) -> None:
+        """A user of the sonar-auth-oidc provider: a browser login of ext finds this account."""
+        found = [u for u in self.call("GET", USERS_V2, {"q": login, "pageSize": "50"}).get("users", [])
+                 if u.get("login") == login]
+        if found:
+            user = found[0]
+            if user.get("local", True):
+                raise Denied("login %s belongs to a local account" % login, 403)
+            current = user.get("externalProvider")
+            if current == provider:
+                if user.get("externalLogin") != ext.login:
+                    raise Denied("login %s belongs to another %s account" % (login, provider), 403)
+                if user.get("externalId") == ext.id:
+                    return
+                # the agent's Keycloak client was made again: same name, new subject
+                logging.info("rebinding %s to a new %s subject", login, provider)
+            elif current != "sonarqube":
+                raise Denied("login %s belongs to another account" % login, 403)
+            else:
+                logging.info("moving %s from provider sonarqube to %s", login, provider)
+            uid = user["id"]
+        else:
+            uid = self.call("POST", USERS_V2, body={"login": login, "name": ext.login or login, "local": False})["id"]
+            logging.info("created SonarQube user %s", login)
+            for group in groups:
+                self.call("POST", "/api/user_groups/add_user", {"name": group, "login": login})
+        # a changed binding revokes the user's tokens; the broker mints a new one after this
+        self.call("PATCH", USERS_V2 + "/" + urllib.parse.quote(uid, safe=""), body={
+            "externalProvider": provider, "externalLogin": ext.login, "externalId": ext.id})
+
+    def sync_groups(self, login: str, wanted: frozenset[str], prefix: str) -> None:
+        """Membership of the groups named <prefix>* follows wanted; other groups stay as they are."""
+        have = {g["name"] for g in self.call("GET", "/api/users/groups", {
+            "login": login, "selected": "selected", "ps": "500"}).get("groups", [])
+            if g.get("name", "").startswith(prefix)}
+        for group in sorted(wanted - have):
+            exists = [g for g in self.call("GET", "/api/user_groups/search", {"q": group, "ps": "100"}).get("groups", [])
+                      if g.get("name") == group]
+            if not exists:
+                self.call("POST", "/api/user_groups/create", {
+                    "name": group, "description": "Tenant group %s of the identity provider" % group})
+                logging.info("created SonarQube group %s", group)
+            self.call("POST", "/api/user_groups/add_user", {"name": group, "login": login})
+            logging.info("added %s to group %s", login, group)
+        for group in sorted(have - wanted):
+            self.call("POST", "/api/user_groups/remove_user", {"name": group, "login": login})
+            logging.info("removed %s from group %s", login, group)
+
     def mint(self, login: str, days: int) -> str:
         for t in self.call("GET", "/api/user_tokens/search", {"login": login}).get("userTokens", []):
             if t.get("name", "").startswith(TOKEN_PREFIX):
@@ -220,17 +310,27 @@ class Entry:
     token: str
     expires: float
     checked: float
+    # tenant groups last synced to SonarQube (identity provider oidc)
+    groups: frozenset[str] | None = None
 
 
 class Broker:
     def __init__(self, sonar: SonarQube, issuers: dict[str, Issuer], cluster: str,
-                 allowed: str = "", groups: list[str] | None = None, days: int = 30) -> None:
+                 allowed: str = "", groups: list[str] | None = None, days: int = 30,
+                 identity_provider: str = "sonarqube", provider_key: str = "oidc",
+                 groups_claim: str = "groups", group_prefix: str = "") -> None:
+        if identity_provider not in ("sonarqube", "oidc"):
+            raise ValueError("identity provider %r is neither sonarqube nor oidc" % identity_provider)
         self.sonar = sonar
         self.issuers = issuers
         self.cluster = cluster
         self.allowed = re.compile(allowed) if allowed else None
         self.groups = groups or []
         self.days = days
+        self.oidc = identity_provider == "oidc"
+        self.provider_key = provider_key
+        self.groups_claim = groups_claim
+        self.group_prefix = group_prefix
         self.cache: dict[str, Entry] = {}
         self.locks: dict[str, threading.Lock] = {}
         self.guard = threading.Lock()
@@ -242,23 +342,38 @@ class Broker:
         login = identity(issuer, claims, self.cluster)
         if self.allowed and not self.allowed.fullmatch(login):
             raise Denied("identity %s is not allowed" % login, 403)
+        ext = external(issuer, claims, login) if self.oidc else None
+        wanted = tenant_groups(issuer, claims, self.groups_claim, self.group_prefix) if self.oidc else None
         with self.guard:
             lock = self.locks.setdefault(login, threading.Lock())
         with lock:
             now = time.time()
             entry = self.cache.get(login)
             if entry and entry.expires > now:
-                if now - entry.checked < 900:
-                    return login, entry.token
+                fresh = now - entry.checked < 900
                 # a token revoked or a user removed in SonarQube is minted again
-                if self.sonar.valid(entry.token):
-                    entry.checked = now
+                if fresh or self.sonar.valid(entry.token):
+                    entry.checked = entry.checked if fresh else now
+                    self._sync(login, wanted, entry)
                     return login, entry.token
-            self.sonar.ensure_user(login, self.groups)
+            if ext is not None:
+                self.sonar.ensure_oidc_user(login, ext, self.provider_key, self.groups)
+            else:
+                self.sonar.ensure_user(login, self.groups)
             token = self.sonar.mint(login, self.days)
-            self.cache[login] = Entry(token, now + (self.days - 1) * 86400, now)
+            entry = Entry(token, now + (self.days - 1) * 86400, now)
+            self.cache[login] = entry
             logging.info("minted a token for %s", login)
+            self._sync(login, wanted, entry)
             return login, token
+
+    def _sync(self, login: str, wanted: frozenset[str] | None, entry: Entry) -> None:
+        if wanted is None or wanted == entry.groups:
+            return
+        # fail closed: a failed sync answers 502 and is tried again on the next request
+        entry.groups = None
+        self.sonar.sync_groups(login, wanted, self.group_prefix)
+        entry.groups = wanted
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -309,7 +424,11 @@ def from_env() -> Broker:
                       os.environ.get("SONARQUBE_CA_FILE") or None)
     groups = [g.strip() for g in os.environ.get("SONARQUBE_GROUPS", "").split(",") if g.strip()]
     return Broker(sonar, issuers, need("CLUSTER"), os.environ.get("ALLOWED_IDENTITY", ""),
-                  groups, int(os.environ.get("TOKEN_DAYS", "30")))
+                  groups, int(os.environ.get("TOKEN_DAYS", "30")),
+                  identity_provider=os.environ.get("IDENTITY_PROVIDER", "sonarqube") or "sonarqube",
+                  provider_key=os.environ.get("OIDC_PROVIDER_KEY", "oidc") or "oidc",
+                  groups_claim=os.environ.get("OIDC_GROUPS_CLAIM", "groups") or "groups",
+                  group_prefix=os.environ.get("OIDC_GROUP_PREFIX", ""))
 
 
 def main() -> int:

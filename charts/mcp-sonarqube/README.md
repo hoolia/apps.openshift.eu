@@ -23,6 +23,21 @@ streamable HTTP on port 8000, path `/mcp`, for a tenant or one of its teams.
   non-local user on first use, mints a user token for it and answers with
   `Authorization: Bearer <token>`. It never mints for a local or single-sign-on account, and
   people are not served. The broker holds the token of a SonarQube administrator.
+- `broker.identityProvider` decides whose account the broker creates:
+
+  | Value | SonarQube account | Groups |
+  |---|---|---|
+  | `sonarqube` (default) | non-local user, provider `sonarqube` | `broker.groups`, at creation |
+  | `oidc` | user of plugin [sonar-auth-oidc](https://github.com/vaulttec/sonar-auth-oidc), provider `broker.oidc.providerKey`: external login `preferred_username`, external id `sub`, the account a browser login of the same identity finds (login strategy "Preferred username") | `broker.groups` at creation, plus every group of the token's `broker.oidc.groupsClaim` named `broker.oidc.groupPrefix*`, kept in step on each request |
+
+  With `oidc`, people and agents are authorized the same way: through SonarQube groups named
+  after the identity provider's groups. The broker creates a missing `<groupPrefix>*` group
+  and removes the user from `<groupPrefix>*` groups the token no longer carries; other groups
+  stay as they are. A failed sync answers 502. An empty `groupPrefix` syncs no group.
+  SonarQube must have sonar-auth-oidc installed and enabled, with groups sync on the same
+  claim. A broker user of provider `sonarqube` moves to `oidc` on its next token.
+- SonarQube's Web API accepts SonarQube user tokens only, not OpenID Connect tokens, so both
+  modes hand the MCP server a SonarQube user token.
 - `sonarqube.readOnly: true` (default) switches every write tool off; the user's SonarQube
   permissions (Browse through the default group) decide which projects it reads.
 - The Service follows the gateway's MCP discovery conventions: port `appProtocol`
@@ -65,6 +80,20 @@ broker:
     caFile: /etc/kube-ca/ca.crt
 ```
 
+With sonar-auth-oidc users and groups, add to `values-broker.yaml` an OpenID Connect issuer
+(the one SonarQube's sonar-auth-oidc trusts) and the group prefix of your tenant:
+
+```yaml
+broker:
+  identityProvider: oidc
+  oidc:
+    groupPrefix: example-
+  issuers:
+  - issuer: https://idp.example.org/realms/example
+    jwksUri: https://idp.example.org/realms/example/protocol/openid-connect/certs
+    kind: oidc
+```
+
 For a team of a tenant, add `--set team=<team> --set tenant=<tenant>`.
 
 ## Delivery instructions
@@ -74,7 +103,8 @@ For a team of a tenant, add `--set team=<team> --set tenant=<tenant>`.
 - perCaller: create a SonarQube user token per caller (My Account, Security) and send it in
   the header named by `credentials.gatewayHeader`.
 - broker: an agent's first call creates the SonarQube user `<serviceaccount>.<namespace>.<cluster>`;
-  grant it projects through a group (`broker.groups`) or the default group. Rotate the
+  grant it projects through a group (`broker.groups`, with `oidc` also the synced
+  `<groupPrefix>*` groups) or the default group. Rotate the
   administrator token by replacing the Secret and restarting `<release>-broker`; the broker
   then mints new tokens and revokes its old ones.
 - A call without a credential answers 401; that is expected for a caller without a token.
@@ -92,6 +122,9 @@ For a team of a tenant, add `--set team=<team> --set tenant=<tenant>`.
 - `broker.issuers` (default: `[]`), `broker.cluster` (default: empty): required in broker mode.
 - `broker.allowedIdentity` (default: empty): regular expression a login must match.
 - `broker.groups` (default: `[]`), `broker.tokenDays` (default: 30), `broker.port` (default: 9090).
+- `broker.identityProvider` (default: `sonarqube`): `sonarqube` or `oidc`.
+- `broker.oidc.providerKey`, `broker.oidc.groupsClaim`, `broker.oidc.groupPrefix` (default:
+  `oidc`, `groups`, empty): with `oidc` only.
 - `port`, `path` (default: `8000`, `/mcp`).
 - `mcp.appProtocol`, `mcp.targetName` (default: `agentgateway.dev/mcp`, `sonarqube`).
 - `mcp.server`, `mcp.category`, `mcp.bundle` (default: `sonarqube`, `code-quality`, empty).

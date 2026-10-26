@@ -52,6 +52,19 @@ broker:
   groups: []
   # Lifetime of a minted token in days; the broker mints a new one a day before expiry
   tokenDays: 30
+  # Provider of the users the broker creates. sonarqube: a non-local user of SonarQube
+  # itself. oidc: a user of plugin sonar-auth-oidc, the account a browser login of the same
+  # identity finds; its groups follow the token's groups (oidc.groupPrefix)
+  identityProvider: sonarqube
+  oidc:
+    # Identity provider key of sonar-auth-oidc
+    providerKey: oidc
+    # Claim with the caller's groups
+    groupsClaim: groups
+    # Groups of the token named <groupPrefix>* become SonarQube groups the user is a member
+    # of, created when missing; membership of other <groupPrefix>* groups is removed. Empty:
+    # no group sync
+    groupPrefix: ""
   resources:
     requests:
       cpu: 10m

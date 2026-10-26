@@ -65,7 +65,8 @@ def issuers():
 
 
 def agent_claims(**extra):
-    claims = {"iss": OIDC, "exp": time.time() + 300, "azp": "sam.team-a.c1", "preferred_username": "sam.team-a.c1"}
+    claims = {"iss": OIDC, "exp": time.time() + 300, "azp": "sam.team-a.c1", "preferred_username": "sam.team-a.c1",
+              "sub": "kc-uuid-1"}
     claims.update(extra)
     return claims
 
@@ -74,6 +75,7 @@ class FakeSonar(BaseHTTPRequestHandler):
     users = {}
     tokens = {}
     groups = []
+    group_names = set()
     calls = []
 
     def log_message(self, *a):
@@ -90,8 +92,13 @@ class FakeSonar(BaseHTTPRequestHandler):
     def _params(self):
         url = urllib.parse.urlsplit(self.path)
         params = dict(urllib.parse.parse_qsl(url.query))
-        if self.command == "POST":
-            params.update(urllib.parse.parse_qsl(self.rfile.read(int(self.headers["Content-Length"] or 0)).decode()))
+        if self.command in ("POST", "PATCH"):
+            raw = self.rfile.read(int(self.headers["Content-Length"] or 0)).decode()
+            if "json" in self.headers.get("Content-Type", ""):
+                params["_json"] = json.loads(raw)
+                params["_type"] = self.headers["Content-Type"]
+            else:
+                params.update(urllib.parse.parse_qsl(raw))
         return url.path, params
 
     def do_GET(self):
@@ -107,6 +114,25 @@ class FakeSonar(BaseHTTPRequestHandler):
             return self._reply(200, {"users": [u for u in self.users.values() if p["q"] in u["login"]]})
         if path == "/api/user_tokens/search":
             return self._reply(200, {"userTokens": [{"name": n} for n in self.tokens.get(p["login"], {})]})
+        if path == broker.USERS_V2:
+            return self._reply(200, {"users": [u for u in self.users.values() if p["q"] in u["login"]]})
+        if path == "/api/users/groups":
+            return self._reply(200, {"groups": [{"name": g} for g, u in self.groups if u == p["login"]]})
+        if path == "/api/user_groups/search":
+            return self._reply(200, {"groups": [{"name": g} for g in self.group_names if p["q"] in g]})
+        self._reply(404, {})
+
+    def do_PATCH(self):
+        path, p = self._params()
+        FakeSonar.calls.append(("PATCH", path))
+        if self.headers.get("Authorization") != "Bearer admin-token" or p.get("_type") != "application/merge-patch+json":
+            return self._reply(401, {})
+        for user in self.users.values():
+            if path == broker.USERS_V2 + "/" + user["id"]:
+                user.update(p["_json"])
+                # SonarQube revokes the tokens of a user whose binding changed
+                FakeSonar.tokens.pop(user["login"], None)
+                return self._reply(200, user)
         self._reply(404, {})
 
     def do_POST(self):
@@ -116,11 +142,26 @@ class FakeSonar(BaseHTTPRequestHandler):
             return self._reply(401, {})
         if path == "/api/users/create":
             FakeSonar.users[p["login"]] = {"login": p["login"], "local": p["local"] == "true",
-                                           "externalProvider": "sonarqube"}
+                                           "externalProvider": "sonarqube", "id": "u-" + p["login"],
+                                           "externalLogin": p["login"], "externalId": p["login"]}
             return self._reply(200, {})
+        if path == broker.USERS_V2:
+            j = p["_json"]
+            user = {"login": j["login"], "name": j["name"], "local": j["local"], "id": "u-" + j["login"],
+                    "externalProvider": "sonarqube", "externalLogin": j["login"], "externalId": j["login"]}
+            FakeSonar.users[j["login"]] = user
+            return self._reply(200, user)
         if path == "/api/user_groups/add_user":
+            if FakeSonar.group_names and p["name"] not in FakeSonar.group_names:
+                return self._reply(404, {})
             FakeSonar.groups.append((p["name"], p["login"]))
             return self._reply(204, {})
+        if path == "/api/user_groups/remove_user":
+            FakeSonar.groups.remove((p["name"], p["login"]))
+            return self._reply(204, {})
+        if path == "/api/user_groups/create":
+            FakeSonar.group_names.add(p["name"])
+            return self._reply(200, {"group": {"name": p["name"]}})
         if path == "/api/user_tokens/revoke":
             FakeSonar.tokens.get(p["login"], {}).pop(p["name"], None)
             return self._reply(204, {})
@@ -195,6 +236,7 @@ class FlowTest(unittest.TestCase):
 
     def setUp(self):
         FakeSonar.users, FakeSonar.tokens, FakeSonar.groups, FakeSonar.calls = {}, {}, [], []
+        FakeSonar.group_names = set()
         self.b = broker.Broker(broker.SonarQube(self.url, "admin-token"), issuers(), "c1",
                                allowed=r"[^.]+\.team-a\.c1", groups=["agents"])
 
@@ -235,6 +277,122 @@ class FlowTest(unittest.TestCase):
     def test_no_bearer(self):
         with self.assertRaises(broker.Denied):
             self.b.credential("Basic abc")
+
+
+class OidcFlowTest(FlowTest):
+    """Identity provider oidc: the user belongs to sonar-auth-oidc, groups follow the token."""
+
+    def setUp(self):
+        super().setUp()
+        FakeSonar.group_names = {"agents", "sonar-users", "team-a-existing"}
+        self.b = broker.Broker(broker.SonarQube(self.url, "admin-token"), issuers(), "c1",
+                               allowed=r"[^.]+\.team-a\.c1", groups=["agents"], identity_provider="oidc",
+                               group_prefix="team-a-")
+
+    def token(self, groups=("team-a-admins", "team-b-admins", "other"), **extra):
+        claims = agent_claims(**extra)
+        if groups is not None:
+            claims["groups"] = list(groups)
+        return "Bearer " + sign(claims, KEY)
+
+    def mine(self, login="sam.team-a.c1"):
+        return sorted(g for g, u in FakeSonar.groups if u == login)
+
+    def test_first_use_creates_user_and_token_then_caches(self):
+        login, token = self.b.credential(self.token())
+        user = FakeSonar.users[login]
+        self.assertEqual((user["local"], user["externalProvider"], user["externalLogin"], user["externalId"]),
+                         (False, "oidc", "sam.team-a.c1", "kc-uuid-1"))
+        # tenant groups only: team-b and unprefixed groups of the token are left out
+        self.assertEqual(self.mine(), ["agents", "team-a-admins"])
+        self.assertIn("team-a-admins", FakeSonar.group_names)
+        self.assertIn(token, FakeSonar.tokens[login].values())
+        n = len(FakeSonar.calls)
+        self.assertEqual(self.b.credential(self.token())[1], token)
+        self.assertEqual(len(FakeSonar.calls), n)
+
+    def test_restart_revokes_the_previous_token(self):
+        _, first = self.b.credential(self.token())
+        fresh = broker.Broker(broker.SonarQube(self.url, "admin-token"), issuers(), "c1", identity_provider="oidc")
+        _, second = fresh.credential(self.token())
+        self.assertNotEqual(first, second)
+        self.assertEqual(list(FakeSonar.tokens["sam.team-a.c1"].values()), [second])
+
+    def test_oidc_user_is_refused_in_mode_sonarqube(self):
+        self.b.credential(self.token())
+        back = broker.Broker(broker.SonarQube(self.url, "admin-token"), issuers(), "c1")
+        with self.assertRaises(broker.Denied):
+            back.credential(self.token())
+
+    def test_changed_groups_sync_without_a_new_token(self):
+        _, token = self.b.credential(self.token())
+        FakeSonar.groups.append(("team-a-existing", "sam.team-a.c1"))
+        self.assertEqual(self.b.credential(self.token(groups=["team-a-dev"]))[1], token)
+        self.assertEqual(self.mine(), ["agents", "team-a-dev"])
+
+    def test_no_groups_claim_removes_tenant_groups(self):
+        self.b.credential(self.token())
+        self.b.credential(self.token(groups=None))
+        self.assertEqual(self.mine(), ["agents"])
+
+    def test_without_prefix_no_group_sync(self):
+        self.b.group_prefix = ""
+        self.b.credential(self.token())
+        self.assertEqual(self.mine(), ["agents"])
+        self.assertNotIn(("POST", "/api/user_groups/create"), FakeSonar.calls)
+
+    def test_service_account_name_is_the_external_login(self):
+        login, _ = self.b.credential(self.token(preferred_username="service-account-sam.team-a.c1"))
+        self.assertEqual(FakeSonar.users[login]["externalLogin"], "service-account-sam.team-a.c1")
+
+    def test_broker_user_of_provider_sonarqube_moves_to_oidc(self):
+        FakeSonar.users["sam.team-a.c1"] = {"login": "sam.team-a.c1", "local": False, "id": "u-sam.team-a.c1",
+                                            "externalProvider": "sonarqube", "externalLogin": "sam.team-a.c1"}
+        self.b.credential(self.token())
+        self.assertEqual(FakeSonar.users["sam.team-a.c1"]["externalProvider"], "oidc")
+
+    def test_new_subject_is_rebound(self):
+        self.b.credential(self.token())
+        fresh = broker.Broker(broker.SonarQube(self.url, "admin-token"), issuers(), "c1", identity_provider="oidc")
+        fresh.credential("Bearer " + sign(agent_claims(sub="kc-uuid-2"), KEY))
+        self.assertEqual(FakeSonar.users["sam.team-a.c1"]["externalId"], "kc-uuid-2")
+
+    def test_never_takes_over_another_oidc_account(self):
+        FakeSonar.users["sam.team-a.c1"] = {"login": "sam.team-a.c1", "local": False, "id": "u-x",
+                                            "externalProvider": "oidc", "externalLogin": "someone@example.org"}
+        with self.assertRaises(broker.Denied) as ctx:
+            self.b.credential(self.token())
+        self.assertEqual(ctx.exception.status, 403)
+        self.assertNotIn(("POST", "/api/user_tokens/generate"), FakeSonar.calls)
+
+    def test_never_takes_over_another_provider(self):
+        FakeSonar.users["sam.team-a.c1"] = {"login": "sam.team-a.c1", "local": False, "id": "u-x",
+                                            "externalProvider": "github", "externalLogin": "sam.team-a.c1"}
+        with self.assertRaises(broker.Denied):
+            self.b.credential(self.token())
+
+    def test_kubernetes_token_keeps_groups(self):
+        claims = {"iss": KUBE, "aud": ["api.example"], "exp": time.time() + 300,
+                  "sub": "system:serviceaccount:team-a:sam",
+                  "kubernetes.io": {"namespace": "team-a", "serviceaccount": {"name": "sam"}}}
+        login, _ = self.b.credential("Bearer " + sign(claims, KEY))
+        self.assertEqual(FakeSonar.users[login]["externalId"], "system:serviceaccount:team-a:sam")
+        self.assertEqual(self.mine(), ["agents"])
+
+    def test_unknown_identity_provider(self):
+        with self.assertRaises(ValueError):
+            broker.Broker(broker.SonarQube(self.url, "admin-token"), issuers(), "c1", identity_provider="ldap")
+
+
+class TenantGroupsTest(unittest.TestCase):
+    def test_comma_separated_claim(self):
+        i = issuers()[OIDC]
+        self.assertEqual(broker.tenant_groups(i, {"groups": "t-a, t-b,x"}, "groups", "t-"), frozenset({"t-a", "t-b"}))
+
+    def test_invalid_names_are_dropped(self):
+        i = issuers()[OIDC]
+        self.assertEqual(broker.tenant_groups(i, {"groups": ["t-a", "t-b c", "t-/x", 7]}, "groups", "t-"),
+                         frozenset({"t-a"}))
 
 
 if __name__ == "__main__":

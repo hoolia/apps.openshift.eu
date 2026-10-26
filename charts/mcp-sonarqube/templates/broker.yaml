@@ -82,6 +82,16 @@ spec:
           value: {{ join "," $b.groups | quote }}
         - name: TOKEN_DAYS
           value: {{ $b.tokenDays | quote }}
+        - name: IDENTITY_PROVIDER
+          value: {{ $b.identityProvider | quote }}
+        {{- if eq $b.identityProvider "oidc" }}
+        - name: OIDC_PROVIDER_KEY
+          value: {{ $b.oidc.providerKey | quote }}
+        - name: OIDC_GROUPS_CLAIM
+          value: {{ $b.oidc.groupsClaim | quote }}
+        - name: OIDC_GROUP_PREFIX
+          value: {{ $b.oidc.groupPrefix | quote }}
+        {{- end }}
         ports:
         - name: broker
           containerPort: {{ $b.port }}
