@@ -53,10 +53,6 @@
         "pullSecret": {
           "type": "string"
         },
-        "maxUploadMB": {
-          "type": "integer",
-          "minimum": 0
-        },
         "tools": {
           "type": "array",
           "items": {

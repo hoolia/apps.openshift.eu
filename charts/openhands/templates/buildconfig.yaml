@@ -39,8 +39,6 @@ data:
 {{ .Files.Get "files/patch-mcp-icons.py" | indent 4 }}
   patch-acp-usage.py: |
 {{ .Files.Get "files/patch-acp-usage.py" | indent 4 }}
-  patch-upload-limit.py: |
-{{ .Files.Get "files/patch-upload-limit.py" | indent 4 }}
 ---
 # the name hash makes ConfigChange rebuild when the Containerfile or the toolset changes
 apiVersion: build.openshift.io/v1

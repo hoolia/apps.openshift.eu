@@ -20,8 +20,6 @@ build:
   toolsImage: ""
   # pull secret for toolsImage and the base image; empty: the builder's own
   pullSecret: ""
-  # largest chat attachment in MB, per file and in total; 0: no limit
-  maxUploadMB: 10240
   # Python (uv), npm and pip tools; keep: true leaves the base image's own command
   # in place (agent-canvas starts its automation server with its uvicorn)
   tools:
