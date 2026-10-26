@@ -67,6 +67,9 @@ documents:
     # empty: the cluster's default StorageClass
     storageClass: ""
     accessMode: ReadWriteOnce
+    # extra annotations on the chart's claim, for example to keep it when a GitOps tool
+    # deletes the release
+    annotations: {}
 
 # container port of the server; not 80, 443, 8080 or 8443 (open to every project)
 port: 13080

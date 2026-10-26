@@ -10,6 +10,9 @@ metadata:
   annotations:
     # documents survive an uninstall
     helm.sh/resource-policy: keep
+    {{- with .persistence.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
 spec:
   accessModes:
   - {{ .persistence.accessMode }}
