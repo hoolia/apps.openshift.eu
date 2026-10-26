@@ -62,6 +62,11 @@ done
 for f in charts/*/files/token-proxy.py; do
   cmp -s "$f" images/agent-identity/token-proxy.py || { echo "FAIL $f differs from images/agent-identity/token-proxy.py"; fail=1; }
 done
+# the nextcloud chart serves a copy of the agent-bridge plugin of the live editing server
+for f in images/mcp-onlyoffice-live/plugin/*; do
+  cmp -s "$f" "charts/nextcloud/files/onlyoffice-agent-bridge/$(basename "$f")" ||
+    { echo "FAIL charts/nextcloud/files/onlyoffice-agent-bridge/$(basename "$f") differs from $f"; fail=1; }
+done
 # every chart names its category and vendor for the chart website
 python3 ci/catalog.py --check || fail=1
 if command -v gitleaks >/dev/null; then

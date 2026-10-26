@@ -42,6 +42,21 @@
           "type": "string",
           "title": "Hostname of OnlyOffice",
           "description": "Leave empty for office-<hostname of Nextcloud>"
+        },
+        "agentBridge": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "title": "Plugin for the live editing MCP server",
+              "description": "Serve the agent-bridge plugin from the document server, through which agents edit documents live"
+            }
+          }
+        },
+        "lockFiles": {
+          "type": "boolean",
+          "title": "Lock open files",
+          "description": "Enable the Nextcloud app files_lock, so a file open in OnlyOffice cannot be overwritten by another write"
         }
       }
     },

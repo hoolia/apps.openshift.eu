@@ -25,6 +25,10 @@ spec:
       labels:
         app.kubernetes.io/name: onlyoffice
         app.kubernetes.io/instance: onlyoffice
+      {{- if .Values.onlyoffice.agentBridge.enabled }}
+      annotations:
+        checksum/agent-bridge: {{ (.Files.Glob "files/onlyoffice-agent-bridge/*").AsConfig | sha256sum }}
+      {{- end }}
     spec:
       terminationGracePeriodSeconds: 10
       automountServiceAccountToken: false
@@ -72,6 +76,16 @@ spec:
         securityContext:
           runAsUser: 0
           allowPrivilegeEscalation: false
+        {{- if .Values.onlyoffice.agentBridge.enabled }}
+        volumeMounts:
+        - name: agent-bridge
+          mountPath: /var/www/onlyoffice/documentserver/sdkjs-plugins/agent-bridge
+          readOnly: true
+      volumes:
+      - name: agent-bridge
+        configMap:
+          name: onlyoffice-agent-bridge
+        {{- end }}
 ---
 apiVersion: v1
 kind: Service
