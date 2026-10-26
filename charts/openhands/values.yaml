@@ -181,7 +181,7 @@ mcps:
   # prefix of the selection labels <labelDomain>/addon, /bundle and /server. A
   # RemoteMCPServer labelled <labelDomain>/addon: "true" is an add-on, used only when
   # its bundle is in bundles or its server name (label, else object name) in servers
-  labelDomain: mcp.openhands.dev
+  labelDomain: mcp.openshift.eu
   # add-on bundles to use, for example [google]
   bundles: []
   # add-on servers to use, for example [gmail]

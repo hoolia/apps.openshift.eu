@@ -15,8 +15,8 @@ An object labelled <LABEL_DOMAIN>/addon=true is an add-on: it is written only wh
 <LABEL_DOMAIN>/bundle label is in BUNDLES or its <LABEL_DOMAIN>/server label (else its
 name) is in SERVERS. An object annotated openhands.dev/auth=oauth2 becomes an OAuth
 entry: its own URL, the pre-registered client from the Secret named by
-openhands.dev/oauth-client (keys client_id, client_secret) and the scopes of
-openhands.dev/oauth-scopes. It is added switched off, because each user logs in to it
+openhands.dev/oauth-client (keys client_id, client_secret; without it the agent
+registers itself at the server) and the scopes of openhands.dev/oauth-scopes. It is added switched off, because each user logs in to it
 in the UI first; the stored login (auth.state) is never sent, and the client is sent
 again only when it changed.
 
@@ -346,9 +346,15 @@ def oauth_client(obj: dict) -> tuple[dict | None, str]:
     """The authentication of an OAuth entry, every field in OAUTH_FIELDS; else why not."""
     meta = obj["metadata"]
     annotations = meta.get("annotations") or {}
+    common = {
+        "type": "oauth",
+        "scopes": " ".join(annotations.get(SCOPES_ANNOTATION, "").split()) or None,
+        "client_auth_method": annotations.get(CLIENT_AUTH_ANNOTATION) or None,
+    }
     name = annotations.get(CLIENT_ANNOTATION, "")
     if not name:
-        return None, f"annotation {CLIENT_ANNOTATION} is missing"
+        # the agent registers itself at the server (dynamic client registration)
+        return {**common, "client_id": None, "client_secret": None}, ""
     status, secret = kube("GET", SECRETS.format(meta["namespace"]) + "/" + name)
     if status != 200:
         return None, f"client Secret {name}: HTTP {status}"
@@ -360,13 +366,7 @@ def oauth_client(obj: dict) -> tuple[dict | None, str]:
         return None, f"client Secret {name} is not readable"
     if not client_id:
         return None, f"client Secret {name} has no client_id"
-    return {
-        "type": "oauth",
-        "client_id": client_id,
-        "client_secret": client_secret or None,
-        "scopes": " ".join(annotations.get(SCOPES_ANNOTATION, "").split()) or None,
-        "client_auth_method": annotations.get(CLIENT_AUTH_ANNOTATION) or None,
-    }, ""
+    return {**common, "client_id": client_id, "client_secret": client_secret or None}, ""
 
 
 def to_server(obj: dict) -> tuple[dict | None, str]:
