@@ -313,7 +313,7 @@ nodeSelector: {}
 affinity: {}
 
 storage:
-  # settings, conversations and the workspace
+  # the whole home: settings, conversations, workspace, logins and caches
   size: 20Gi
   accessMode: ReadWriteOnce
   # empty: the default storage class
