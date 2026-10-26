@@ -257,7 +257,47 @@
         }
       }
     },
+    "mcps": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "interval": {
+          "type": "integer",
+          "minimum": 10
+        },
+        "labelSelector": {
+          "type": "string"
+        },
+        "labelDomain": {
+          "type": "string"
+        },
+        "bundles": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "servers": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "resources": {
+          "type": "object"
+        },
+        "clusterRole": {
+          "type": "string"
+        }
+      }
+    },
     "mcpDiscovery": {
+      "description": "Deprecated former name of mcps; its keys override mcps",
       "type": "object",
       "properties": {
         "enabled": {
@@ -269,6 +309,23 @@
         },
         "labelSelector": {
           "type": "string"
+        },
+        "labelDomain": {
+          "type": "string"
+        },
+        "bundles": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "servers": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
         },
         "resources": {
           "type": "object"
