@@ -16,8 +16,8 @@ subjects:
 - kind: ServiceAccount
   name: {{ $name }}
   namespace: {{ include "openhands.namespace" . }}
-{{- $mcps := include "openhands.mcps" . | fromJson }}
-{{- if and $mcps.enabled $mcps.clusterRole }}
+{{- $mcp := include "openhands.mcp" . | fromJson }}
+{{- if and $mcp.enabled $mcp.clusterRole }}
 ---
 # mcp-sync reads the namespace's RemoteMCPServers; the ClusterRole comes with kagent
 apiVersion: rbac.authorization.k8s.io/v1
@@ -31,7 +31,7 @@ metadata:
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: {{ $mcps.clusterRole }}
+  name: {{ $mcp.clusterRole }}
 subjects:
 - kind: ServiceAccount
   name: {{ $name }}

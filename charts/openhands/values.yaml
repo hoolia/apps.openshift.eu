@@ -176,7 +176,7 @@ agentProfiles: {}
 # token proxy; one that needs headers from a Secret is skipped. A RemoteMCPServer
 # annotated openhands.dev/auth: oauth2 is an OAuth server each user logs in to in the UI;
 # see README. Entries the user added in the UI are left alone
-mcps:
+mcp:
   enabled: true
   # seconds between two passes
   interval: 60
@@ -200,7 +200,7 @@ mcps:
     limits:
       memory: 96Mi
 
-# deprecated former name of mcps, still read in this version: its keys override mcps
+# deprecated former name of mcp, still read in this version: its keys override mcp
 mcpDiscovery: {}
 
 # Remote MCP servers a user adds in the UI become AgentgatewayBackends of the namespace,

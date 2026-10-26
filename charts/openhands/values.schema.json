@@ -259,7 +259,7 @@
         }
       }
     },
-    "mcps": {
+    "mcp": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
@@ -299,7 +299,7 @@
       }
     },
     "mcpDiscovery": {
-      "description": "Deprecated former name of mcps; its keys override mcps",
+      "description": "Deprecated former name of mcp; its keys override mcp",
       "type": "object",
       "properties": {
         "enabled": {

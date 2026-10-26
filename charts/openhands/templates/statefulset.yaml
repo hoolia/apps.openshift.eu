@@ -278,8 +278,8 @@ spec:
         securityContext:
           {{- include "openhands.containerSecurityContext" . | nindent 10 }}
       {{- end }}
-      {{- $mcps := include "openhands.mcps" . | fromJson }}
-      {{- if or $mcps.enabled .Values.mcpPublish.enabled (and .Values.git.host .Values.git.uiSecretName) }}
+      {{- $mcp := include "openhands.mcp" . | fromJson }}
+      {{- if or $mcp.enabled .Values.mcpPublish.enabled (and .Values.git.host .Values.git.uiSecretName) }}
       - name: mcp-sync
         image: {{ .Values.tokenProxy.image }}
         imagePullPolicy: IfNotPresent
@@ -293,17 +293,17 @@ spec:
               name: {{ $name }}-session-api-key
               key: value
         - name: INTERVAL
-          value: {{ int $mcps.interval | quote }}
+          value: {{ int $mcp.interval | quote }}
         - name: DISCOVERY
-          value: {{ $mcps.enabled | quote }}
+          value: {{ $mcp.enabled | quote }}
         - name: LABEL_SELECTOR
-          value: {{ $mcps.labelSelector | quote }}
+          value: {{ $mcp.labelSelector | quote }}
         - name: LABEL_DOMAIN
-          value: {{ $mcps.labelDomain | quote }}
+          value: {{ $mcp.labelDomain | quote }}
         - name: BUNDLES
-          value: {{ join "," ($mcps.bundles | default list) | quote }}
+          value: {{ join "," ($mcp.bundles | default list) | quote }}
         - name: SERVERS
-          value: {{ join "," ($mcps.servers | default list) | quote }}
+          value: {{ join "," ($mcp.servers | default list) | quote }}
         - name: UPSTREAM
           value: {{ .Values.gateway.upstream | quote }}
         - name: TOKEN_PROXY_PORT
@@ -330,7 +330,7 @@ spec:
           mountPath: /app
           readOnly: true
         resources:
-          {{- toYaml $mcps.resources | nindent 10 }}
+          {{- toYaml $mcp.resources | nindent 10 }}
         securityContext:
           {{- include "openhands.containerSecurityContext" . | nindent 10 }}
       {{- end }}

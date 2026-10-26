@@ -157,9 +157,9 @@ seccompProfile:
 {{- toJson $servers -}}
 {{- end -}}
 
-{{/* mcps as JSON; keys of the deprecated mcpDiscovery override it */}}
-{{- define "openhands.mcps" -}}
-{{- toJson (mergeOverwrite (deepCopy .Values.mcps) (deepCopy (.Values.mcpDiscovery | default dict))) -}}
+{{/* mcp as JSON; keys of the deprecated mcpDiscovery override it */}}
+{{- define "openhands.mcp" -}}
+{{- toJson (mergeOverwrite (deepCopy .Values.mcp) (deepCopy (.Values.mcpDiscovery | default dict))) -}}
 {{- end -}}
 
 {{/* URL other agents reach the A2A shim on: the kagent agent's Service, else the shim's */}}
