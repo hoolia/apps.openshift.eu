@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const { normalizePath, Nextcloud, tag } = require('../src/nextcloud');
 const { typingChunks } = require('../src/commands');
-const { Sessions } = require('../src/sessions');
+const { Sessions, browserUrl } = require('../src/sessions');
 const { load } = require('../src/config');
 const { createApp, credentialOf } = require('../src/server');
 
@@ -165,4 +165,11 @@ test('HTTP: health, method check and tools/list', async () => {
     const names = body.result.tools.map(x => x.name).sort();
     assert.deepStrictEqual(names, ['close', 'comment', 'create', 'file_status', 'insert', 'open', 'read', 'replace', 'save', 'sessions', 'track_changes', 'view']);
   } finally { app.close(); }
+});
+
+test('browserUrl moves the editor link to the public origin', () => {
+  assert.strictEqual(browserUrl('https://nextcloud:8080/apps/files/directEditing/t?x=1', 'https://cloud.example.com'),
+    'https://cloud.example.com/apps/files/directEditing/t?x=1');
+  assert.strictEqual(browserUrl('https://a/apps/x', ''), 'https://a/apps/x');
+  assert.strictEqual(load({ NEXTCLOUD_PUBLIC_URL: 'https://c.example.com/' }).publicUrl, 'https://c.example.com');
 });

@@ -38,12 +38,6 @@ const word = {
     if (!r || r.length === 0) return 0; r[0].Select(); return r.length;
   }`,
   count: `function () { var r = Api.GetDocument().Search(Asc.scope.search, Asc.scope.matchCase); return r ? r.length : 0; }`,
-  comment: `function () {
-    var r = Api.GetDocument().Search(Asc.scope.search, true);
-    if (!r || r.length === 0) return { added: false, error: 'text not found' };
-    r[0].AddComment(Asc.scope.comment, Asc.scope.author);
-    return { added: true, matches: r.length };
-  }`,
   trackChanges: `function () {
     var d = Api.GetDocument(); d.SetTrackRevisions(Asc.scope.enabled); return { trackChanges: d.IsTrackRevisions() };
   }`,

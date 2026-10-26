@@ -67,7 +67,8 @@ class Sessions {
     this.checkLimits(me.id);
     const started = this.now();
     const task = (async () => {
-      const url = create ? await this.nextcloud.createUrl(authorization, path) : await this.nextcloud.openUrl(authorization, path);
+      const raw = create ? await this.nextcloud.createUrl(authorization, path) : await this.nextcloud.openUrl(authorization, path);
+      const url = browserUrl(raw, this.config.publicUrl);
       const browser = await this.getBrowser();
       const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: 'en-US' });
       try {
@@ -146,6 +147,16 @@ class Sessions {
   }
 }
 
+// The editor page on the public origin: Nextcloud builds the link from the host the API was
+// called on, an internal Service name the Document Server page cannot run under
+function browserUrl(url, publicUrl) {
+  if (!publicUrl) return url;
+  const u = new URL(url);
+  const p = new URL(publicUrl);
+  const base = p.pathname.replace(/\/+$/, '');
+  return p.origin + base + u.pathname + u.search + u.hash;
+}
+
 async function waitForBridge(page, timeout) {
   const end = Date.now() + timeout;
   let editorSeen = false;
@@ -164,4 +175,4 @@ async function waitForBridge(page, timeout) {
   throw new NextcloudError('the editor loaded without the agent-bridge plugin: the Document Server must carry it in sdkjs-plugins', 501);
 }
 
-module.exports = { Sessions, SessionError, waitForBridge, EDITOR_BY_EXT };
+module.exports = { Sessions, SessionError, waitForBridge, browserUrl, EDITOR_BY_EXT };

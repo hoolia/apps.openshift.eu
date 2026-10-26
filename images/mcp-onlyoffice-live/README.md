@@ -38,6 +38,7 @@ agent's name, its cursor and every edit as it happens.
 | Variable | Default | Meaning |
 |---|---|---|
 | `NEXTCLOUD_URL` | `http://nextcloud:8080` | Nextcloud base URL the server calls |
+| `NEXTCLOUD_PUBLIC_URL` | empty | Origin the browser opens editor pages on, when `NEXTCLOUD_URL` is internal; empty: the link Nextcloud returns |
 | `NEXTCLOUD_USER`, `NEXTCLOUD_PASSWORD` | empty | Account for callers that send no `Authorization` |
 | `PORT` | `13081` | Listen port; MCP on `/` and `/mcp`, `GET /healthz` |
 | `MAX_SESSIONS` | `4` | Open documents across all callers; each costs 300 to 600 MiB |

@@ -130,6 +130,13 @@ function register(server, { sessions, nextcloud, config, credential }) {
   }, async ({ path, search, comment }) => {
     limitText(comment);
     const s = await sessions.get(credential, path);
+    if (s.editor === 'word') {
+      // through the editor's own comment action, which takes the co-editing lock
+      const found = await sessions.command(s, forEditor('word').selectFirst, { search, matchCase: true }, false);
+      if (!found) return text({ added: false, error: 'text not found' });
+      const id = await sessions.method(s, 'AddComment', [{ Text: comment, UserName: s.displayName, QuoteText: search, Time: String(Date.now()) }]);
+      return text({ added: !!id, commentId: id || null, matches: found });
+    }
     const set = forEditor(s.editor);
     if (!set.comment) throw Object.assign(new Error('comments are supported in text documents and spreadsheets'), { status: 400 });
     return text(await sessions.command(s, set.comment, { search, comment, author: s.displayName }));
