@@ -7,15 +7,16 @@
 <meta name="description" content="Helm charts for the GRN.CLOUD tenant app marketplace on OpenShift.">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <style>
-:root{--primary:#02753C;--cta:#9EFF12;--heading:#1e1e1e;--body:#4B5563;--muted:#54595F;--panel:#F8FAFE;--card:#fff;--border:#E2E8F0}
+:root{--primary:#02753C;--cta:#9EFF12;--heading:#1e1e1e;--body:#4B5563;--muted:#54595F;--panel:#F8FAFE;--card:#fff;--border:#E2E8F0;--mcp:#4C3D99;--mcp-bg:#EEEBFA}
 *{box-sizing:border-box}
 html{background:#0d2719}
 body{margin:0;min-height:100vh;color:var(--body);font:16px/1.5 Karla,system-ui,-apple-system,"Segoe UI",sans-serif;
   background:radial-gradient(900px 500px at 12% 0%,#3f7d12 0%,rgba(63,125,18,0) 60%),linear-gradient(135deg,#0a1611 0%,#0d2719 50%,#0f3d24 130%);background-attachment:fixed}
 h1,h2,h3{font-family:Rubik,system-ui,-apple-system,"Segoe UI",sans-serif;line-height:1.2;margin:0}
 a{color:var(--primary)}
-a:focus-visible,button:focus-visible{outline:2px solid var(--cta);outline-offset:2px}
+a:focus-visible,button:focus-visible,summary:focus-visible,input:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
 .mast{max-width:1240px;margin:0 auto;padding:16px 24px;display:flex;align-items:center;gap:16px;color:#fff}
+.mast a:focus-visible{outline-color:var(--cta)}
 .mast img{height:60px;width:auto;display:block}
 .mast span{font:500 18px Rubik,system-ui,sans-serif;opacity:.9;border-left:1px solid rgba(255,255,255,.35);padding-left:16px}
 .mast a.console{margin-left:auto;color:#fff;font-size:14px;text-decoration:none;border:1px solid rgba(255,255,255,.4);border-radius:999px;padding:6px 16px}
@@ -23,39 +24,59 @@ a:focus-visible,button:focus-visible{outline:2px solid var(--cta);outline-offset
 .panel{max-width:1240px;margin:0 auto 32px;background:var(--panel);border-radius:16px;padding:32px 24px 40px}
 h1{font-size:30px;font-weight:600;color:var(--heading)}
 .lead{max-width:75ch;margin:8px 0 24px}
-.layout{display:grid;grid-template-columns:260px 1fr;gap:32px;border:1px solid var(--border);border-radius:12px;padding:24px}
+.layout{display:grid;grid-template-columns:260px minmax(0,1fr);gap:32px;border:1px solid var(--border);border-radius:12px;padding:24px}
 .side h2{font-size:14px;font-weight:600;color:var(--heading);margin:0 0 8px}
 .side p{font-size:14px;margin:0 0 16px}
 pre{background:#0d2719;color:#e6f2ec;padding:12px;border-radius:8px;overflow-x:auto;font-size:12.5px;margin:0 0 20px;white-space:pre-wrap;word-break:break-all}
-.top{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:16px}
+.side input[type=search]{width:100%;font:inherit;font-size:14px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;margin:0 0 16px;background:#fff}
+.fold{margin:0 0 24px}
+.fold>summary{display:none}
+.facet{border:0;margin:0 0 18px;padding:0;min-width:0}
+.facet legend{font:600 12px Rubik,system-ui,sans-serif;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;padding:0;margin:0 0 6px}
+.opt{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--heading);padding:3px 0;cursor:pointer}
+.opt input{width:16px;height:16px;margin:0;accent-color:var(--primary);flex:none}
+.opt .n{margin-left:auto;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.opt.zero{color:#8a9099}
+.clear{font:500 13px Karla,system-ui,sans-serif;background:none;border:0;color:var(--primary);text-decoration:underline;cursor:pointer;padding:0;margin:0 0 16px}
+.top{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:16px}
 .top h2{font-size:20px;font-weight:600;color:var(--heading)}
 .top span{font-size:14px;color:var(--muted)}
+.group{font-size:16px;font-weight:600;color:var(--heading);margin:28px 0 12px;display:flex;align-items:center;gap:8px}
+.group:first-child{margin-top:0}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:24px}
 .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:24px;display:flex;flex-direction:column;min-height:300px}
 .card:hover{border-color:var(--primary);box-shadow:0 4px 14px rgba(2,117,60,.12)}
+.card.mcp{border-top:3px solid var(--mcp)}
+.card.mcp:hover{border-color:var(--mcp);box-shadow:0 4px 14px rgba(76,61,153,.14)}
 .hd{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px}
 .hd img{width:50px;height:50px;object-fit:contain}
-.badge{font-size:12px;background:#f0f0f0;color:#1e1e1e;border-radius:999px;padding:2px 10px;font-weight:500}
+.badge{font-size:12px;background:#f0f0f0;color:#1e1e1e;border-radius:999px;padding:2px 10px;font-weight:500;white-space:nowrap}
+.badge.mcp-server{background:var(--mcp-bg);color:var(--mcp)}
+.badge.mcp-bundle{background:var(--mcp);color:#fff}
 .card h3{font-size:16px;font-weight:500;color:var(--heading)}
 .prov{font-size:14px;color:var(--muted);margin:8px 0 14px}
 .desc{font-size:14px;margin:0 0 16px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.tags{display:flex;flex-wrap:wrap;gap:4px;margin:0 0 12px}
+.tag{font-size:11px;background:#eef7f1;color:var(--primary);border-radius:999px;padding:1px 8px}
+.card.mcp .tag{background:var(--mcp-bg);color:var(--mcp)}
 .ver{font-size:12px;color:var(--muted);margin-top:auto}
 .btns{display:flex;gap:8px;margin-top:12px}
 .btn{flex:1;text-align:center;text-decoration:none;font:500 14px Rubik,system-ui,sans-serif;border-radius:999px;padding:8px 12px;border:1px solid var(--primary);color:var(--primary);background:#fff}
 .btn:hover{background:#eef7f1}
 .btn.cta{background:var(--cta);border-color:var(--cta);color:#000}
 .btn.cta:hover{background:var(--primary);color:#fff;border-color:var(--cta)}
-.side input[type=search]{width:100%;font:inherit;font-size:14px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;margin:0 0 16px;background:#fff}
-.facet{margin:0 0 16px}
-.facet h3{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:0 0 6px}
-.chips{display:flex;flex-wrap:wrap;gap:6px}
-.chip{font:500 13px Karla,system-ui,sans-serif;border:1px solid var(--border);background:#fff;color:var(--heading);border-radius:999px;padding:3px 10px;cursor:pointer}
-.chip[aria-pressed=true]{background:var(--primary);border-color:var(--primary);color:#fff}
-.tags{display:flex;flex-wrap:wrap;gap:4px;margin:0 0 12px}
-.tag{font-size:11px;background:#eef7f1;color:var(--primary);border-radius:999px;padding:1px 8px}
+.empty{font-size:14px}
 footer{max-width:1240px;margin:0 auto;padding:0 24px 32px;font-size:14px;color:#cfe3d7}
 footer a{color:#fff}
-@media (max-width:800px){.layout{grid-template-columns:1fr}.mast span{display:none}}
+@media (max-width:800px){
+  .layout{grid-template-columns:1fr;padding:16px;gap:16px}
+  .panel{padding:24px 16px 32px}
+  .mast{padding:16px}
+  .mast span{display:none}
+  .fold{border:1px solid var(--border);border-radius:8px;background:#fff;padding:0 12px;margin:0 0 12px}
+  .fold>summary{display:flex;align-items:center;justify-content:space-between;min-height:44px;font:600 14px Rubik,system-ui,sans-serif;color:var(--heading);cursor:pointer}
+  .fold[open]>summary{border-bottom:1px solid var(--border);margin-bottom:12px}
+}
 </style>
 </head>
 <body>
@@ -66,12 +87,16 @@ footer a{color:#fff}
 </div>
 <main class="panel">
 <h1>Helm Charts</h1>
-<p class="lead">Applications for the GRN.CLOUD platform. Deploy one in your own project from the console, or install the chart yourself with Helm. No cluster-admin rights needed.</p>
+<p class="lead">Applications and MCP servers for the GRN.CLOUD platform. Deploy one in your own project from the console, or install the chart yourself with Helm. No cluster-admin rights needed.</p>
 <div class="layout">
-<aside class="side">
-<h2>Find</h2>
+<aside class="side" aria-label="Search and filters">
 <input id="q" type="search" placeholder="Search name, description, keyword" aria-label="Search charts">
+<details class="fold" id="filters" open>
+<summary>Filters <span id="active"></span></summary>
 <div id="facets"></div>
+</details>
+<details class="fold" id="info" open>
+<summary>Deploy and install</summary>
 <h2>Deploy from the console</h2>
 <p>The Deploy button opens the managed version in console.grn.cloud: pick your project, fill in a name, and Argo CD installs and updates the application.</p>
 <h2>Install with Helm</h2>
@@ -80,131 +105,140 @@ helm repo update
 helm search repo grncloud</pre>
 <h2>Repository</h2>
 <p><a href="index.yaml">index.yaml</a><br><a href="https://github.com/hoolia/apps.openshift.eu">Source on GitHub</a></p>
+</details>
 </aside>
-<section>
-<div class="top"><h2>All items</h2><span id="count"></span></div>
-<div class="grid" id="charts"><p>The chart list is in <a href="index.yaml">index.yaml</a>.</p></div>
+<section aria-labelledby="items">
+<div class="top"><h2 id="items">All items</h2><span id="count" aria-live="polite"></span></div>
+<div id="charts"><p>The chart list is in <a href="index.yaml">index.yaml</a>.</p></div>
 </section>
 </div>
 </main>
 <footer>GRN.CLOUD B.V. - charts are open source, see each chart's README for values and delivery notes.</footer>
+<script src="catalog.js"></script>
 <script>
-// facets: type from the keywords, category and bundle from the mcp.openshift.eu annotations
-var FACETS = [
-  { key: 'type', title: 'Type', label: { app: 'Applications', server: 'MCP servers', bundle: 'MCP bundles' } },
-  { key: 'category', title: 'Category' },
-  { key: 'bundle', title: 'Bundle' }
-];
-var state = { q: '', type: '', category: '', bundle: '' };
-try {
-  new URLSearchParams(location.hash.slice(1)).forEach(function (v, k) { if (k in state) state[k] = v; });
-} catch (e) {}
+(function () {
+  var C = window.Catalog;
+  var GROUPS = { app: 'Apps', 'mcp-server': 'MCP servers', 'mcp-bundle': 'MCP bundles' };
+  var state = C.parseHash(location.hash);
+  var charts = [];
+  var narrow = window.matchMedia ? window.matchMedia('(max-width:800px)') : { matches: false };
 
-function parse(t) {
-  var charts = [], cur = null, first = false, inKw = false;
-  t.split('\n').forEach(function (l) {
-    var m = /^  ([a-z0-9-]+):\s*$/.exec(l);
-    if (m) { cur = { id: m[1], keywords: [] }; charts.push(cur); first = false; inKw = false; return; }
-    if (!cur) return;
-    if (/^  - /.test(l)) { if (first) { cur.done = true; } first = true; l = '    ' + l.slice(4); }
-    if (cur.done) return;
-    if (/^    keywords:\s*$/.test(l)) { inKw = true; return; }
-    if (inKw) {
-      m = /^    - (.*)$/.exec(l);
-      if (m) { cur.keywords.push(m[1].replace(/^["']|["']$/g, '')); return; }
-      inKw = false;
-    }
-    m = /^    (description|version|appVersion|icon):\s*(.*)$/.exec(l) ||
-      /^      charts\.openshift\.io\/(name|provider):\s*(.*)$/.exec(l) ||
-      /^      mcp\.openshift\.eu\/(category|bundle|server):\s*(.*)$/.exec(l);
-    if (m && cur[m[1]] === undefined) cur[m[1]] = m[2].replace(/^["']|["']$/g, '');
-  });
-  charts.forEach(function (c) {
-    c.type = c.keywords.indexOf('mcp-bundle') >= 0 ? 'bundle' : (c.keywords.indexOf('mcp-server') >= 0 ? 'server' : 'app');
-    c.text = [c.id, c.name, c.description].concat(c.keywords).join(' ').toLowerCase();
-  });
-  return charts;
-}
+  function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e; }
 
-function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e; }
-
-function render(charts) {
-  var box = document.getElementById('charts');
-  var shown = charts.filter(function (c) {
-    return (!state.q || c.text.indexOf(state.q.toLowerCase()) >= 0) &&
-      FACETS.every(function (f) { return !state[f.key] || c[f.key] === state[f.key]; });
-  });
-  box.textContent = '';
-  document.getElementById('count').textContent = shown.length + ' of ' + charts.length + ' items';
-  shown.forEach(function (c) {
-    var d = el('article', 'card');
+  function card(c) {
+    var mcp = c.type !== 'app';
+    var d = el('article', 'card' + (mcp ? ' mcp' : ''));
     var hd = el('div', 'hd');
     var img = el('img'); img.alt = ''; img.loading = 'lazy'; img.src = c.icon || 'favicon.svg';
     img.onerror = function () { img.onerror = null; img.src = 'favicon.svg'; };
-    hd.appendChild(img); hd.appendChild(el('span', 'badge', FACETS[0].label[c.type] === 'Applications' ? 'Helm Chart' : FACETS[0].label[c.type].replace(/s$/, '')));
+    hd.appendChild(img);
+    hd.appendChild(el('span', 'badge ' + c.type, C.TYPES[c.type]));
     d.appendChild(hd);
-    d.appendChild(el('h3', '', c.name || c.id));
-    d.appendChild(el('div', 'prov', 'Provided by ' + (c.provider || 'GRN.CLOUD B.V.')));
+    d.appendChild(el('h3', '', c.name));
+    d.appendChild(el('div', 'prov', c.vendor ? 'By ' + c.vendor : 'Provided by ' + (c.provider || 'GRN.CLOUD B.V.')));
     if (c.category || c.bundle) {
       var tags = el('div', 'tags');
-      [c.category, c.bundle].forEach(function (t) { if (t) tags.appendChild(el('span', 'tag', t)); });
+      if (c.category) tags.appendChild(el('span', 'tag', c.category));
+      if (c.bundle) tags.appendChild(el('span', 'tag', 'bundle: ' + c.bundle));
       d.appendChild(tags);
     }
-    d.appendChild(el('p', 'desc', c.description || ''));
-    d.appendChild(el('div', 'ver', 'Chart ' + (c.version || '') + (c.appVersion ? ' - app ' + c.appVersion : '')));
+    d.appendChild(el('p', 'desc', c.description));
+    d.appendChild(el('div', 'ver', 'Chart ' + c.version + (c.appVersion ? ' - app ' + c.appVersion : '')));
     var b = el('div', 'btns');
     var s = el('a', 'btn', 'Source'); s.href = 'https://github.com/hoolia/apps.openshift.eu/tree/main/charts/' + c.id;
+    s.setAttribute('aria-label', 'Source of ' + c.name);
     b.appendChild(s);
-    // a single MCP server is deployed through its bundle's managed version
-    if (c.type !== 'server') {
-      var p = el('a', 'btn cta', 'Deploy'); p.href = 'https://console.grn.cloud/catalog/instantiate-template?template=' + c.id + '-managed&template-ns=openshift';
+    // an MCP server of a bundle is deployed through the bundle's managed version
+    if (!(c.type === 'mcp-server' && c.bundle)) {
+      var p = el('a', 'btn cta', 'Deploy');
+      p.href = 'https://console.grn.cloud/catalog/instantiate-template?template=' + c.id + '-managed&template-ns=openshift';
+      p.setAttribute('aria-label', 'Deploy ' + c.name);
       b.appendChild(p);
     }
     d.appendChild(b);
-    box.appendChild(d);
-  });
-}
+    return d;
+  }
 
-function facets(charts) {
-  var root = document.getElementById('facets');
-  root.textContent = '';
-  FACETS.forEach(function (f) {
-    var values = [];
-    charts.forEach(function (c) { if (c[f.key] && values.indexOf(c[f.key]) < 0) values.push(c[f.key]); });
-    if (!values.length) return;
-    values.sort();
-    var sec = el('div', 'facet');
-    sec.appendChild(el('h3', '', f.title));
-    var chips = el('div', 'chips');
-    [''].concat(values).forEach(function (v) {
-      var n = charts.filter(function (c) { return !v || c[f.key] === v; }).length;
-      var chip = el('button', 'chip', (v ? (f.label && f.label[v]) || v : 'All') + ' (' + n + ')');
-      chip.type = 'button';
-      chip.setAttribute('aria-pressed', String(state[f.key] === v));
-      chip.onclick = function () { state[f.key] = v; update(charts); };
-      chips.appendChild(chip);
+  function renderCharts() {
+    var box = document.getElementById('charts');
+    var shown = C.filter(charts, state);
+    box.textContent = '';
+    document.getElementById('count').textContent = shown.length + ' of ' + charts.length + ' items';
+    if (!shown.length) { box.appendChild(el('p', 'empty', 'No chart matches the search and filters.')); return; }
+    var types = [];
+    shown.forEach(function (c) { if (types.indexOf(c.type) < 0) types.push(c.type); });
+    types.forEach(function (t) {
+      var list = shown.filter(function (c) { return c.type === t; });
+      box.appendChild(el('h3', 'group', GROUPS[t] + ' (' + list.length + ')'));
+      var grid = el('div', 'grid');
+      list.forEach(function (c) { grid.appendChild(card(c)); });
+      box.appendChild(grid);
     });
-    sec.appendChild(chips);
-    root.appendChild(sec);
-  });
-}
+  }
 
-function update(charts) {
-  var h = new URLSearchParams();
-  Object.keys(state).forEach(function (k) { if (state[k]) h.set(k, state[k]); });
-  try { history.replaceState(null, '', h.toString() ? '#' + h.toString() : location.pathname); } catch (e) {}
-  facets(charts);
-  render(charts);
-}
+  function renderFacets() {
+    var root = document.getElementById('facets');
+    var focused = document.activeElement && document.activeElement.id;
+    root.textContent = '';
+    var active = 0;
+    C.facets(charts, state).forEach(function (f) {
+      var fs = el('fieldset', 'facet');
+      fs.appendChild(el('legend', '', f.title));
+      f.values.forEach(function (v) {
+        var id = 'f-' + f.key + '-' + v.value.replace(/[^A-Za-z0-9_-]/g, '_');
+        var lab = el('label', 'opt' + (v.count || v.selected ? '' : ' zero'));
+        var cb = el('input'); cb.type = 'checkbox'; cb.id = id; cb.checked = v.selected; cb.value = v.value;
+        cb.onchange = function () {
+          var list = state[f.key], i = list.indexOf(v.value);
+          if (cb.checked && i < 0) list.push(v.value);
+          if (!cb.checked && i >= 0) list.splice(i, 1);
+          update();
+        };
+        lab.appendChild(cb);
+        lab.appendChild(el('span', '', v.label));
+        var n = el('span', 'n', String(v.count)); n.setAttribute('aria-label', v.count + ' items');
+        lab.appendChild(n);
+        fs.appendChild(lab);
+        if (v.selected) active++;
+      });
+      root.appendChild(fs);
+    });
+    if (active || state.q) {
+      var clr = el('button', 'clear', 'Clear all filters'); clr.type = 'button';
+      clr.onclick = function () { state = C.emptyState(); document.getElementById('q').value = ''; update(); };
+      root.appendChild(clr);
+    }
+    document.getElementById('active').textContent = active ? '(' + active + ' active)' : '';
+    if (focused && document.getElementById(focused)) document.getElementById(focused).focus();
+  }
 
-fetch('index.yaml').then(function (r) { return r.text(); }).then(function (t) {
-  var charts = parse(t);
-  if (!charts.length) return;
-  var q = document.getElementById('q');
-  q.value = state.q;
-  q.oninput = function () { state.q = q.value; update(charts); };
-  update(charts);
-}).catch(function () {});
+  function update() {
+    var h = C.toHash(state);
+    try { history.replaceState(null, '', h || location.pathname + location.search); } catch (e) {}
+    renderFacets();
+    renderCharts();
+  }
+
+  function getText(url) { return fetch(url).then(function (r) { if (!r.ok) throw new Error(url); return r.text(); }); }
+
+  var folds = ['filters', 'info'].map(function (id) { return document.getElementById(id); });
+  // on a phone the sidebar folds away above the list; on a wide screen it is always open
+  if (narrow.matches) folds.forEach(function (d) { d.open = false; });
+  if (narrow.addEventListener) narrow.addEventListener('change', function (e) { if (!e.matches) folds.forEach(function (d) { d.open = true; }); });
+
+  Promise.all([
+    getText('index.yaml'),
+    getText('catalog.json').then(JSON.parse).catch(function () { return null; })
+  ]).then(function (r) {
+    charts = C.merge(C.parseIndex(r[0]), r[1]);
+    if (!charts.length) return;
+    var q = document.getElementById('q');
+    q.value = state.q;
+    q.oninput = function () { state.q = q.value; update(); };
+    window.addEventListener('hashchange', function () { state = C.parseHash(location.hash); q.value = state.q; update(); });
+    update();
+  }).catch(function () {});
+})();
 </script>
 </body>
 </html>

@@ -1,0 +1,8 @@
+{"charts": {
+ "atlassian-mcp": {"type": "mcp-server", "category": "productivity", "vendor": "sooperset"},
+ "mcp-gmail": {"type": "mcp-server", "category": "productivity", "vendor": "Google", "bundle": "google-workspace", "server": "gmail"},
+ "mcp-bundle-google-workspace": {"type": "mcp-bundle", "category": "productivity", "vendor": "Google", "bundle": "google-workspace"},
+ "nextcloud": {"type": "app", "category": "collaboration", "vendor": "Nextcloud GmbH"},
+ "openhands": {"type": "app", "category": "ai-agent", "vendor": "All Hands AI"},
+ "not-released": {"type": "app", "category": "x", "vendor": "y"}
+}}
