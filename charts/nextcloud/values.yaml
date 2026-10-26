@@ -105,7 +105,14 @@ onlyoffice:
   enabled: true
   # empty: office-<hostname of Nextcloud>
   host: ""
-  image: docker.io/onlyoffice/documentserver:8.2
+  image: docker.io/onlyoffice/documentserver:10.0.0.1@sha256:ca17889f10b11141cc6441836aebdd2835cf3e1b49681b2fd6e155c94b7850b3
+  # the plugin agent-bridge in the Document Server, through which mcp-onlyoffice-live edits
+  # documents live; invisible and idle in a person's editor
+  agentBridge:
+    enabled: true
+  # lock a file in Nextcloud while it is open in the editor (app files_lock), so a WebDAV
+  # write by anyone else fails with 423 Locked instead of being overwritten by the next save
+  lockFiles: true
   resources:
     requests:
       cpu: 250m
@@ -347,6 +354,24 @@ mcp-officeagent:
       # the agents' documents survive deleting the Application, as the files do
       annotations:
         argocd.argoproj.io/sync-options: Delete=false,Prune=false
+  service:
+    # extra labels on the Service, for example the exposure label of an MCP gateway
+    labels: {}
+  networkPolicy:
+    # namespaces (label selectors) that may call the server besides its own, e.g. the
+    # namespace of an MCP gateway
+    ingressNamespaces: []
+
+# Live editing MCP server for the project's agents, in the same project: an agent opens a
+# document in OnlyOffice as itself and edits it while people watch; its values are those of
+# the mcp-onlyoffice-live chart. It reaches this Nextcloud at the Service nextcloud
+mcp-onlyoffice-live:
+  enabled: true
+  nextcloud:
+    # the ConfigMap of this chart with the public address of Nextcloud
+    publicUrlFrom:
+      name: nextcloud-public-url
+      key: url
   service:
     # extra labels on the Service, for example the exposure label of an MCP gateway
     labels: {}

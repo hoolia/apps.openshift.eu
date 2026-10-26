@@ -75,6 +75,10 @@ data:
     set_app onlyoffice StorageUrl "{{ include "wrapper.internalUrl" . }}/"
     set_app onlyoffice jwt_secret "$(cat $s/jwt-secret)"
     set_app onlyoffice jwt_header Authorization
+    {{- if .Values.onlyoffice.lockFiles }}
+    # ONLYOFFICE locks a file through files_lock while it is open in the editor
+    app files_lock
+    {{- end }}
     {{- end }}
     {{- if .Values.notifyPush.enabled }}
     app notify_push

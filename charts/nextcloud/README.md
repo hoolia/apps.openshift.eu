@@ -9,7 +9,8 @@ it runs Redis, the push server for the clients (notify_push) and the whiteboard 
 Nextcloud Talk with its signaling, TURN and recording servers, an AI assistant on an
 OpenAI-compatible API, a database backup to object storage and monitoring are optional.
 For the project's agents the chart runs an Office documents MCP server (the
-`mcp-officeagent` chart) in the same project.
+`mcp-officeagent` chart) and a live editing MCP server (the `mcp-onlyoffice-live` chart)
+in the same project.
 
 ## Install
 
@@ -26,6 +27,8 @@ password:
 | `nextcloud.nextcloud.host` | `nextcloud.example.org` | Hostname of Nextcloud. Set it. |
 | `onlyoffice.host` | empty | Hostname of OnlyOffice. Empty: `office-<hostname of Nextcloud>`. |
 | `onlyoffice.enabled` | `true` | Document editing. Nextcloud is connected to the document server at its start. |
+| `onlyoffice.agentBridge.enabled` | `true` | Serve the plugin `agent-bridge` from the document server, through which `mcp-onlyoffice-live` edits documents live. |
+| `onlyoffice.lockFiles` | `true` | Enable the app `files_lock`, so a file open in OnlyOffice cannot be overwritten by a WebDAV write (`423 Locked`). `false` stops enabling it; the app stays enabled until you disable it. |
 | `nextcloud.persistence.nextcloudData.size` | `25Gi` | Space for user files. |
 | `secrets.type` | `kubernetes` | `externalSecret` reads the secrets from a secret store. |
 | `secrets.adminPassword` | empty | Password of the first administrator. Empty: generated. |
@@ -43,6 +46,9 @@ password:
 | `mcp-officeagent.enabled` | `true` | Run the Office documents MCP server for agents in the same project. Its values are those of the `mcp-officeagent` chart, under `mcp-officeagent`. |
 | `mcp-officeagent.service.labels` | empty | Extra labels on the MCP server's Service, for example the exposure label of an MCP gateway. |
 | `mcp-officeagent.networkPolicy.ingressNamespaces` | empty | Namespaces (label selectors) that may call the MCP server besides the own project, for example the namespace of an MCP gateway. |
+| `mcp-onlyoffice-live.enabled` | `true` | Run the live editing MCP server for agents in the same project. Its values are those of the `mcp-onlyoffice-live` chart, under `mcp-onlyoffice-live`. |
+| `mcp-onlyoffice-live.service.labels` | empty | Extra labels on the live editing server's Service, for example the exposure label of an MCP gateway. |
+| `mcp-onlyoffice-live.networkPolicy.ingressNamespaces` | empty | Namespaces (label selectors) that may call the live editing server besides the own project. |
 | `taskprocessing.enabled` | `false` | Worker that runs queued tasks at once. Always runs when `ai.enabled`. |
 | `ai.enabled` | `false` | Assistant and the OpenAI integration app. Also runs the worker and Redis. |
 | `ai.url` | empty | Address of the OpenAI-compatible API, ending in `/v1`. Required with `ai.enabled`. |
@@ -127,6 +133,29 @@ document of a Nextcloud user in four steps:
 
 Nextcloud keeps the previous content as a version of the file, so a user restores it
 under Versions in the file's details.
+
+A file that is open in OnlyOffice is overwritten by the editor's next save, so step 4
+fails with `423 Locked` while anyone has the file open (`onlyoffice.lockFiles`). Edit such
+a file live instead.
+
+## Live editing for agents
+
+The `mcp-onlyoffice-live` server opens a document in OnlyOffice as the calling agent, in a
+headless browser, and joins the document's co-editing session. People who have the
+document open see the agent's name, its cursor and each edit as it happens; comments and
+tracked changes carry the agent's name. Tools, named `office-live_*` behind a gateway:
+`open`, `create`, `read`, `insert` (also word by word), `replace`, `comment`,
+`track_changes`, `save`, `view`, `close`, `sessions`, `file_status`.
+
+- The server holds no secret. It forwards the caller's `Authorization` to Nextcloud: the
+  agent's own OpenID Connect token (with `oidc.bearer`) or Basic with the agent's app
+  password. Nextcloud decides which files the agent may open.
+- It edits through the plugin `agent-bridge`, which the document server serves from the
+  ConfigMap `onlyoffice-agent-bridge`.
+- It calls Nextcloud on the Service `nextcloud` and opens editor pages on the public
+  address in the ConfigMap `nextcloud-public-url`.
+- At most 4 documents are open at once, 2 per account; a session idle for 15 minutes is
+  closed.
 
 A second MCP server for live co-editing in the open document may be added to this chart
 later.
@@ -217,3 +246,9 @@ untouched. Install the skipped release first. A new install starts at the latest
   `mcp-officeagent.networkPolicy.ingressNamespaces` and set the gateway's exposure label,
   if it has one, in `mcp-officeagent.service.labels`. Set
   `mcp-officeagent.enabled=false` when the project's agents need no Office documents.
+- The live editing server `office-live` is published the same way, with
+  `mcp-onlyoffice-live.networkPolicy.ingressNamespaces` and
+  `mcp-onlyoffice-live.service.labels`. The gateway must pass each agent's own credential
+  (its OpenID Connect token, or its app password) to the server; give every agent its own
+  Nextcloud account, so people see who edits. Set `mcp-onlyoffice-live.enabled=false` when
+  the project's agents do not edit documents live.
