@@ -46,6 +46,18 @@ spec:
           value: {{ .Values.port | quote }}
         - name: NEXTCLOUD_URL
           value: {{ .Values.nextcloud.url | quote }}
+        {{- with .Values.nextcloud.publicUrlFrom }}
+        - name: NEXTCLOUD_PUBLIC_URL
+          valueFrom:
+            configMapKeyRef:
+              name: {{ required "nextcloud.publicUrlFrom.name" .name }}
+              key: {{ required "nextcloud.publicUrlFrom.key" .key }}
+        {{- else }}
+        {{- with .Values.nextcloud.publicUrl }}
+        - name: NEXTCLOUD_PUBLIC_URL
+          value: {{ . | quote }}
+        {{- end }}
+        {{- end }}
         - name: EDITOR_ID
           value: {{ .Values.nextcloud.editorId | quote }}
         - name: MAX_SESSIONS

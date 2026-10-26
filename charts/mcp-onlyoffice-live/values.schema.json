@@ -52,6 +52,31 @@
         "editorId": {
           "type": "string",
           "minLength": 1
+        },
+        "publicUrl": {
+          "type": "string",
+          "anyOf": [
+            {
+              "maxLength": 0
+            },
+            {
+              "pattern": "^https?://"
+            }
+          ]
+        },
+        "publicUrlFrom": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "key": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
         }
       }
     },

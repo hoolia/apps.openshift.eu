@@ -59,8 +59,9 @@ helm install office-live grncloud/mcp-onlyoffice-live --set nextcloud.url=https:
 - `team`, `tenant` (default: empty): Install into `<tenant>-<team>` instead of the release namespace.
 - `enabled` (default: true): Switch of the server inside another chart.
 - `nameOverride` (default: empty): Name of the objects and of the server on the gateway; empty: `mcp.server`.
-- `image.repository`, `image.tag` (default: `ghcr.io/hoolia/mcp-onlyoffice-live`, `0.1.0` by digest): Server image, built from `images/mcp-onlyoffice-live` of the chart repository.
+- `image.repository`, `image.tag` (default: `ghcr.io/hoolia/mcp-onlyoffice-live`, `0.1.2` by digest): Server image, built from `images/mcp-onlyoffice-live` of the chart repository.
 - `nextcloud.url` (default: `http://nextcloud:8080`): Nextcloud the server opens documents in. The default is the Service of the `nextcloud` chart in the same project.
+- `nextcloud.publicUrl` (default: empty): Origin the server's browser opens editor pages on when `nextcloud.url` is an internal address, for example `https://cloud.example.com`. Nextcloud builds the editor link from the host it is called on, and the Document Server page needs the public one. `nextcloud.publicUrlFrom` (`{name, key}` of a ConfigMap) reads it from the project instead; the `nextcloud` chart sets it.
 - `nextcloud.editorId` (default: `onlyoffice`): Direct Editing editor of the ONLYOFFICE app.
 - `credentials.mode` (default: `passthrough`): `passthrough` forwards each caller's `Authorization`. `shared` adds an account for callers that send none, from `credentials.existingSecret`, a Secret with the keys `user` and `password` (an app password).
 - `sessions.max` (default: 4), `sessions.maxPerUser` (default: 2): Documents open at once in total and per account. Each takes 300 to 600 MiB.
