@@ -22,6 +22,8 @@ maintainers:
 annotations:
   charts.openshift.io/name: MCP catalog
   charts.openshift.io/provider: GRN.CLOUD B.V.
+  apps.openshift.eu/category: productivity
+  apps.openshift.eu/vendor: GRN.CLOUD B.V.
   mcp.openshift.eu/bundle: all
 dependencies:
 - name: mcp-bundle-google-workspace
