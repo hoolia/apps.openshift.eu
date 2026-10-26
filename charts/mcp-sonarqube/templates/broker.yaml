@@ -1,0 +1,181 @@
+{{- if eq (include "mcp-sonarqube.broker" .) "true" }}
+{{- $b := .Values.broker }}
+{{- if not $b.adminTokenSecret }}{{ fail "broker.adminTokenSecret is required in broker mode" }}{{ end }}
+{{- if not $b.issuers }}{{ fail "broker.issuers is required in broker mode" }}{{ end }}
+{{- if not $b.cluster }}{{ fail "broker.cluster is required in broker mode" }}{{ end }}
+{{- $code := .Files.Get "files/broker.py" }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-broker
+  namespace: {{ include "mcp-sonarqube.namespace" . }}
+  labels:
+    app: {{ .Release.Name }}
+    app.kubernetes.io/name: mcp-sonarqube
+    app.kubernetes.io/component: broker
+    app.kubernetes.io/instance: {{ .Release.Name | quote }}
+    {{- include "mcp-sonarqube.commonLabels" . | nindent 4 }}
+data:
+  broker.py: |
+    {{- $code | nindent 4 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-broker
+  namespace: {{ include "mcp-sonarqube.namespace" . }}
+  labels:
+    app: {{ .Release.Name }}
+    app.kubernetes.io/name: mcp-sonarqube
+    app.kubernetes.io/component: broker
+    app.kubernetes.io/instance: {{ .Release.Name | quote }}
+    app.openshift.io/runtime: python
+    {{- include "mcp-sonarqube.commonLabels" . | nindent 4 }}
+  annotations:
+    app.openshift.io/connects-to: '[{"apiVersion":"apps/v1","kind":"Deployment","name":"{{ .Release.Name }}"}]'
+spec:
+  # one process owns the minted tokens: a second would revoke the first's
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "mcp-sonarqube.brokerSelectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "mcp-sonarqube.brokerSelectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/code: {{ sha256sum $code }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      # JWKS are public; the broker needs no Kubernetes identity
+      automountServiceAccountToken: false
+      containers:
+      - name: broker
+        image: {{ $b.image }}
+        command:
+        - python3
+        - /app/broker.py
+        env:
+        - name: PORT
+          value: {{ $b.port | quote }}
+        - name: SONARQUBE_URL
+          value: {{ .Values.sonarqube.url | quote }}
+        - name: SONARQUBE_ADMIN_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: {{ $b.adminTokenSecret }}
+              key: {{ $b.adminTokenKey }}
+        - name: ISSUERS
+          value: {{ $b.issuers | toJson | quote }}
+        - name: CLUSTER
+          value: {{ $b.cluster | quote }}
+        - name: ALLOWED_IDENTITY
+          value: {{ $b.allowedIdentity | quote }}
+        - name: SONARQUBE_GROUPS
+          value: {{ join "," $b.groups | quote }}
+        - name: TOKEN_DAYS
+          value: {{ $b.tokenDays | quote }}
+        - name: IDENTITY_PROVIDER
+          value: {{ $b.identityProvider | quote }}
+        {{- if eq $b.identityProvider "oidc" }}
+        - name: OIDC_PROVIDER_KEY
+          value: {{ $b.oidc.providerKey | quote }}
+        - name: OIDC_GROUPS_CLAIM
+          value: {{ $b.oidc.groupsClaim | quote }}
+        - name: OIDC_GROUP_PREFIX
+          value: {{ $b.oidc.groupPrefix | quote }}
+        {{- end }}
+        ports:
+        - name: broker
+          containerPort: {{ $b.port }}
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: broker
+          periodSeconds: 10
+        resources:
+          {{- toYaml $b.resources | nindent 10 }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
+        volumeMounts:
+        - name: code
+          mountPath: /app
+        - name: kube-ca
+          mountPath: /etc/kube-ca
+      volumes:
+      - name: code
+        configMap:
+          name: {{ .Release.Name }}-broker
+      # the cluster CA, for a kubernetes issuer on the API server
+      - name: kube-ca
+        configMap:
+          name: kube-root-ca.crt
+          optional: true
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-broker
+  namespace: {{ include "mcp-sonarqube.namespace" . }}
+  labels:
+    app: {{ .Release.Name }}
+    app.kubernetes.io/name: mcp-sonarqube
+    app.kubernetes.io/component: broker
+    app.kubernetes.io/instance: {{ .Release.Name | quote }}
+    {{- include "mcp-sonarqube.commonLabels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "mcp-sonarqube.brokerSelectorLabels" . | nindent 4 }}
+  ports:
+  - name: broker
+    port: {{ $b.port }}
+    targetPort: broker
+    protocol: TCP
+{{- if .Values.networkPolicy.enabled }}
+---
+# The broker verifies every caller's JWT itself; the gateway is its only intended caller
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Release.Name }}-broker
+  namespace: {{ include "mcp-sonarqube.namespace" . }}
+  labels:
+    app: {{ .Release.Name }}
+    app.kubernetes.io/name: mcp-sonarqube
+    app.kubernetes.io/component: broker
+    app.kubernetes.io/instance: {{ .Release.Name | quote }}
+    {{- include "mcp-sonarqube.commonLabels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "mcp-sonarqube.brokerSelectorLabels" . | nindent 6 }}
+  policyTypes:
+  - Ingress
+  ingress:
+  - ports:
+    - protocol: TCP
+      port: {{ $b.port }}
+    {{- with .Values.networkPolicy.ingressNamespaces }}
+    from:
+    {{- range . }}
+    - namespaceSelector:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+    {{- end }}
+{{- end }}
+{{- end }}

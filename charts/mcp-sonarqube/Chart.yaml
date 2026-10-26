@@ -1,0 +1,25 @@
+apiVersion: v2
+name: mcp-sonarqube
+description: SonarQube MCP server (SonarSource sonarqube-mcp-server) for a tenant or one of its teams, with each caller's own SonarQube user token or one minted per agent by a token broker
+type: application
+version: 0.1.0
+appVersion: "1.30.0.4763"
+home: https://apps.openshift.eu
+icon: https://cdn.simpleicons.org/sonarqube
+keywords:
+- ai
+- mcp
+- sonarqube
+- code-quality
+sources:
+- https://github.com/hoolia/apps.openshift.eu
+- https://github.com/SonarSource/sonarqube-mcp-server
+maintainers:
+- name: GRN.CLOUD B.V.
+  url: https://apps.openshift.eu
+annotations:
+  charts.openshift.io/name: SonarQube MCP server
+  charts.openshift.io/provider: GRN.CLOUD B.V.
+  apps.openshift.eu/vendor: SonarSource
+  mcp.openshift.eu/server: sonarqube
+  mcp.openshift.eu/category: code-quality
