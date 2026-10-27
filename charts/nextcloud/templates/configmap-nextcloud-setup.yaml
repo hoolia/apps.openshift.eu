@@ -68,6 +68,12 @@ data:
       run 600 "expensive repair" php occ maintenance:repair --include-expensive && touch "data/.chart-repair-$v"
     fi
     {{- end }}
+    {{- range $set.apps }}
+    app {{ . }}
+    {{- end }}
+    {{- if include "wrapper.mailActive" . }}
+    app mail
+    {{- end }}
     {{- if .Values.onlyoffice.enabled }}
     app onlyoffice
     set_app onlyoffice DocumentServerUrl "https://{{ include "wrapper.onlyofficeHost" . }}/"
@@ -79,6 +85,11 @@ data:
     # ONLYOFFICE locks a file through files_lock while it is open in the editor
     app files_lock
     {{- end }}
+    {{- else }}
+    # without a document server the connector only shows errors
+    if timeout 30 php occ app:list --output=json | grep -q '"onlyoffice":'; then
+      run 60 "disable app onlyoffice" php occ app:disable onlyoffice
+    fi
     {{- end }}
     {{- if .Values.notifyPush.enabled }}
     app notify_push
@@ -139,3 +150,82 @@ data:
       --send-id-token-hint=1
     {{- end }}
     exit 0
+  # the cron sidecar: waits until Nextcloud serves, then runs the background jobs
+  cron.sh: |
+    #!/bin/sh
+    until curl -fs -m 5 http://localhost/status.php | grep -q '"installed":true'; do sleep 10; done
+    {{- if include "wrapper.mailActive" . }}
+    # every minute: a mailbox and a Mail account for each new user
+    (while :; do su -s /bin/sh www-data -c 'sh /opt/nextcloud-chart/mail.sh'; sleep 60; done) &
+    {{- end }}
+    exec /cron.sh
+  {{- if include "wrapper.mailActive" . }}
+  {{- $mailu := .Values.mailu.upstream }}
+  {{- $name := $mailu.fullnameOverride | default "mailu" }}
+  # gives each user a mailbox <user id>@<mail domain> on the Mailu server and a Mail
+  # account with an app token of that mailbox; a user that has one is not touched again
+  mail.sh: |
+    #!/bin/sh
+    cd /var/www/html
+    domain={{ required "mailu.upstream.domain is required" $mailu.domain | lower | quote }}
+    api="http://{{ $name }}-admin:8080{{ $mailu.api.uri | default "/api" }}/v1"
+    front={{ $name }}-front
+    nets={{ $mailu.subnet | quote }}
+    log() { echo "mail: $*"; }
+    [ -s /run/secrets/setup/mailu-api-token ] || { log "no Mailu API token"; exit 0; }
+    tmp=$(mktemp -d) && trap 'rm -rf "$tmp"' EXIT
+    printf 'Authorization: Bearer %s\n' "$(cat /run/secrets/setup/mailu-api-token)" > "$tmp/auth"
+    # get <path> | post <path> < json: the status code; the body is in $tmp/out
+    get() { curl -s -m 20 -o "$tmp/out" -w '%{http_code}' -H @"$tmp/auth" "$api/$1"; }
+    post() { curl -s -m 20 -o "$tmp/out" -w '%{http_code}' -H @"$tmp/auth" -H 'Content-Type: application/json' --data-binary @- "$api/$1"; }
+    del() { curl -s -m 20 -o /dev/null -X DELETE -H @"$tmp/auth" "$api/$1"; }
+    field() { php -r '$j = json_decode(file_get_contents($argv[1]), true); echo $j[$argv[2]] ?? "";' "$tmp/out" "$1"; }
+    # json key value ...: an object; a key ending in [] takes a comma separated list
+    json() { php -r '$o = []; for ($i = 1; $i + 1 < $argc; $i += 2) { $k = $argv[$i]; $v = $argv[$i + 1];
+      if (substr($k, -2) === "[]") { $o[substr($k, 0, -2)] = explode(",", $v); } else { $o[$k] = $v; } } echo json_encode($o);' "$@"; }
+    php occ app:list --output=json | php -r 'exit(isset(json_decode(stream_get_contents(STDIN), true)["enabled"]["mail"]) ? 0 : 1);' \
+      || { log "Mail app not enabled yet"; exit 0; }
+    create=mail:account:create-imap
+    php occ list mail --raw | grep -q "^$create " || create=mail:account:create
+    state="$(php occ config:system:get datadirectory)/.chart-mail"
+    mkdir -p "$state"
+    case $(get "domain/$domain") in
+      200) ;;
+      404) [ "$(json name "$domain" | post domain)" = 200 ] || { log "domain $domain not created: $(cat "$tmp/out")"; exit 0; } ;;
+      *) log "Mailu API not ready"; exit 0 ;;
+    esac
+    php occ user:list --output=json --limit=100000 \
+      | php -r 'foreach (json_decode(stream_get_contents(STDIN), true) ?: [] as $u => $n) echo $u, "\t", $n, "\n";' > "$tmp/users"
+    while IFS="$(printf '\t')" read -r uid name; do
+      [ -e "$state/$uid" ] && continue
+      [ -n "$name" ] || name=$uid
+      local=$(echo "${uid%%@*}" | tr 'A-Z' 'a-z')
+      case $local in
+        ''|*[!a-z0-9._-]*) log "$uid: no mailbox, the user id is no valid address"; echo invalid > "$state/$uid"; continue ;;
+      esac
+      addr="$local@$domain"
+      case $(get "user/$addr") in
+        404)
+          pass=$(head -c 32 /dev/urandom | base64 | tr -d '\n')
+          [ "$(json email "$addr" raw_password "$pass" displayed_name "$name" comment "nextcloud:$uid" | post user)" = 200 ] \
+            || { log "$uid: mailbox $addr not created: $(cat "$tmp/out")"; continue; } ;;
+        200)
+          # an existing mailbox only when this script made it for this user
+          [ "$(field comment)" = "nextcloud:$uid" ] \
+            || { log "$uid: no Mail account, $addr exists for someone else"; echo taken > "$state/$uid"; continue; } ;;
+        *) log "$uid: Mailu API not ready"; continue ;;
+      esac
+      # the token works only from the networks inside the cluster
+      [ "$(json email "$addr" comment "Nextcloud Mail" 'AuthorizedIP[]' "$nets" | post token)" = 200 ] \
+        || { log "$uid: no app token for $addr: $(cat "$tmp/out")"; continue; }
+      id=$(field id)
+      token=$(field token)
+      if php occ "$create" "$uid" "$name" "$addr" "$front" 10143 none "$addr" "$token" "$front" 10025 none "$addr" "$token" >/dev/null; then
+        echo "$addr" > "$state/$uid"
+        log "$uid: Mail account $addr"
+      else
+        del "token/$id"
+        log "$uid: Mail account $addr not created"
+      fi
+    done < "$tmp/users"
+  {{- end }}

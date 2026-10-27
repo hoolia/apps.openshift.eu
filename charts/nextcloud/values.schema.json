@@ -264,6 +264,24 @@
           "type": "string",
           "title": "Default phone region",
           "description": "Country code such as NL; empty leaves it unset"
+        },
+        "apps": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9_]+$"
+          },
+          "title": "Apps installed at every start",
+          "description": "Store app ids; groupfolders is Team folders"
+        }
+      }
+    },
+    "mail": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "title": "Mailbox in the Mail app for every user"
         }
       }
     },
