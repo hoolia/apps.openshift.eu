@@ -494,6 +494,10 @@ nextcloud:
     flavor: apache
     tag: 35.0.2-apache@sha256:89af7ee7a96ff5e9668280566209268ae6b2d02327f6ef6d56f6d68228cf9431
   replicaCount: 1
+  # a chart upgrade restarts Nextcloud so its start-up setup runs again; equals the chart
+  # version (templates/validate.yaml refuses a render where it does not)
+  podAnnotations:
+    apps.openshift.eu/chart-version: 0.14.4
   nextcloud:
     host: nextcloud.example.org
     existingSecret:
