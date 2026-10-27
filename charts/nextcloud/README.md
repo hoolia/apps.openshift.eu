@@ -6,6 +6,8 @@ Nextcloud for files, calendar and contacts, with OnlyOffice for editing document
 browser. The chart runs Nextcloud on the upstream Nextcloud chart, a MariaDB database
 through the platform's MariaDB operator, and an OnlyOffice document server. Around that
 it runs Redis, the push server for the clients (notify_push) and the whiteboard backend.
+A Mailu mail server runs in the same project, and every Nextcloud user finds a mailbox on
+it in the Mail app. Team folders (the app `groupfolders`) are installed at the first start.
 Nextcloud Talk with its signaling, TURN and recording servers, an AI assistant on an
 OpenAI-compatible API, a database backup to object storage and monitoring are optional.
 For the project's agents the chart runs three MCP servers in the same project and publishes
@@ -16,7 +18,11 @@ documents MCP server (the `mcp-officeagent` chart) and a live editing MCP server
 ## Install
 
     helm repo add grncloud https://apps.openshift.eu
-    helm install nextcloud grncloud/nextcloud --set nextcloud.nextcloud.host=cloud.example.org
+    helm install nextcloud grncloud/nextcloud \
+      --set nextcloud.nextcloud.host=cloud.example.org \
+      --set mailu.upstream.domain=example.org \
+      --set mailu.upstream.initialAccount.domain=example.org \
+      --set 'mailu.upstream.hostnames={mail.example.org}'
 
 Install one release per project. The first start takes a few minutes. Read the first
 password:
@@ -36,6 +42,11 @@ password:
 | `secrets.generator.enabled` | `false` | The External Secrets Operator makes the credentials Secrets and generates their empty passwords once. |
 | `global.publicAddress.shared` | `false` | Share one public address between the public Services of the project. See Delivery instructions. |
 | `mailu.enabled` | `true` | Run a Mailu mail server in the same project. Its values are those of the `mailu` chart, under `mailu`. |
+| `mailu.upstream.domain` | `example.org` | Mail domain: the part after the @ of every mailbox. Set it. |
+| `mailu.upstream.initialAccount.domain` | `example.org` | Domain of the first mail admin account, `admin@<domain>`. Same value as the mail domain. |
+| `mailu.upstream.hostnames` | `[mail.example.org]` | Hostnames of the mail server; the first one is its name towards other mail servers and the target of the MX record. Set it to `mail.<mail domain>`. |
+| `mail.enabled` | `true` | With `mailu.enabled`: install the Mail app and give every user a mailbox on the mail server, see Mail for every user. |
+| `settings.apps` | `[groupfolders]` | Store apps installed and enabled at every start. `groupfolders` is Team folders. |
 | `hsts.enabled` | `true` | Send the Strict-Transport-Security header `hsts.header` on every hostname of this chart. |
 | `settings.maintenanceWindowStart` | `1` | Hour (UTC) at which the heavy daily jobs start. Empty: not set. |
 | `settings.defaultPhoneRegion` | empty | Country code for phone numbers without one, such as `NL`. Empty: not set. |
@@ -87,8 +98,21 @@ password:
 | `backup.schedule` | `0 2 * * *` | Time of the backup. Empty: one backup at once. |
 | `monitoring.enabled` | `false` | Exporters, ServiceMonitors and alert rules for the monitoring of your project. |
 
-A default install requests 0.75 CPU and 2.0Gi of memory. Talk adds 0.36 CPU and 0.45Gi,
-AI 0.05 CPU and 0.25Gi (the worker), monitoring 0.04 CPU and 0.13Gi.
+A default install requests 1.46 CPU and 5.1Gi of memory, within a quota of 4 CPU and 8Gi
+of requests. Each part can be switched off on its own:
+
+| Part | Value | CPU | Memory |
+|---|---|---|---|
+| Nextcloud, database, Redis, push, whiteboard, preview server | always | 0.50 | 1.2Gi |
+| Mailu mail server with webmail | `mailu.enabled` | 0.53 | 2.2Gi |
+| OnlyOffice document server | `onlyoffice.enabled` | 0.25 | 0.75Gi |
+| Nextcloud MCP server | `mcp-nextcloud.enabled` | 0.05 | 0.25Gi |
+| Office documents MCP server | `mcp-officeagent.enabled` | 0.03 | 0.16Gi |
+| Live editing MCP server | `mcp-onlyoffice-live.enabled` | 0.10 | 0.5Gi |
+
+Without OnlyOffice and the three MCP servers an install requests 1.03 CPU and 3.4Gi. Talk
+adds 0.36 CPU and 0.45Gi, AI 0.05 CPU and 0.25Gi (the worker), monitoring 0.04 CPU and
+0.13Gi.
 
 Secrets left empty are generated at the first install and kept on every upgrade with
 `helm upgrade`. A tool that renders the chart without access to the cluster, such as
@@ -112,11 +136,34 @@ stay the same under Argo CD as well. Labels and annotations for `nextcloud-admin
 with their ExternalSecrets.
 
 A script configures Nextcloud each time its pod starts: it installs and connects the
-apps of the enabled components (OnlyOffice, push server, whiteboard, Talk, AI) and
-applies the values under `settings`. It writes only these settings; other settings and
-apps you change in Nextcloud stay as they are. An app of an enabled component that you
-disable in Nextcloud is enabled again at the next start: switch the component off in
-the values instead. After you switch a component on or off with `helm upgrade`, restart
+apps of the enabled components (OnlyOffice with its document server and JWT secret, Mail,
+push server, whiteboard, Talk, AI), installs the apps of `settings.apps` and applies the
+other values under `settings`. With `onlyoffice.enabled=false` it disables the app
+`onlyoffice`. It writes only these settings; other settings and apps you change in
+Nextcloud stay as they are. An app of an enabled component that you disable in Nextcloud
+is enabled again at the next start: switch the component off in the values instead.
+
+## Mail for every user
+
+With `mailu.enabled` and `mail.enabled` (both default) every Nextcloud user finds a
+mailbox in the Mail app, also a user who logs in with OpenID Connect and has no Nextcloud
+password. Once a minute the cron container of the Nextcloud pod gives each new user:
+
+1. A mailbox `<user id>@<mail domain>` on the Mailu server, made through the Mailu API
+   with the token of the Secret `mailu-secrets` and a random password nobody uses. The
+   part of the user id before an `@` is taken, in lower case.
+2. An app token of that mailbox, valid only from the networks in `mailu.upstream.subnet`
+   (inside the cluster).
+3. A Mail account with that token, on the mail front end `mailu-front`: IMAP on port
+   10143 and SMTP on port 10025, the ports Mailu keeps for webmail inside the project.
+
+A user is handled once; the result is a file per user in `<data directory>/.chart-mail`.
+A mailbox that exists already and was not made for that user is never connected: the
+user then gets no Mail account, and the log of the container `nextcloud-cron` says so
+(`mail: <user>: no Mail account, <address> exists for someone else`). Users read their
+mail in Nextcloud. The Mailu webmail (`/webmail` on the Route `mailu`) asks for the
+mailbox password, which a user sets in the Mailu admin interface after an administrator
+sets a first one there. After you switch a component on or off with `helm upgrade`, restart
 Nextcloud and the worker:
 
     oc rollout restart deployment/nextcloud

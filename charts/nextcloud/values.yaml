@@ -18,6 +18,14 @@ settings:
   repairOnUpgrade: true
   # seconds the setup script may take; the steps left over wait for a restart
   setupTimeout: 300
+  # store apps installed and enabled at every start; groupfolders is Team folders
+  apps:
+  - groupfolders
+
+# Mail app with a mailbox <user id>@<mail domain> for every user on the mail server of
+# this chart; the mail domain is mailu.upstream.domain
+mail:
+  enabled: true
 
 # Strict-Transport-Security header of Nextcloud and of every Route
 hsts:
@@ -543,6 +551,13 @@ nextcloud:
         - secret:
             name: nextcloud-oidc
             optional: true
+        # API token of the mail server, with which the Mail app setup makes mailboxes
+        - secret:
+            name: mailu-secrets
+            optional: true
+            items:
+            - key: api-token
+              path: mailu-api-token
     extraVolumeMounts:
     - name: setup
       mountPath: /docker-entrypoint-hooks.d/before-starting/00-chart.sh
@@ -552,6 +567,10 @@ nextcloud:
       subPath: hsts.conf
     - name: setup-secrets
       mountPath: /run/secrets/setup
+      readOnly: true
+    # the scripts of the cron sidecar, updated without a restart
+    - name: setup
+      mountPath: /opt/nextcloud-chart
       readOnly: true
     configs:
       logging.config.php: |-
@@ -607,8 +626,7 @@ nextcloud:
       # cron starts when Nextcloud serves: after installation, upgrade and setup
       command:
       - sh
-      - -c
-      - until curl -fs -m 5 http://localhost/status.php | grep -q '"installed":true'; do sleep 10; done; exec /cron.sh
+      - /opt/nextcloud-chart/cron.sh
       securityContext:
         runAsUser: 0
       resources:

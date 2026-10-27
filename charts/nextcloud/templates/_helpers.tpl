@@ -216,3 +216,8 @@ metallb.io/loadBalancerIPs: {{ . | quote }}
 {{- define "wrapper.oidcActive" -}}
 {{- if and .Values.oidc.enabled .Values.oidc.discoveryUri .Values.oidc.clientId }}true{{ end -}}
 {{- end -}}
+
+{{/* Users get a mailbox in the Mail app: switched on, with the mail server of this chart */}}
+{{- define "wrapper.mailActive" -}}
+{{- if and .Values.mail.enabled .Values.mailu.enabled }}true{{ end -}}
+{{- end -}}
