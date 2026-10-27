@@ -355,7 +355,7 @@ upstream:
     updateStrategy:
       type: Recreate
     affinity: *followAdmin
-    # the probe reads master.pid on the mail volume; outlast a storage stall
+    # outlast a storage stall of the queue volume
     startupProbe:
       timeoutSeconds: 10
     livenessProbe:
@@ -363,39 +363,16 @@ upstream:
       failureThreshold: 10
     readinessProbe:
       timeoutSeconds: 10
-    # a lock on master.pid can outlive a killed postfix on network storage; the
-    # stock start script then keeps the file and postfix refuses to start. One
-    # postfix per pod (Recreate), so the start script removes it unconditionally.
-    # Replace with POSTFIX_QUEUE_EXCLUSIVE=true once Mailu/Mailu#4159 is released
-    initContainers:
-    - name: patch-startup
-      image: '{{ .Values.imageRegistry }}/{{ .Values.postfix.image.repository }}:{{ default (include "mailu.version" .) .Values.postfix.image.tag }}'
-      command:
-      - /bin/sh
-      - -c
-      - >-
-        cp /start.py /shared/start.py &&
-        sed -i 's|flock -n /queue/pid/master.pid rm /queue/pid/master.pid|rm -f /queue/pid/master.pid|' /shared/start.py
-      securityContext:
-        runAsUser: 0
-        runAsNonRoot: false
-      resources:
-        requests:
-          cpu: 10m
-          memory: 32Mi
-        limits:
-          cpu: 200m
-          memory: 128Mi
-      volumeMounts:
-      - name: startup-script
-        mountPath: /shared
+    # postfix keeps master.pid and its lock in /queue/pid: per-pod memory, not the queue
+    # volume, so a lock on network storage never outlives a killed postfix (Mailu#4161)
     extraVolumeMounts:
-    - name: startup-script
-      mountPath: /start.py
-      subPath: start.py
+    - name: queue-pid
+      mountPath: /queue/pid
     extraVolumes:
-    - name: startup-script
-      emptyDir: {}
+    - name: queue-pid
+      emptyDir:
+        medium: Memory
+        sizeLimit: 1Mi
     resources:
       requests:
         cpu: 50m
