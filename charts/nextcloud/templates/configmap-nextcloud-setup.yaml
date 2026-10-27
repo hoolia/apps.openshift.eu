@@ -182,12 +182,17 @@ data:
   {{- if include "wrapper.mailActive" . }}
   {{- $mailu := .Values.mailu.upstream }}
   {{- $name := $mailu.fullnameOverride | default "mailu" }}
-  # gives each user a mailbox <user id>@<mail domain> on the Mailu server and a Mail
-  # account with an app token of that mailbox; a user that has one is not touched again
+  {{- $domains := list }}
+  {{- range (.Values.mail.domains | default (list $mailu.domain)) }}
+  {{- $domains = append $domains (lower .) }}
+  {{- end }}
+  # gives each user whose email address is in one of the mail domains a mailbox with
+  # that address on the Mailu server and a Mail account with an app token of it; a
+  # user that has one is not touched again
   mail.sh: |
     #!/bin/sh
     cd /var/www/html
-    domain={{ required "mailu.upstream.domain is required" $mailu.domain | lower | quote }}
+    domains={{ join " " $domains | quote }}
     api="http://{{ $name }}-admin:8080{{ $mailu.api.uri | default "/api" }}/v1"
     front={{ $name }}-front
     nets={{ $mailu.subnet | quote }}
@@ -210,21 +215,34 @@ data:
     php occ list mail --raw | grep -q "^$create " || create=mail:account:create
     state="$(php occ config:system:get datadirectory)/.chart-mail"
     mkdir -p "$state"
-    case $(get "domain/$domain") in
-      200) ;;
-      404) [ "$(json name "$domain" | post domain)" = 200 ] || { log "domain $domain not created: $(cat "$tmp/out")"; exit 0; } ;;
-      *) log "Mailu API not ready"; exit 0 ;;
-    esac
-    php occ user:list --output=json --limit=100000 \
-      | php -r 'foreach (json_decode(stream_get_contents(STDIN), true) ?: [] as $u => $n) echo $u, "\t", $n, "\n";' > "$tmp/users"
-    while IFS="$(printf '\t')" read -r uid name; do
-      [ -e "$state/$uid" ] && continue
-      [ -n "$name" ] || name=$uid
-      local=$(echo "${uid%%@*}" | tr 'A-Z' 'a-z')
-      case $local in
-        ''|*[!a-z0-9._-]*) log "$uid: no mailbox, the user id is no valid address"; echo invalid > "$state/$uid"; continue ;;
+    # only the mail domains are hosted here: a domain in Mailu is local for all its mail
+    for domain in $domains; do
+      case $(get "domain/$domain") in
+        200) ;;
+        404) [ "$(json name "$domain" | post domain)" = 200 ] || { log "domain $domain not created: $(cat "$tmp/out")"; exit 0; } ;;
+        *) log "Mailu API not ready"; exit 0 ;;
       esac
-      addr="$local@$domain"
+    done
+    # user id, display name and email address as Nextcloud stores them (user_oidc: the login email)
+    php occ user:list --info --output=json --limit=100000 \
+      | php -r 'foreach (json_decode(stream_get_contents(STDIN), true) ?: [] as $u => $i)
+          echo $u, "\t", $i["display_name"] ?? "", "\t", strtolower(trim($i["email"] ?? "")), "\n";' > "$tmp/users"
+    # skip <uid> <email> <reason>: no mailbox; tried again when the email address changes
+    skip() { log "$1: no mailbox, $3"; echo "skip $2" > "$state/$1"; }
+    while IFS="$(printf '\t')" read -r uid name addr; do
+      if [ -e "$state/$uid" ]; then
+        read -r first rest < "$state/$uid" || true
+        [ "$first" = skip ] && [ "${rest:-}" != "$addr" ] || continue
+      fi
+      [ -n "$name" ] || name=$uid
+      [ -n "$addr" ] || { skip "$uid" "" "no email address"; continue; }
+      case ${addr%@*} in
+        ''|*[!a-z0-9._+-]*) skip "$uid" "$addr" "$addr is no address Mailu takes"; continue ;;
+      esac
+      case " $domains " in
+        *" ${addr#*@} "*) ;;
+        *) skip "$uid" "$addr" "${addr#*@} is not a mail domain of this server"; continue ;;
+      esac
       case $(get "user/$addr") in
         404)
           # a random password nobody knows, made inside php
@@ -235,7 +253,7 @@ data:
         200)
           # an existing mailbox only when this script made it for this user
           [ "$(field comment)" = "nextcloud:$uid" ] \
-            || { log "$uid: no Mail account, $addr exists for someone else"; echo taken > "$state/$uid"; continue; } ;;
+            || { skip "$uid" "$addr" "$addr exists for someone else"; continue; } ;;
         *) log "$uid: Mailu API not ready"; continue ;;
       esac
       # the token works only from the networks inside the cluster
