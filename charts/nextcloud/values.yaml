@@ -349,6 +349,17 @@ mailu:
 # are those of the mcp-officeagent chart
 mcp-officeagent:
   enabled: true
+  # token check in front of the server, so it can be exposed beyond the project, for
+  # example through a Route that an MCP gateway passes the caller's token to
+  auth:
+    enabled: true
+    # OpenID Connect issuer of the callers' tokens; the platform sets it once for all
+    # instances. Empty: every call but /healthz is refused
+    issuerUrl: ""
+    # a token must be issued for this Nextcloud: the instance's OpenID Connect client,
+    # named after the project. Set it to oidc.clientId when that differs
+    audiences:
+    - "{{ .Release.Namespace }}"
   documents:
     persistence:
       # the agents' documents survive deleting the Application, as the files do
