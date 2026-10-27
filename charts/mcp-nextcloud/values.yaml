@@ -14,8 +14,8 @@ nameOverride: ""
 # Nextcloud MCP server image: upstream cbcoutinho/nextcloud-mcp-server with the bearer
 # passthrough patch, published by the chart repository's maintainers
 image:
-  repository: pkg.grn.cloud/grn.cloud/nextcloud-mcp-server
-  tag: 0.201.2-bearer.2@sha256:64e576fc2874f0a1253d0af8688423b79ee307bd39ba6559a9b54cbcab0d68bf
+  repository: ghcr.io/hoolia/nextcloud-mcp-server
+  tag: 0.201.2-bearer.2@sha256:aa92feede2e9bef952bf05d38e5488caea90d5ef12d54af3a56c655a9d953517
   pullPolicy: IfNotPresent
 
 nextcloud:
