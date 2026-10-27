@@ -45,13 +45,23 @@ mailService:
 dns:
   enabled: false
   ttl: 300
+  # with egressService.enabled the outgoing address is added as a:<its hostname>
   spf: v=spf1 mx -all
   dmarc: v=DMARC1; p=quarantine
+  # MX record of the mail domain, pointing at the first of upstream.hostnames
+  mx:
+    enabled: true
+    priority: 10
 
-# Second public address, used only as the source of outgoing mail
+# Second public address, used only as the source of outgoing mail. It never shares
+# an address: receiving servers judge a sender by it.
 egressService:
   enabled: false
+  # for example the address pool annotation of the load balancer
   annotations: {}
+  # name of the outgoing address; with dns.enabled it gets an A record, which a
+  # platform that writes reverse DNS from it also uses. Empty: outbound.<domain>
+  hostname: ""
 
 # Webmail and admin interface
 route:
@@ -345,6 +355,46 @@ upstream:
     updateStrategy:
       type: Recreate
     affinity: *followAdmin
+    # the probe reads master.pid on the mail volume; outlast a storage stall
+    startupProbe:
+      timeoutSeconds: 10
+    livenessProbe:
+      timeoutSeconds: 10
+      failureThreshold: 10
+    readinessProbe:
+      timeoutSeconds: 10
+    # a lock on master.pid can outlive a killed postfix on network storage; the
+    # stock start script then keeps the file and postfix refuses to start. One
+    # postfix per pod (Recreate), so the start script removes it unconditionally
+    initContainers:
+    - name: patch-startup
+      image: '{{ .Values.imageRegistry }}/{{ .Values.postfix.image.repository }}:{{ default (include "mailu.version" .) .Values.postfix.image.tag }}'
+      command:
+      - /bin/sh
+      - -c
+      - >-
+        cp /start.py /shared/start.py &&
+        sed -i 's|flock -n /queue/pid/master.pid rm /queue/pid/master.pid|rm -f /queue/pid/master.pid|' /shared/start.py
+      securityContext:
+        runAsUser: 0
+        runAsNonRoot: false
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+        limits:
+          cpu: 200m
+          memory: 128Mi
+      volumeMounts:
+      - name: startup-script
+        mountPath: /shared
+    extraVolumeMounts:
+    - name: startup-script
+      mountPath: /start.py
+      subPath: start.py
+    extraVolumes:
+    - name: startup-script
+      emptyDir: {}
     resources:
       requests:
         cpu: 50m
@@ -356,6 +406,14 @@ upstream:
   rspamd:
     containerSecurityContext: *root
     affinity: *followAdmin
+    # rspamd keeps its state on the mail volume; outlast a storage stall
+    startupProbe:
+      timeoutSeconds: 10
+    livenessProbe:
+      timeoutSeconds: 10
+      failureThreshold: 10
+    readinessProbe:
+      timeoutSeconds: 10
     # text, not a list: the DKIM key is mounted only with global.dkim.managed
     extraVolumes: |
       - name: override-d
