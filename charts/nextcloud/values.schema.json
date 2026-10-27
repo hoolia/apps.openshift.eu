@@ -57,6 +57,12 @@
           "type": "boolean",
           "title": "Lock open files",
           "description": "Enable the Nextcloud app files_lock, so a file open in OnlyOffice cannot be overwritten by another write"
+        },
+        "editFormats": {
+          "type": "array",
+          "items": {"type": "string", "enum": ["odt", "ods", "odp", "rtf", "txt", "csv"]},
+          "title": "Editable formats",
+          "description": "Formats OnlyOffice opens for editing besides docx, xlsx and pptx; saving them may lose formatting"
         }
       }
     },

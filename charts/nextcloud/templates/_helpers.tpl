@@ -221,3 +221,10 @@ metallb.io/loadBalancerIPs: {{ . | quote }}
 {{- define "wrapper.mailActive" -}}
 {{- if and .Values.mail.enabled .Values.mailu.enabled }}true{{ end -}}
 {{- end -}}
+
+{{/* editFormats of the ONLYOFFICE connector: {"odt":true,...} from onlyoffice.editFormats */}}
+{{- define "wrapper.onlyofficeEditFormats" -}}
+{{- $f := dict -}}
+{{- range .Values.onlyoffice.editFormats }}{{ $_ := set $f (toString .) true }}{{ end -}}
+{{- toJson $f -}}
+{{- end -}}

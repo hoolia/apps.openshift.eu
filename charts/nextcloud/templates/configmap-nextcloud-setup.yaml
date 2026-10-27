@@ -89,6 +89,8 @@ data:
     set_app onlyoffice StorageUrl "{{ include "wrapper.internalUrl" . }}/"
     set_app_secret onlyoffice jwt_secret jwt-secret
     set_app onlyoffice jwt_header Authorization
+    # formats the editor opens for editing although saving them may lose formatting
+    set_app onlyoffice editFormats '{{ include "wrapper.onlyofficeEditFormats" . }}'
     {{- if .Values.onlyoffice.lockFiles }}
     # ONLYOFFICE locks a file through files_lock while it is open in the editor
     app files_lock
