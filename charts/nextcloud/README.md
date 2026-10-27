@@ -55,7 +55,7 @@ password:
 | `mcp-officeagent.auth.enabled` | `true` | Check the caller's bearer token before the MCP server, so it can be exposed beyond the project. |
 | `mcp-officeagent.auth.issuerUrl` | empty | OpenID Connect issuer of the callers' tokens, set once by the platform for every instance. Empty: every call but the health paths is refused. |
 | `mcp-officeagent.auth.audiences` | the release namespace | A token must be issued for one of these. The default is the instance's OpenID Connect client named after its project; set `oidc.clientId` here when it differs. |
-| `mcp-officeagent.auth.allowedGroups` | `<tenant>-admins` | A token must carry one of these groups. The default is the administrators group of the tenant, the part of the project name before the first `-`: `hoolia-admins` in `hoolia-nextcloud`. |
+| `mcp-officeagent.auth.allowedGroups` | `<tenant>-admins` | A token must carry one of these groups. The default is the administrators group of the tenant, the part of the project name before the first `-`: `acme-admins` in `acme-nextcloud`. |
 | `mcp-officeagent.auth.resourceUrl` | empty | Public address of the server, `https://<host>/mcp/officeagent`, named in its protected resource metadata so agents can discover the issuer. |
 | `mcp-officeagent.auth.cookieSecret`, `mcp-officeagent.auth.clientSecret` | generated once | Secrets the token check requires; a GitOps tool that renders without cluster access passes them. |
 | `mcp-onlyoffice-live.enabled` | `true` | Run the live editing MCP server for agents in the same project. Its values are those of the `mcp-onlyoffice-live` chart, under `mcp-onlyoffice-live`. |
