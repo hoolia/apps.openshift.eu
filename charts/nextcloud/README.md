@@ -200,8 +200,8 @@ untouched. Install the skipped release first. A new install starts at the latest
   | `CNAME` | `signaling-<host>` (or `talk.signaling.host`) | `<ingress>` | Talk |
   | `A` | `turn-<host>` (or `talk.turn.host`) | address of `oc get service nextcloud-turn` | Talk across networks, with `talk.turn.public` |
   | `A` | `mail.<mail domain>` | address of `oc get service mailu-front-ext` | Mail |
-  | `MX` | `<mail domain>` | `10 mail.<mail domain>.` | Mail. Never written by the platform: ask the platform team for a mail domain in a zone of the platform. |
-  | `TXT` | `<mail domain>` | `v=spf1 mx -all` | Mail (SPF) |
+  | `MX` | `<mail domain>` | `10 mail.<mail domain>.` | Mail. Requested with `mailu.dns.enabled`; a DNS provider that does not write `MX` records leaves it to you. |
+  | `TXT` | `<mail domain>` | `v=spf1 mx -all` | Mail (SPF). With `mailu.egressService.enabled` it also names the outgoing address, see the `mailu` chart. |
   | `TXT` | `dkim._domainkey.<mail domain>` | record shown in the mail admin interface under Mail domains, Details | Mail (DKIM). Written by the platform with `global.dkim.managed=true`. |
   | `TXT` | `_dmarc.<mail domain>` | `v=DMARC1; p=quarantine` | Mail (DMARC) |
 
@@ -231,8 +231,9 @@ untouched. Install the skipped release first. A new install starts at the latest
      read the address with `oc get service nextcloud-turn` and create the A record
      yourself.
   3. The TURN server reads its public address from that DNS name when it starts and
-     restarts itself when the name changes. Set `talk.turn.externalIP` only to
-     override this.
+     restarts itself when the name changes. Until the name resolves it runs without a
+     public address, so calls inside the cluster's network work and the pod is ready.
+     Set `talk.turn.externalIP` only to override this.
   4. The Service and a NetworkPolicy open TCP and UDP port 3478 and the UDP ports
      `talk.turn.relayPorts.min` to `max`. Ask the platform team to allow them when a
      firewall sits in front of the pool.
