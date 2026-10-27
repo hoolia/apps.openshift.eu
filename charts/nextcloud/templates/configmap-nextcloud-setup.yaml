@@ -56,6 +56,8 @@ data:
       fi
     fi
     set_sys trusted_domains 9 --value=nextcloud
+    # occ and cron build links and tell Talk's signaling server who calls with this URL
+    set_sys overwrite.cli.url --value=https://{{ include "wrapper.host" . }}
     {{- if ne (toString $set.maintenanceWindowStart) "" }}
     set_sys maintenance_window_start --type=integer --value={{ $set.maintenanceWindowStart }}
     {{- end }}
