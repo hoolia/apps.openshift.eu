@@ -36,10 +36,11 @@ spec:
         # users and channels cache
         - name: XDG_CACHE_HOME
           value: /tmp/cache
+        # with auth.enabled only the token check in the same pod reaches the server
         - name: SLACK_MCP_HOST
-          value: 0.0.0.0
+          value: {{ include "mcp-auth.serverHost" . }}
         - name: SLACK_MCP_PORT
-          value: {{ .Values.port | quote }}
+          value: {{ include "mcp-auth.serverPort" (dict "root" . "port" .Values.port) | quote }}
         - name: SLACK_MCP_CACHE_TTL
           value: {{ .Values.slack.cacheTtl | quote }}
         - name: SLACK_MCP_LOG_LEVEL
@@ -59,6 +60,26 @@ spec:
             secretKeyRef:
               name: {{ include "mcp-slack.tokenSecret" . }}
               key: {{ .Values.slack.tokenKey }}
+        {{- if .Values.auth.enabled }}
+        # the server has no health path and listens on localhost: a TCP check from inside
+        readinessProbe:
+          exec:
+            command:
+            - nc
+            - -z
+            - 127.0.0.1
+            - {{ .Values.auth.upstreamPort | quote }}
+          periodSeconds: 10
+        livenessProbe:
+          exec:
+            command:
+            - nc
+            - -z
+            - 127.0.0.1
+            - {{ .Values.auth.upstreamPort | quote }}
+          initialDelaySeconds: 20
+          periodSeconds: 30
+        {{- else }}
         ports:
         - name: mcp
           containerPort: {{ .Values.port }}
@@ -72,6 +93,7 @@ spec:
             port: mcp
           initialDelaySeconds: 20
           periodSeconds: 30
+        {{- end }}
         resources:
           {{- toYaml .Values.resources | nindent 10 }}
         securityContext:
@@ -85,7 +107,13 @@ spec:
         volumeMounts:
         - name: tmp
           mountPath: /tmp
+      {{- if .Values.auth.enabled }}
+      {{- include "mcp-auth.container" (dict "root" . "name" (include "mcp-slack.name" .) "port" .Values.port) | nindent 6 }}
+      {{- end }}
       volumes:
       - name: tmp
         emptyDir: {}
+      {{- with include "mcp-auth.volumes" (dict "root" . "name" (include "mcp-slack.name" .)) }}
+      {{- . | nindent 6 }}
+      {{- end }}
 {{- end }}

@@ -19,7 +19,8 @@ class CatalogTest(unittest.TestCase):
         self.assertGreater(len(cat), 0)
         self.assertEqual(catalog.problems(cat), [])
         self.assertEqual(cat["nextcloud"]["type"], "app")
-        self.assertEqual(cat["atlassian-mcp"]["type"], "mcp-server")
+        self.assertEqual(cat["mcp-atlassian"]["type"], "mcp-server")
+        self.assertNotIn("mcp-auth", cat)
 
     def test_types_and_fallbacks(self):
         with tempfile.TemporaryDirectory() as d:

@@ -1,22 +1,23 @@
 {{- if not (or .Values.jira.url .Values.confluence.url) }}{{ fail "jira.url or confluence.url is required" }}{{ end }}
 {{- if and (eq .Values.credentials.mode "shared") (not .Values.credentials.existingSecret) }}{{ fail "credentials.existingSecret is required in shared mode" }}{{ end }}
+{{- if and .Values.auth.enabled (eq .Values.credentials.mode "perCaller") }}{{ fail "auth.enabled needs credentials.mode shared: the token check takes the Authorization header that perCaller mode reads the Atlassian account from" }}{{ end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ .Release.Name }}
-  namespace: {{ include "atlassian-mcp.namespace" . }}
+  namespace: {{ include "mcp-atlassian.namespace" . }}
   labels:
-    {{- include "atlassian-mcp.labels" . | nindent 4 }}
+    {{- include "mcp-atlassian.labels" . | nindent 4 }}
     app.kubernetes.io/component: server
 spec:
   replicas: 1
   selector:
     matchLabels:
-      {{- include "atlassian-mcp.selectorLabels" . | nindent 6 }}
+      {{- include "mcp-atlassian.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       labels:
-        {{- include "atlassian-mcp.selectorLabels" . | nindent 8 }}
+        {{- include "mcp-atlassian.selectorLabels" . | nindent 8 }}
         {{- with .Values.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -35,10 +36,11 @@ spec:
         - --transport
         - streamable-http
         - --stateless
+        # with auth.enabled only the token check in the same pod reaches the server
         - --host
-        - 0.0.0.0
+        - {{ include "mcp-auth.serverHost" . }}
         - --port
-        - {{ .Values.port | quote }}
+        - {{ include "mcp-auth.serverPort" (dict "root" . "port" .Values.port) | quote }}
         env:
         - name: HOME
           value: /tmp
@@ -70,6 +72,20 @@ spec:
         - secretRef:
             name: {{ .Values.credentials.existingSecret }}
         {{- end }}
+        {{- if .Values.auth.enabled }}
+        # through the token check, which lets /healthz pass
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: {{ .Values.port }}
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: {{ .Values.port }}
+          initialDelaySeconds: 20
+          periodSeconds: 30
+        {{- else }}
         ports:
         - name: mcp
           containerPort: {{ .Values.port }}
@@ -83,6 +99,7 @@ spec:
             port: mcp
           initialDelaySeconds: 20
           periodSeconds: 30
+        {{- end }}
         resources:
           {{- toYaml .Values.resources | nindent 10 }}
         securityContext:
@@ -96,6 +113,12 @@ spec:
         volumeMounts:
         - name: tmp
           mountPath: /tmp
+      {{- if .Values.auth.enabled }}
+      {{- include "mcp-auth.container" (dict "root" . "name" .Release.Name "port" .Values.port "healthPath" "/healthz") | nindent 6 }}
+      {{- end }}
       volumes:
       - name: tmp
         emptyDir: {}
+      {{- with include "mcp-auth.volumes" (dict "root" . "name" .Release.Name) }}
+      {{- . | nindent 6 }}
+      {{- end }}

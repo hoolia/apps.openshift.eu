@@ -1,4 +1,7 @@
-# atlassian-mcp
+# mcp-atlassian
+
+This chart supersedes `atlassian-mcp`, the earlier name of the same chart. Its releases stay
+available; new versions are published under this name only.
 
 Jira and Confluence of an Atlassian Cloud site as an MCP server
 ([sooperset/mcp-atlassian](https://github.com/sooperset/mcp-atlassian)), streamable HTTP on
@@ -24,11 +27,23 @@ port 8000, path `/mcp`, for a tenant or one of its teams.
 - Egress reaches the public internet only, plus DNS. No cluster-scoped objects, no Kubernetes
   API access.
 
+### Token check
+
+`auth.enabled` (default: false) puts the token check of the library chart `mcp-auth` in
+front of the server: an oauth2-proxy sidecar takes the Service port and the server listens
+on `127.0.0.1:auth.upstreamPort` (default: 18000) only. Every request but `GET /healthz` needs a bearer
+JWT that `auth.issuerUrl` signed for one of `auth.audiences` (default: the release
+namespace), else 401; a token whose groups claim names none of `auth.allowedGroups` gets
+403. The caller's `Authorization` header reaches the server unchanged, streams pass as they
+come, and `/.well-known/oauth-protected-resource` names the issuer without a token (RFC
+9728). Without `auth.issuerUrl` every request but the health paths is refused. The README
+of `mcp-auth` lists every `auth.*` value. The token check takes the `Authorization` header that `credentials.mode: perCaller` reads the caller's Atlassian account from, so it needs `credentials.mode: shared`; the chart refuses to render the two together.
+
 ## Install
 
 ```bash
 helm repo add apps https://apps.openshift.eu
-helm install atlassian apps/atlassian-mcp \
+helm install atlassian apps/mcp-atlassian \
   --set jira.url=https://example.atlassian.net \
   --set confluence.url=https://example.atlassian.net/wiki
 ```

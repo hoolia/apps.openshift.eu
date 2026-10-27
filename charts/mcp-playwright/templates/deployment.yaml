@@ -4,17 +4,17 @@ metadata:
   name: {{ .Release.Name }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "playwright-mcp.labels" . | nindent 4 }}
+    {{- include "mcp-playwright.labels" . | nindent 4 }}
     app.kubernetes.io/component: server
 spec:
   replicas: 1
   selector:
     matchLabels:
-      {{- include "playwright-mcp.selectorLabels" . | nindent 6 }}
+      {{- include "mcp-playwright.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       labels:
-        {{- include "playwright-mcp.selectorLabels" . | nindent 8 }}
+        {{- include "mcp-playwright.selectorLabels" . | nindent 8 }}
         {{- with .Values.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -36,8 +36,9 @@ spec:
         - --no-sandbox
         # A fresh in-memory profile per MCP session; sessions share nothing
         - --isolated
-        - --port={{ .Values.port }}
-        - --host=0.0.0.0
+        # with auth.enabled only the token check in the same pod reaches the server
+        - --port={{ include "mcp-auth.serverPort" (dict "root" . "port" .Values.port) }}
+        - --host={{ include "mcp-auth.serverHost" . }}
         # Callers arrive with the Service name or a gateway host as Host
         - --allowed-hosts=*
         - --output-dir=/tmp/output
@@ -47,6 +48,24 @@ spec:
         env:
         - name: HOME
           value: /tmp
+        {{- if .Values.auth.enabled }}
+        # the server has no health path and listens on localhost: a TCP check from inside
+        readinessProbe:
+          exec:
+            command:
+            - node
+            - -e
+            - require('net').connect({{ .Values.auth.upstreamPort }}, '127.0.0.1').on('connect', () => process.exit(0)).on('error', () => process.exit(1))
+          periodSeconds: 10
+        livenessProbe:
+          exec:
+            command:
+            - node
+            - -e
+            - require('net').connect({{ .Values.auth.upstreamPort }}, '127.0.0.1').on('connect', () => process.exit(0)).on('error', () => process.exit(1))
+          initialDelaySeconds: 20
+          periodSeconds: 30
+        {{- else }}
         ports:
         - name: mcp
           containerPort: {{ .Values.port }}
@@ -60,6 +79,7 @@ spec:
             port: mcp
           initialDelaySeconds: 20
           periodSeconds: 30
+        {{- end }}
         resources:
           {{- toYaml .Values.resources | nindent 10 }}
         securityContext:
@@ -75,9 +95,15 @@ spec:
           mountPath: /tmp
         - name: shm
           mountPath: /dev/shm
+      {{- if .Values.auth.enabled }}
+      {{- include "mcp-auth.container" (dict "root" . "name" .Release.Name "port" .Values.port) | nindent 6 }}
+      {{- end }}
       volumes:
       - name: tmp
         emptyDir: {}
+      {{- with include "mcp-auth.volumes" (dict "root" . "name" .Release.Name) }}
+      {{- . | nindent 6 }}
+      {{- end }}
       # Chromium needs more shared memory than the 64Mi default
       - name: shm
         emptyDir:

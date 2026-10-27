@@ -4,7 +4,7 @@ metadata:
   name: {{ .Release.Name }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "playwright-mcp.labels" . | nindent 4 }}
+    {{- include "mcp-playwright.labels" . | nindent 4 }}
     app.kubernetes.io/component: server
   annotations:
     agentgateway.dev/mcp-path: /mcp
@@ -12,7 +12,7 @@ metadata:
 spec:
   type: ClusterIP
   selector:
-    {{- include "playwright-mcp.selectorLabels" . | nindent 4 }}
+    {{- include "mcp-playwright.selectorLabels" . | nindent 4 }}
   ports:
   - name: mcp
     port: {{ .Values.port }}
