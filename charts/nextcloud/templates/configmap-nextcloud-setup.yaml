@@ -173,7 +173,8 @@ data:
     nets={{ $mailu.subnet | quote }}
     log() { echo "mail: $*"; }
     [ -s /run/secrets/setup/mailu-api-token ] || { log "no Mailu API token"; exit 0; }
-    tmp=$(mktemp -d) && trap 'rm -rf "$tmp"' EXIT
+    # secrets go through files in memory and the environment, never on a command line
+    tmp=$(mktemp -d -p /dev/shm 2>/dev/null || mktemp -d) && trap 'rm -rf "$tmp"' EXIT
     printf 'Authorization: Bearer %s\n' "$(cat /run/secrets/setup/mailu-api-token)" > "$tmp/auth"
     # get <path> | post <path> < json: the status code; the body is in $tmp/out
     get() { curl -s -m 20 -o "$tmp/out" -w '%{http_code}' -H @"$tmp/auth" "$api/$1"; }
@@ -206,8 +207,10 @@ data:
       addr="$local@$domain"
       case $(get "user/$addr") in
         404)
-          pass=$(head -c 32 /dev/urandom | base64 | tr -d '\n')
-          [ "$(json email "$addr" raw_password "$pass" displayed_name "$name" comment "nextcloud:$uid" | post user)" = 200 ] \
+          # a random password nobody knows, made inside php
+          [ "$(ADDR="$addr" NAME="$name" UID_="$uid" php -r 'echo json_encode(["email" => getenv("ADDR"),
+            "raw_password" => base64_encode(random_bytes(24)), "displayed_name" => getenv("NAME"),
+            "comment" => "nextcloud:" . getenv("UID_")]);' | post user)" = 200 ] \
             || { log "$uid: mailbox $addr not created: $(cat "$tmp/out")"; continue; } ;;
         200)
           # an existing mailbox only when this script made it for this user
@@ -219,8 +222,15 @@ data:
       [ "$(json email "$addr" comment "Nextcloud Mail" 'AuthorizedIP[]' "$nets" | post token)" = 200 ] \
         || { log "$uid: no app token for $addr: $(cat "$tmp/out")"; continue; }
       id=$(field id)
-      token=$(field token)
-      if php occ "$create" "$uid" "$name" "$addr" "$front" 10143 none "$addr" "$token" "$front" 10025 none "$addr" "$token" >/dev/null; then
+      # occ runs inside php with the token read from the API answer, so no argv holds it
+      if CREATE="$create" UID_="$uid" NAME="$name" ADDR="$addr" FRONT="$front" ANSWER="$tmp/out" php -r '
+        $t = json_decode(file_get_contents(getenv("ANSWER")), true)["token"] ?? "";
+        unlink(getenv("ANSWER"));
+        if ($t === "") exit(1);
+        $a = getenv("ADDR"); $f = getenv("FRONT");
+        $argv = ["occ", getenv("CREATE"), getenv("UID_"), getenv("NAME"), $a, $f, "10143", "none", $a, $t, $f, "10025", "none", $a, $t];
+        $_SERVER["argv"] = $argv; $_SERVER["argc"] = $argc = count($argv);
+        require "/var/www/html/console.php";' >/dev/null; then
         echo "$addr" > "$state/$uid"
         log "$uid: Mail account $addr"
         # the mailboxes, Sent among them, are known before the user first sends
