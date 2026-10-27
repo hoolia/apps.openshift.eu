@@ -30,6 +30,8 @@ jobs:
       run: ci/test-mcp-officeagent.sh
     - name: Test agent-identity token proxy
       run: python3 -m unittest images/agent-identity/test_token_proxy.py
+    - name: Test openhands MCP sync agent token routing
+      run: python3 -m unittest ci/test_openhands_mcp_sync.py
     - name: Test opencode-agent UI proxy
       run: python3 -m unittest ci/test_opencode_agent_ui_proxy.py
     - name: Test openwebui chart
