@@ -4,7 +4,7 @@
 
 Runs the Nextcloud MCP server [cbcoutinho/nextcloud-mcp-server](https://github.com/cbcoutinho/nextcloud-mcp-server) in your project for its agents: files (WebDAV), notes, calendar, contacts, deck, tables, cookbook, news and talk of one Nextcloud, always as the calling account. The server holds no Nextcloud credential of its own (`MCP_DEPLOYMENT_MODE=multi_user_basic`): it passes each caller's `Authorization` header to Nextcloud, a bearer token that Nextcloud's `user_oidc` app accepts (`nextcloud.bearerPassthrough`) or Basic with an app password. Nextcloud decides who the caller is and what it may read; a call without a credential gets 401. The server therefore needs no token check in front of it.
 
-The default image `pkg.grn.cloud/grn.cloud/nextcloud-mcp-server:0.201.2-bearer.2` (pinned by digest, pullable without login) is upstream 0.201.2 with the bearer passthrough patch; the upstream releases up to 0.202.1 pass no bearer token through.
+The default image `ghcr.io/hoolia/nextcloud-mcp-server:0.201.2-bearer.2` (pinned by digest, built from `images/nextcloud-mcp-server` in this repository) is upstream 0.201.2 with the bearer passthrough patch; the upstream releases up to 0.202.1 pass no bearer token through.
 
 The server listens on streamable HTTP at `/mcp` on port `port`. Its objects are named `mcp-nextcloud`, so they never collide with those of Nextcloud in the same project. The Service carries the port `appProtocol: agentgateway.dev/mcp` and the annotations `agentgateway.dev/mcp-path` and `agentgateway.dev/mcp-target-name: nextcloud`; the NetworkPolicy admits the own project and `networkPolicy.ingressNamespaces`, and lets the server reach DNS and its own project, where Nextcloud runs. Semantic search state stays in memory.
 
@@ -20,7 +20,7 @@ The `nextcloud` chart of this repository installs it as a dependency and publish
 - `team`, `tenant` (default: empty): Install into `<tenant>-<team>` instead of the release namespace.
 - `enabled` (default: true): Switch of the server inside a parent chart.
 - `nameOverride` (default: empty, meaning `mcp-<mcp.server>`): Name of the objects.
-- `image.repository`, `image.tag` (default: `pkg.grn.cloud/grn.cloud/nextcloud-mcp-server`, `0.201.2-bearer.2` by digest): Server image.
+- `image.repository`, `image.tag` (default: `ghcr.io/hoolia/nextcloud-mcp-server`, `0.201.2-bearer.2` by digest): Server image.
 - `nextcloud.url` (default: `http://nextcloud:8080`): Address of Nextcloud the server calls.
 - `nextcloud.deploymentMode` (default: `multi_user_basic`): `MCP_DEPLOYMENT_MODE` of the server.
 - `nextcloud.bearerPassthrough` (default: true): Pass the caller's bearer token to Nextcloud.

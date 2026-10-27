@@ -44,11 +44,11 @@ for c in charts/*/; do
     lab=$(echo "$out" | python3 ci/check_labels.py "$n") || { echo "FAIL $n: labels in $mode render:"; echo "$lab" | sed 's/^/  /'; fail=1; }
   done
   # a public upstream source archive and an image this repository's maintainers publish
-  # (images/, or a patched upstream build on pkg.grn.cloud) are
+  # (images/) are
   # provenance, not platform identity; the neutral MCP label domain mcp.openshift.eu is
   # shared by every chart
   id=$(grep -rniE 'grncloud|grn\.cloud|hoolia|berry|146\.19\.|openshift\.eu|panther' "$c/templates" "$c/values.yaml" |
-    grep -vE '^[^:]+:[0-9]+:\s*(package: opencode-a2a @ https://github\.com/hoolia/opencode-a2a/archive/|version: [0-9.]+\+hoolia\.[0-9]+$|repository: (ghcr\.io/hoolia|pkg\.grn\.cloud/grn\.cloud)/[a-z0-9-]+$)' |
+    grep -vE '^[^:]+:[0-9]+:\s*(package: opencode-a2a @ https://github\.com/hoolia/opencode-a2a/archive/|version: [0-9.]+\+hoolia\.[0-9]+$|repository: ghcr\.io/hoolia/[a-z0-9-]+$)' |
     sed -E 's/mcp\.openshift\.eu//gI' | grep -iE 'grncloud|grn\.cloud|hoolia|berry|146\.19\.|openshift\.eu|panther' ||
     true)
   [ -z "$id" ] || { echo "FAIL $n: platform identity: $id"; fail=1; }
