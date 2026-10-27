@@ -8,9 +8,10 @@ through the platform's MariaDB operator, and an OnlyOffice document server. Arou
 it runs Redis, the push server for the clients (notify_push) and the whiteboard backend.
 Nextcloud Talk with its signaling, TURN and recording servers, an AI assistant on an
 OpenAI-compatible API, a database backup to object storage and monitoring are optional.
-For the project's agents the chart runs an Office documents MCP server (the
-`mcp-officeagent` chart) and a live editing MCP server (the `mcp-onlyoffice-live` chart)
-in the same project.
+For the project's agents the chart runs three MCP servers in the same project and publishes
+them on the Nextcloud host: the Nextcloud MCP server (the `mcp-nextcloud` chart), an Office
+documents MCP server (the `mcp-officeagent` chart) and a live editing MCP server (the
+`mcp-onlyoffice-live` chart).
 
 ## Install
 
@@ -43,15 +44,23 @@ password:
 | `cache.enabled` | `true` | Redis for file locking and cache. Always runs when notify_push, the whiteboard or the worker is on. |
 | `notifyPush.enabled` | `true` | Push server for the desktop and mobile clients, under `/push`. |
 | `whiteboard.enabled` | `true` | Backend of the whiteboard app, under `/whiteboard`. |
+| `mcp.route.enabled` | `true` | Publish each MCP server on the Nextcloud host at `/mcp/<server>`, see MCP servers on the Nextcloud host. |
+| `mcp.route.timeout` | `300s` | Longest wait of the router for an MCP server's response. |
+| `mcp.route.labels`, `mcp.route.annotations` | empty | Extra labels and annotations of the MCP Routes, for example a label of the platform. |
+| `mcp-nextcloud.enabled` | `true` | Run the Nextcloud MCP server for agents in the same project. Its values are those of the `mcp-nextcloud` chart, under `mcp-nextcloud`. |
+| `mcp-nextcloud.networkPolicy.ingressNamespaces` | the router | Namespaces (label selectors) that may call the Nextcloud MCP server besides the own project. |
 | `mcp-officeagent.enabled` | `true` | Run the Office documents MCP server for agents in the same project. Its values are those of the `mcp-officeagent` chart, under `mcp-officeagent`. |
 | `mcp-officeagent.service.labels` | empty | Extra labels on the MCP server's Service, for example the exposure label of an MCP gateway. |
-| `mcp-officeagent.networkPolicy.ingressNamespaces` | empty | Namespaces (label selectors) that may call the MCP server besides the own project, for example the namespace of an MCP gateway. |
+| `mcp-officeagent.networkPolicy.ingressNamespaces` | the router | Namespaces (label selectors) that may call the MCP server besides the own project: the router for the Route, and for example the namespace of an MCP gateway. |
 | `mcp-officeagent.auth.enabled` | `true` | Check the caller's bearer token before the MCP server, so it can be exposed beyond the project. |
-| `mcp-officeagent.auth.issuerUrl` | empty | OpenID Connect issuer of the callers' tokens, set once by the platform for every instance. Empty: every call but `/healthz` is refused. |
+| `mcp-officeagent.auth.issuerUrl` | empty | OpenID Connect issuer of the callers' tokens, set once by the platform for every instance. Empty: every call but the health paths is refused. |
 | `mcp-officeagent.auth.audiences` | the release namespace | A token must be issued for one of these. The default is the instance's OpenID Connect client named after its project; set `oidc.clientId` here when it differs. |
+| `mcp-officeagent.auth.allowedGroups` | `<tenant>-admins` | A token must carry one of these groups. The default is the administrators group of the tenant, the part of the project name before the first `-`: `hoolia-admins` in `hoolia-nextcloud`. |
+| `mcp-officeagent.auth.resourceUrl` | empty | Public address of the server, `https://<host>/mcp/officeagent`, named in its protected resource metadata so agents can discover the issuer. |
+| `mcp-officeagent.auth.cookieSecret`, `mcp-officeagent.auth.clientSecret` | generated once | Secrets the token check requires; a GitOps tool that renders without cluster access passes them. |
 | `mcp-onlyoffice-live.enabled` | `true` | Run the live editing MCP server for agents in the same project. Its values are those of the `mcp-onlyoffice-live` chart, under `mcp-onlyoffice-live`. |
 | `mcp-onlyoffice-live.service.labels` | empty | Extra labels on the live editing server's Service, for example the exposure label of an MCP gateway. |
-| `mcp-onlyoffice-live.networkPolicy.ingressNamespaces` | empty | Namespaces (label selectors) that may call the live editing server besides the own project. |
+| `mcp-onlyoffice-live.networkPolicy.ingressNamespaces` | the router | Namespaces (label selectors) that may call the live editing server besides the own project. |
 | `taskprocessing.enabled` | `false` | Worker that runs queued tasks at once. Always runs when `ai.enabled`. |
 | `ai.enabled` | `false` | Assistant and the OpenAI integration app. Also runs the worker and Redis. |
 | `ai.url` | empty | Address of the OpenAI-compatible API, ending in `/v1`. Required with `ai.enabled`. |
@@ -139,9 +148,10 @@ under Versions in the file's details.
 
 The server checks every caller's token (`mcp-officeagent.auth.enabled`, on by default): a
 bearer JWT of `mcp-officeagent.auth.issuerUrl` issued for this instance, by default the
-OpenID Connect client named after the project. A gateway that passes the caller's own token
-through can then reach it through a Route of the Service `officeagent`. Until the issuer is
-set the server refuses every call but `/healthz`; Nextcloud itself is not affected.
+OpenID Connect client named after the project, from a member of the tenant's administrators
+group (`mcp-officeagent.auth.allowedGroups`). Without a token the answer is 401, from
+another group 403. Until the issuer is set the server refuses every call but its health
+paths; Nextcloud itself is not affected.
 
 A file that is open in OnlyOffice is overwritten by the editor's next save, so step 4
 fails with `423 Locked` while anyone has the file open (`onlyoffice.lockFiles`). Edit such
@@ -168,6 +178,74 @@ tracked changes carry the agent's name. Tools, named `office-live_*` behind a ga
 
 A second MCP server for live co-editing in the open document may be added to this chart
 later.
+
+## MCP servers on the Nextcloud host
+
+With `mcp.route.enabled` (default) every enabled MCP server gets a Route on the host of
+Nextcloud, without a certificate of its own: the certificate of the Route `nextcloud`
+covers the host. The router rewrites the path to the server's own MCP path and waits
+`mcp.route.timeout` for an answer.
+
+| Server | Address | Route | Rewritten to | Caller's credential checked by |
+|---|---|---|---|---|
+| `mcp-nextcloud` | `https://<host>/mcp/nextcloud` | `mcp-nextcloud` | `/mcp` | Nextcloud (`user_oidc`) |
+| `mcp-officeagent` | `https://<host>/mcp/officeagent` | `mcp-officeagent` | `/` | the token check: issuer, audience, group |
+| `mcp-onlyoffice-live` | `https://<host>/mcp/office-live` | `mcp-office-live` | `/mcp` | Nextcloud (`user_oidc`) |
+
+With an issuer set, the Route `mcp-officeagent-metadata` also serves the officeagent's
+protected resource metadata at its well-known address,
+`https://<host>/.well-known/oauth-protected-resource/mcp/officeagent`. The NetworkPolicy
+of each server admits the router (`network.openshift.io/policy-group: ingress`).
+
+An agent in another namespace or cluster reaches a server with its own OpenID Connect
+token. For an agent chart that routes tokens by the `mcp.openshift.eu/auth` annotations
+(the `openhands` chart), the agent's namespace holds one RemoteMCPServer per server, with
+`<host>`, `<issuer>` and the namespace filled in:
+
+```yaml
+apiVersion: kagent.dev/v1alpha2
+kind: RemoteMCPServer
+metadata:
+  name: nextcloud
+  namespace: <agent namespace>
+  annotations:
+    mcp.openshift.eu/auth: oidc
+    mcp.openshift.eu/oidc-issuer: <issuer>
+spec:
+  description: Nextcloud files, notes, calendar and contacts
+  url: https://<host>/mcp/nextcloud
+  protocol: STREAMABLE_HTTP
+---
+apiVersion: kagent.dev/v1alpha2
+kind: RemoteMCPServer
+metadata:
+  name: officeagent
+  namespace: <agent namespace>
+  annotations:
+    mcp.openshift.eu/auth: oidc
+    mcp.openshift.eu/oidc-issuer: <issuer>
+spec:
+  description: Word, PowerPoint and Excel documents
+  url: https://<host>/mcp/officeagent
+  protocol: STREAMABLE_HTTP
+---
+apiVersion: kagent.dev/v1alpha2
+kind: RemoteMCPServer
+metadata:
+  name: office-live
+  namespace: <agent namespace>
+  annotations:
+    mcp.openshift.eu/auth: oidc
+    mcp.openshift.eu/oidc-issuer: <issuer>
+spec:
+  description: Live co-editing of documents in ONLYOFFICE
+  url: https://<host>/mcp/office-live
+  protocol: STREAMABLE_HTTP
+```
+
+The agent's token must name this instance's OpenID Connect client in `aud`, so Nextcloud
+and the token check accept it, and carry the group of `mcp-officeagent.auth.allowedGroups`
+for the officeagent.
 
 ## Nextcloud versions
 

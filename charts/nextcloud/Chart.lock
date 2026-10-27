@@ -5,11 +5,14 @@ dependencies:
 - name: mailu
   repository: https://apps.openshift.eu
   version: 0.2.0
-- name: mcp-officeagent
-  repository: https://apps.openshift.eu
-  version: 0.2.0
-- name: mcp-onlyoffice-live
-  repository: https://apps.openshift.eu
+- name: mcp-nextcloud
+  repository: file://../mcp-nextcloud
   version: 0.1.0
-digest: sha256:996d8226d65bc707487670a55b3d9a93ca1ba0c4e770ae658ea027d2fd0fac2c
-generated: "2026-10-27T12:00:00.000000000Z"
+- name: mcp-officeagent
+  repository: file://../mcp-officeagent
+  version: 0.3.0
+- name: mcp-onlyoffice-live
+  repository: file://../mcp-onlyoffice-live
+  version: 0.1.0
+digest: sha256:0dd91578ef165b1648a56510018a1ed156abe254c85eba9db1cd9416b9090823
+generated: "2026-10-27T08:21:37.171277535Z"
