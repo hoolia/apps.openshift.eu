@@ -43,6 +43,23 @@ spec:
 A caller's `Authorization` header always authenticates the caller to the gateway, which is
 why a per-caller credential travels in a second header.
 
+## A token check in the chart
+
+A server that a gateway reaches from outside its cluster, for example through a Route, cannot
+rely on the gateway alone: anything that reaches the Route reaches the server. A chart that
+allows this puts a token check in front of the server, switched by these values:
+
+| Value | Who sets it | Content |
+|---|---|---|
+| `auth.enabled` | the chart, or the parent chart that exposes the server | Switches the check on |
+| `auth.issuerUrl` | the platform, once for all installations: a constant value of the product or the default of a Template | Issuer of the callers' tokens. Empty: the check refuses every request but `/healthz` |
+| `auth.audiences` | derived by the parent chart from the instance, when it can | Audiences a token must carry, so a token for another application is refused |
+| `auth.allowedGroups` | the user, optionally | Groups a token must carry |
+
+The gateway then passes the caller's own token to the server (auth passthrough). The chart
+holds no issuer address as a default: a chart never names a platform. `mcp-officeagent` is the
+reference chart.
+
 ## On the grn.cloud platform
 
 The grn.cloud platform runs such a gateway for every tenant. For a Service with an

@@ -11,9 +11,21 @@ Documents reach the server through two connections:
 - `session` (`officeagent.session.enabled`): in memory. The agent puts a file in with `import_document_content` (for example the bytes it read from Nextcloud or a chat attachment), edits it by id and takes the result out with `export_document_content`. Session documents are gone when the pod restarts.
 - `documents` (`documents.enabled`): a folder on a PersistentVolumeClaim, mounted at `/documents`. `create_document` writes new files there and the registration tools open files by path. Files stay across restarts.
 
-The server listens on streamable HTTP at `/` on port `port`, answers `/healthz`, and asks callers for no credential. Its Service carries the port `appProtocol: agentgateway.dev/mcp` and the annotations `agentgateway.dev/mcp-path: /` and `agentgateway.dev/mcp-target-name`, so an MCP gateway in front of it authenticates the callers and publishes the server; the NetworkPolicy admits the own project and `networkPolicy.ingressNamespaces` only, and lets the server reach DNS and nothing else. The Deployment and Service carry `mcp.openshift.eu/server: officeagent`, `mcp.openshift.eu/bundle: officeagent` and `mcp.openshift.eu/category: documents`.
+The server listens on streamable HTTP at `/` on port `port` and answers `/healthz`. It asks callers for no credential of its own: either an MCP gateway in front of it authenticates the callers, or the token check (`auth.enabled`) does. Its Service carries the port `appProtocol: agentgateway.dev/mcp` and the annotations `agentgateway.dev/mcp-path: /` and `agentgateway.dev/mcp-target-name`, so an MCP gateway in front of it authenticates the callers and publishes the server; the NetworkPolicy admits the own project and `networkPolicy.ingressNamespaces` only, and lets the server reach DNS and nothing else. The Deployment and Service carry `mcp.openshift.eu/server: officeagent`, `mcp.openshift.eu/bundle: officeagent` and `mcp.openshift.eu/category: documents`.
 
-Every caller of one release shares its connections. Install one release per project and keep it behind the gateway.
+Every caller of one release shares its connections. Install one release per project and keep it behind the gateway or the token check.
+
+### Token check
+
+With `auth.enabled` an Envoy sidecar takes the Service port and the server listens on `127.0.0.1:auth.upstreamPort` only, so no caller reaches it past the sidecar. The sidecar:
+
+- lets `/healthz` through without a token, for the probes;
+- refuses every other request without a bearer JWT that `auth.issuerUrl` signed (401), with a key from the issuer's JWKS address;
+- refuses a token whose `aud` names none of `auth.audiences` (403), when the list is set;
+- refuses a token whose groups claim (`auth.groupsClaim`) names none of `auth.allowedGroups` (403), when the list is set;
+- refuses every request but `/healthz` (401) while `auth.issuerUrl` is empty, so a switched-on check never fails open.
+
+A gateway that passes the caller's own token through (for example an MCP gateway with auth passthrough to a Route of this Service) then reaches the server safely from outside the project. The NetworkPolicy lets the pod reach the JWKS port; with `auth.enabled` the Route or gateway namespace still needs ingress (`networkPolicy.ingressNamespaces`, or a project policy that admits the router).
 
 ### Tools
 
@@ -77,13 +89,24 @@ helm install office grncloud/mcp-officeagent
 - `service.labels`, `service.annotations` (default: empty): Extra labels and annotations of the Service, for example the gateway's exposure label.
 - `resources`: Requests and limits of the server.
 - `networkPolicy.ingressNamespaces` (default: empty): Namespace selectors that may call the server besides its own project; the gateway's namespace belongs here.
+- `auth.enabled` (default: false): The token check in front of the server, see Token check. Off, the server asks callers for no credential.
+- `auth.issuerUrl` (default: empty): OpenID Connect issuer of the tokens, exactly as their `iss` claim. Empty with `auth.enabled`: every request but `/healthz` is refused. A platform that runs many releases sets it once, for example as a constant value of the product or the default of a Template.
+- `auth.jwksUri` (default: empty): Signing keys of the issuer; empty: `<issuerUrl>/protocol/openid-connect/certs`, the Keycloak address.
+- `auth.audiences` (default: empty): A token's `aud` must name one of these; empty: any audience of the issuer. Set it, so a token issued for another application is refused.
+- `auth.allowedGroups` (default: empty): A token's groups claim must name one of these; empty: any group. `auth.groupsClaim` (default: `groups`) names the claim.
+- `auth.upstreamPort` (default: 13081): Localhost port of the server behind the sidecar.
+- `auth.streamIdleTimeout` (default: `3600s`): Longest silence on an open response stream.
+- `auth.caFile` (default: `/etc/ssl/certs/ca-certificates.crt`): Trust store of the sidecar for an `https` JWKS address.
+- `auth.logLevel` (default: `warning`): Log level of the sidecar.
+- `auth.image.repository`, `auth.image.tag` (default: `docker.io/envoyproxy/envoy`, `distroless-v1.39.3` by digest): Envoy proxy image of the sidecar.
+- `auth.resources`: Requests and limits of the sidecar.
 
 One replica with the `Recreate` strategy: session documents live in the memory of one process and the claim is ReadWriteOnce.
 
 ## Delivery instructions
 
 1. Install the chart in the project of the agents. The defaults need no secret and no further value.
-2. Publish the server through the project's MCP gateway: add the gateway's namespace to `networkPolicy.ingressNamespaces` and its exposure label to `service.labels`.
+2. Publish the server through the project's MCP gateway: add the gateway's namespace to `networkPolicy.ingressNamespaces` and its exposure label to `service.labels`. To reach it from outside the cluster instead, set `auth.enabled`, `auth.issuerUrl` and `auth.audiences`, and put a Route with TLS in front of the Service; check that a request without a token gets 401.
 3. Tell agents where documents come from. An agent that reads a file elsewhere (Nextcloud, a chat attachment) imports it into the `session` connection, edits it and writes the exported bytes back where it came from, so that store keeps the file's version history.
 
 Prompt injection: a document can contain text that steers the agent that reads it. Treat documents from outside the project as untrusted input.
