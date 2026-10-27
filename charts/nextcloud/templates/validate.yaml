@@ -1,5 +1,5 @@
 {{- /* the setup script runs at Nextcloud start: the pod annotation that rolls it must follow the chart version */ -}}
-{{- $v := index (.Values.nextcloud.podAnnotations | default dict) "apps.openshift.eu/chart-version" | toString -}}
+{{- $v := index (.Values.nextcloud.podAnnotations | default dict) "chart-version" | toString -}}
 {{- if ne $v .Chart.Version -}}
-{{- fail (printf "nextcloud.podAnnotations.apps.openshift.eu/chart-version is %q, set it to the chart version %q" $v .Chart.Version) -}}
+{{- fail (printf "nextcloud.podAnnotations.chart-version is %q, set it to the chart version %q" $v .Chart.Version) -}}
 {{- end -}}
