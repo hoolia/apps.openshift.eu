@@ -35,6 +35,7 @@ password:
 | `onlyoffice.host` | empty | Hostname of OnlyOffice. Empty: `office-<hostname of Nextcloud>`. |
 | `onlyoffice.enabled` | `true` | Document editing. Nextcloud is connected to the document server at its start. |
 | `onlyoffice.agentBridge.enabled` | `true` | Serve the plugin `agent-bridge` from the document server, through which `mcp-onlyoffice-live` edits documents live. |
+| `onlyoffice.editFormats` | `[odt, ods, odp, rtf, txt, csv]` | Formats OnlyOffice opens for editing besides `docx`, `xlsx` and `pptx`. Saving them may lose formatting the format cannot hold. `doc`, `xls` and `ppt` cannot be edited in place: the editor converts them to a `docx`, `xlsx` or `pptx` copy. |
 | `onlyoffice.lockFiles` | `true` | Enable the app `files_lock`, so a file open in OnlyOffice cannot be overwritten by a WebDAV write (`423 Locked`). `false` stops enabling it; the app stays enabled until you disable it. |
 | `nextcloud.persistence.nextcloudData.size` | `25Gi` | Space for user files. |
 | `secrets.type` | `kubernetes` | `externalSecret` reads the secrets from a secret store. |

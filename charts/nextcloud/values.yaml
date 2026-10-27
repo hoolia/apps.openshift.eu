@@ -124,6 +124,9 @@ onlyoffice:
   # lock a file in Nextcloud while it is open in the editor (app files_lock), so a WebDAV
   # write by anyone else fails with 423 Locked instead of being overwritten by the next save
   lockFiles: true
+  # formats opened for editing besides docx/xlsx/pptx; doc/xls/ppt cannot be edited in place,
+  # the editor converts them to a docx/xlsx/pptx copy
+  editFormats: [odt, ods, odp, rtf, txt, csv]
   resources:
     requests:
       cpu: 250m
