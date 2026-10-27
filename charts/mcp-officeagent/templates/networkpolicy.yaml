@@ -39,11 +39,8 @@ spec:
       port: {{ .dnsPort }}
     - protocol: TCP
       port: {{ .dnsPort }}
-  {{- if and $.Values.auth.enabled $.Values.auth.issuerUrl }}
-  # the token check fetches the signing keys of the issuer
-  - ports:
-    - protocol: TCP
-      port: {{ include "mcp-officeagent.jwksPort" $ }}
+  {{- with include "mcp-auth.networkPolicyEgress" $ }}
+  {{- . | nindent 2 }}
   {{- end }}
   {{- end }}
   {{- end }}

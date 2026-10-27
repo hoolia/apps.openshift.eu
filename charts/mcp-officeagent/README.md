@@ -17,15 +17,29 @@ Every caller of one release shares its connections. Install one release per proj
 
 ### Token check
 
-With `auth.enabled` an Envoy sidecar takes the Service port and the server listens on `127.0.0.1:auth.upstreamPort` only, so no caller reaches it past the sidecar. The sidecar:
+With `auth.enabled` the token check of the library chart `mcp-auth` (an oauth2-proxy
+sidecar) takes the Service port and the server listens on `127.0.0.1:auth.upstreamPort`
+only, so no caller reaches it past the sidecar. The sidecar:
 
-- lets `/healthz` through without a token, for the probes;
-- refuses every other request without a bearer JWT that `auth.issuerUrl` signed (401), with a key from the issuer's JWKS address;
-- refuses a token whose `aud` names none of `auth.audiences` (403), when the list is set;
-- refuses a token whose groups claim (`auth.groupsClaim`) names none of `auth.allowedGroups` (403), when the list is set;
-- refuses every request but `/healthz` (401) while `auth.issuerUrl` is empty, so a switched-on check never fails open.
+- lets `GET /healthz` through without a token, for the probes, and answers
+  `/oauth2/ping` itself;
+- refuses every other request without a bearer JWT that `auth.issuerUrl` signed for one of
+  `auth.audiences` (401, no login redirect);
+- refuses a token whose groups claim (`auth.groupsClaim`) names none of
+  `auth.allowedGroups` (403), when the list is set;
+- passes the caller's `Authorization` header to the server unchanged and streams
+  responses as they come;
+- serves `/.well-known/oauth-protected-resource` without a token: the issuer as
+  authorization server and `auth.resourceUrl` as resource (RFC 9728), so an agent finds out
+  that its own token fits;
+- refuses every request but the health paths (401) while `auth.issuerUrl` is empty, so a
+  switched-on check never fails open.
 
-A gateway that passes the caller's own token through (for example an MCP gateway with auth passthrough to a Route of this Service) then reaches the server safely from outside the project. The NetworkPolicy lets the pod reach the JWKS port; with `auth.enabled` the Route or gateway namespace still needs ingress (`networkPolicy.ingressNamespaces`, or a project policy that admits the router).
+A gateway or agent that passes the caller's own token (for example through a Route) then
+reaches the server safely from outside the project. The NetworkPolicy lets the pod reach
+the issuer's port; the Route or gateway namespace still needs ingress
+(`networkPolicy.ingressNamespaces`, or a project policy that admits the router). The
+library's README describes every value of the block.
 
 ### Tools
 
@@ -90,15 +104,14 @@ helm install office grncloud/mcp-officeagent
 - `resources`: Requests and limits of the server.
 - `networkPolicy.ingressNamespaces` (default: empty): Namespace selectors that may call the server besides its own project; the gateway's namespace belongs here.
 - `auth.enabled` (default: false): The token check in front of the server, see Token check. Off, the server asks callers for no credential.
-- `auth.issuerUrl` (default: empty): OpenID Connect issuer of the tokens, exactly as their `iss` claim. Empty with `auth.enabled`: every request but `/healthz` is refused. A platform that runs many releases sets it once, for example as a constant value of the product or the default of a Template.
-- `auth.jwksUri` (default: empty): Signing keys of the issuer; empty: `<issuerUrl>/protocol/openid-connect/certs`, the Keycloak address.
-- `auth.audiences` (default: empty): A token's `aud` must name one of these; empty: any audience of the issuer. Set it, so a token issued for another application is refused. Each entry is a Helm template, so a parent chart can derive it, for example `"{{ .Release.Namespace }}"`.
-- `auth.allowedGroups` (default: empty): A token's groups claim must name one of these; empty: any group. `auth.groupsClaim` (default: `groups`) names the claim.
+- `auth.issuerUrl` (default: empty): OpenID Connect issuer of the tokens, exactly as their `iss` claim. Empty with `auth.enabled`: every request but the health paths is refused. A platform that runs many releases sets it once, for example as a constant value of the product or the default of a Template.
+- `auth.audiences` (default: empty, meaning the release namespace): A token's `aud` must name one of these. Each entry is a Helm template, so a parent chart can derive it, for example `"{{ .Release.Namespace }}"`.
+- `auth.allowedGroups` (default: empty): A token's groups claim must name one of these; empty: any group. Each entry is a Helm template. `auth.groupsClaim` (default: `groups`) names the claim.
+- `auth.resourceUrl` (default: empty, meaning the Service inside the cluster): Address callers use, named in the protected resource metadata; set it to the public URL when a Route publishes the server.
 - `auth.upstreamPort` (default: 13081): Localhost port of the server behind the sidecar.
-- `auth.streamIdleTimeout` (default: `3600s`): Longest silence on an open response stream.
-- `auth.caFile` (default: `/etc/ssl/certs/ca-certificates.crt`): Trust store of the sidecar for an `https` JWKS address.
-- `auth.logLevel` (default: `warning`): Log level of the sidecar.
-- `auth.image.repository`, `auth.image.tag` (default: `docker.io/envoyproxy/envoy`, `distroless-v1.39.3` by digest): Envoy proxy image of the sidecar.
+- `auth.skipAuthRoutes` (default: empty), `auth.upstreamTimeout` (default: `3600s`), `auth.flushInterval` (default: `100ms`), `auth.extraArgs` (default: empty): Further requests without a token, the longest wait for the server's response headers, the flush interval of a streamed response and further oauth2-proxy flags.
+- `auth.existingSecret`, `auth.cookieSecret`, `auth.clientSecret` (default: empty): The secrets oauth2-proxy requires, generated once into `<name>-auth` and kept; a GitOps tool that renders without cluster access passes them.
+- `auth.image.repository`, `auth.image.tag` (default: `quay.io/oauth2-proxy/oauth2-proxy`, `v7.15.5` by digest): Sidecar image.
 - `auth.resources`: Requests and limits of the sidecar.
 
 One replica with the `Recreate` strategy: session documents live in the memory of one process and the claim is ReadWriteOnce.
@@ -106,7 +119,7 @@ One replica with the `Recreate` strategy: session documents live in the memory o
 ## Delivery instructions
 
 1. Install the chart in the project of the agents. The defaults need no secret and no further value.
-2. Publish the server through the project's MCP gateway: add the gateway's namespace to `networkPolicy.ingressNamespaces` and its exposure label to `service.labels`. To reach it from outside the cluster instead, set `auth.enabled`, `auth.issuerUrl` and `auth.audiences`, and put a Route with TLS in front of the Service; check that a request without a token gets 401.
+2. Publish the server through the project's MCP gateway: add the gateway's namespace to `networkPolicy.ingressNamespaces` and its exposure label to `service.labels`. To reach it from outside the cluster instead, set `auth.enabled`, `auth.issuerUrl`, `auth.audiences` and `auth.resourceUrl`, and put a Route with TLS in front of the Service; check that a request without a token gets 401.
 3. Tell agents where documents come from. An agent that reads a file elsewhere (Nextcloud, a chat attachment) imports it into the `session` connection, edits it and writes the exported bytes back where it came from, so that store keeps the file's version history.
 
 Prompt injection: a document can contain text that steers the agent that reads it. Treat documents from outside the project as untrusted input.
