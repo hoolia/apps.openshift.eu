@@ -93,6 +93,8 @@ spec:
           value: {{ toJson .Values.agentProfiles | quote }}
         - name: SEED_SKILLS
           value: {{ include "openhands.seedSkills" . | quote }}
+        - name: SEED_CONDENSER
+          value: {{ include "openhands.seedCondenser" . | quote }}
         {{- if and .Values.build.enabled .Values.route.host .Values.mcpOAuth.callbackPort }}
         # MCP OAuth logins return to the route, not to localhost (mcp_oauth_redirect.py)
         - name: MCP_OAUTH_REDIRECT_URL

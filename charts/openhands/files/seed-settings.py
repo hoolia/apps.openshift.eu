@@ -5,9 +5,12 @@ Runs as the postStart hook once per change of those values (SEED_HASH); a later
 edit in the UI is kept until the values change again. SEED_LLM is a JSON llm
 diff, SEED_MCP a JSON map of server name to MCP server settings, where passEnv
 names pod environment variables to hand to a stdio server. With gatewayModels,
-profiles for new gateway models are added on every start. Always exits 0
-so a failed seed never kills the container.
+profiles for new gateway models are added on every start; without a model, the
+first gateway model named in preferredModels becomes the default. SEED_CONDENSER
+is written into the settings and every OpenHands agent profile once per change
+of its own value. Always exits 0 so a failed seed never kills the container.
 """
+import hashlib
 import json
 import os
 import re
@@ -17,8 +20,8 @@ import urllib.error
 import urllib.request
 
 API = "http://127.0.0.1:18000"
-MARKER = os.path.join(os.environ.get("HOME", "/tmp"), ".openhands", "agent-canvas",
-                      ".seeded-" + os.environ.get("SEED_HASH", "none"))
+STATE = os.path.join(os.environ.get("HOME", "/tmp"), ".openhands", "agent-canvas")
+MARKER = os.path.join(STATE, ".seeded-" + os.environ.get("SEED_HASH", "none"))
 
 
 def request(method: str, path: str, body: dict | None = None) -> tuple[int, object]:
@@ -110,6 +113,40 @@ def gateway_models(llm: dict, conn: dict) -> list[str]:
     return [f"{conn['provider']}/{m['id']}" for m in listing.get("data", []) if m.get("id")]
 
 
+def preferred_model(llm: dict, conn: dict, preferred: list[str]) -> str | None:
+    """The first model of preferred, by name after the last "/", that the gateway lists."""
+    listed = {m.rsplit("/", 1)[-1]: m for m in gateway_models(llm, conn)}
+    return next((listed[name] for name in preferred if name in listed), None)
+
+
+def seed_condenser() -> None:
+    """Condenser settings, once per value: the settings and each OpenHands agent profile."""
+    raw = os.environ.get("SEED_CONDENSER") or ""
+    if not raw:
+        return
+    marker = os.path.join(STATE, ".seeded-condenser-" + hashlib.sha256(raw.encode()).hexdigest()[:8])
+    if os.path.exists(marker):
+        return
+    condenser = json.loads(raw)
+    ok = call("PATCH", "/api/settings", {"agent_settings_diff": {"condenser": condenser}}) == 200
+    status, agents = request("GET", "/api/agent-profiles")
+    ok = ok and status == 200
+    for agent in (agents or {}).get("profiles", []):
+        if agent.get("agent_kind") != "openhands":
+            continue
+        status, detail = request("GET", f"/api/agent-profiles/{agent['name']}")
+        body = (detail or {}).get("profile")
+        if not body or call("POST", f"/api/agent-profiles/{agent['name']}",
+                            {**body, "condenser": condenser}) not in (200, 201):
+            print(f"seed: condenser of agent profile {agent['name']} not written", file=sys.stderr)
+            ok = False
+    if ok:
+        os.makedirs(STATE, exist_ok=True)
+        open(marker, "w").close()
+    else:
+        print("seed: condenser not written", file=sys.stderr)
+
+
 def add_gateway_profiles(llm: dict, conn: dict) -> None:
     """Profiles for gateway models that have none yet; existing profiles stay as edited."""
     status, conns = request("GET", "/api/llm/provider-connections")
@@ -148,11 +185,18 @@ def main() -> None:
     conn = llm.pop("connection", None)
     models = llm.pop("models", [])
     every = llm.pop("gatewayModels", False)
+    preferred = llm.pop("preferredModels", [])
+    seed_condenser()
     if os.path.exists(MARKER):
         if every and conn and llm.get("base_url"):
             add_gateway_profiles(llm, conn)
         return
     ok = True
+    if preferred and not llm.get("model") and conn and llm.get("base_url"):
+        llm["model"] = preferred_model(llm, conn, preferred)
+        if not llm["model"]:
+            llm.pop("model")
+            print("seed: the gateway lists none of preferredModels", file=sys.stderr)
     if llm and call("PATCH", "/api/settings", {"agent_settings_diff": {"llm": llm}}) != 200:
         ok = False
     if conn and llm.get("base_url") and not seed_connection(llm, conn, models):

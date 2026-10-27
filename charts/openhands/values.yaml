@@ -139,12 +139,34 @@ llm:
   # true: also a profile for every model the gateway lists at /v1/models, added at
   # each pod start; profiles that exist are left as they are
   gatewayModels: true
+  # with model empty: the first gateway model whose name (after the last "/") is in
+  # this list becomes the default, so the most capable model the gateway serves wins
+  preferredModels:
+  - claude-opus-5-5
+  - claude-fable-5-1
+  - claude-opus-5
+  - claude-sonnet-5
+  - claude-sonnet-4-6
   # provider connection to gateway.upstream listed under Settings > LLM, holding
   # llm.model and llm.models as profiles. Empty name: no connection
   connection:
     name: Gateway
     # LiteLLM provider of the gateway's API
     provider: openai
+
+# History condenser of the OpenHands agent: old events are summarized by the agent's
+# own model. Written into the settings and every OpenHands agent profile when the pod
+# starts after these values changed; an edit in the UI stays until then. ACP agents
+# (Claude Code, Codex) compact their own history and are not affected
+condenser:
+  # summarize old events; false keeps the whole history
+  enabled: true
+  # events in the history before it is condensed to about half; at least 20
+  maxSize: 120
+  # history tokens before it is condensed to about half; 0: the model's own limit
+  maxTokens: 120000
+  # first events (system prompt, first task) that are never summarized
+  keepFirst: 4
 
 # MCP servers reached through the token proxy: {name, path, timeout, enabled, icon} with
 # path on gateway.upstream, timeout in seconds (default 60), enabled (default true) and
