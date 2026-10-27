@@ -115,7 +115,8 @@ auth:
   issuerUrl: ""
   # signing keys of the issuer; empty: <issuerUrl>/protocol/openid-connect/certs (Keycloak)
   jwksUri: ""
-  # a token's aud claim must name one of these; empty: any audience
+  # a token's aud claim must name one of these; empty: any audience. Each entry is a
+  # template, for example "{{ .Release.Namespace }}"
   audiences: []
   # a token's groups claim must name one of these; empty: any group
   allowedGroups: []

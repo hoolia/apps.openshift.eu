@@ -58,6 +58,11 @@ echo "$CFG" | grep -qF 'port_value: 8081' || { echo "FAIL jwks: port"; fail=1; }
 echo "$CFG" | grep -qF 'UpstreamTlsContext' && { echo "FAIL jwks: TLS on http"; fail=1; }
 has jwks "port: 8081"
 
+# an audience is a template
+OUT=$(render --set auth.enabled=true --set auth.issuerUrl=https://login.example.com/realms/demo \
+  -f <(printf 'auth:\n  audiences:\n  - "{{ .Release.Namespace }}-nextcloud"\n'))
+envoy | grep -qF -- '- "test-nextcloud"' || { echo "FAIL tplaudience: not rendered"; fail=1; }
+
 # no groups: no RBAC filter
 OUT=$(render --set auth.enabled=true --set auth.issuerUrl=https://login.example.com/realms/demo)
 envoy | grep -qF "envoy.filters.http.rbac" && { echo "FAIL nogroups: rbac filter"; fail=1; }

@@ -92,7 +92,7 @@ helm install office grncloud/mcp-officeagent
 - `auth.enabled` (default: false): The token check in front of the server, see Token check. Off, the server asks callers for no credential.
 - `auth.issuerUrl` (default: empty): OpenID Connect issuer of the tokens, exactly as their `iss` claim. Empty with `auth.enabled`: every request but `/healthz` is refused. A platform that runs many releases sets it once, for example as a constant value of the product or the default of a Template.
 - `auth.jwksUri` (default: empty): Signing keys of the issuer; empty: `<issuerUrl>/protocol/openid-connect/certs`, the Keycloak address.
-- `auth.audiences` (default: empty): A token's `aud` must name one of these; empty: any audience of the issuer. Set it, so a token issued for another application is refused.
+- `auth.audiences` (default: empty): A token's `aud` must name one of these; empty: any audience of the issuer. Set it, so a token issued for another application is refused. Each entry is a Helm template, so a parent chart can derive it, for example `"{{ .Release.Namespace }}"`.
 - `auth.allowedGroups` (default: empty): A token's groups claim must name one of these; empty: any group. `auth.groupsClaim` (default: `groups`) names the claim.
 - `auth.upstreamPort` (default: 13081): Localhost port of the server behind the sidecar.
 - `auth.streamIdleTimeout` (default: `3600s`): Longest silence on an open response stream.

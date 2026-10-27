@@ -74,7 +74,7 @@ data:
                       {{- with $auth.audiences }}
                       audiences:
                       {{- range . }}
-                      - {{ . | quote }}
+                      - {{ tpl . $ | quote }}
                       {{- end }}
                       {{- end }}
                       remote_jwks:
