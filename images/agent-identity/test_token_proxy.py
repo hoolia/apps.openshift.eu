@@ -259,7 +259,7 @@ class AgentTokenTest(ProxyCase):
 
     def test_mcp_path_carries_the_agent_token(self):
         self.start_token_endpoint()
-        _, resp = self.get("/mcp/hoolia-aib/nextcloud")
+        _, resp = self.get("/mcp/acme-agents/nextcloud")
         resp.read()
         self.assertEqual(self.upstream.requests[0][2]["Authorization"], "Bearer kc-1")
         form = self.token_endpoint.forms[0]
@@ -305,7 +305,7 @@ class AgentTokenTest(ProxyCase):
         self.addCleanup(self.proxy.server_close)
         self.port = self.proxy.server_port
         for _ in range(2):
-            _, resp = self.get("/mcp/grncloud-engineering/gitlab")
+            _, resp = self.get("/mcp/acme-engineering/gitlab")
             resp.read()
         self.proxy.shutdown()
         self.assertEqual(self.tenant_endpoint.forms[0]["client_assertion"], "sa-for-the-realm")
@@ -360,9 +360,9 @@ class TargetTest(AgentTokenTest):
         self.tls.server.socket = context.wrap_socket(self.tls.server.socket, server_side=True)
         self.tls_url = f"https://127.0.0.1:{self.tls.server.server_port}"
         self.targets_file = os.path.join(directory, "targets.json")
-        self.write_targets({"hoolia-aib.officeagent": self.tls_url + "/mcp/officeagent",
-                            "hoolia-aib.plain": "http://127.0.0.1:1/mcp",
-                            "hoolia-aib.svc": "http://officeagent.hoolia-nextcloud.svc:13080/"})
+        self.write_targets({"acme-agents.officeagent": self.tls_url + "/mcp/officeagent",
+                            "acme-agents.plain": "http://127.0.0.1:1/mcp",
+                            "acme-agents.svc": "http://officeagent.acme-nextcloud.svc:13080/"})
         saved = os.environ.get("SSL_CERT_FILE")
         os.environ["SSL_CERT_FILE"] = self.cert
         self.addCleanup(lambda: os.environ.pop("SSL_CERT_FILE", None) if saved is None
@@ -389,7 +389,7 @@ class TargetTest(AgentTokenTest):
 
     def test_registered_target_gets_the_agent_token_over_verified_tls(self):
         self.start_with_targets()
-        _, resp = self.get("/_target/hoolia-aib.officeagent", headers={"Authorization": "Bearer caller"},
+        _, resp = self.get("/_target/acme-agents.officeagent", headers={"Authorization": "Bearer caller"},
                            method="POST", body=b'{"jsonrpc":"2.0"}')
         self.assertEqual(resp.status, 200)
         resp.read()
@@ -401,14 +401,14 @@ class TargetTest(AgentTokenTest):
 
     def test_target_keeps_the_rest_of_the_path_and_the_query(self):
         self.start_with_targets()
-        _, resp = self.get("/_target/hoolia-aib.officeagent/sub?x=1")
+        _, resp = self.get("/_target/acme-agents.officeagent/sub?x=1")
         resp.read()
         self.assertEqual(self.tls.requests[0][1], "/mcp/officeagent/sub?x=1")
 
     def test_target_relays_an_event_stream(self):
         self.start_with_targets()
-        self.write_targets({"hoolia-aib.stream": self.tls_url + "/stream"})
-        _, resp = self.get("/_target/hoolia-aib.stream")
+        self.write_targets({"acme-agents.stream": self.tls_url + "/stream"})
+        _, resp = self.get("/_target/acme-agents.stream")
         self.assertEqual(resp.getheader("Content-Type"), "text/event-stream")
         self.assertEqual(resp.read1(64), b"data: 1\n\n")
         self.tls.first_chunk_read.set()
@@ -425,10 +425,10 @@ class TargetTest(AgentTokenTest):
 
     def test_plain_http_target_outside_the_cluster_is_refused(self):
         self.start_with_targets()
-        _, resp = self.get("/_target/hoolia-aib.plain")
+        _, resp = self.get("/_target/acme-agents.plain")
         self.assertEqual(resp.status, 403)
         resp.read()
-        self.assertTrue(tp.target_allowed("http://officeagent.hoolia-nextcloud.svc:13080/"))
+        self.assertTrue(tp.target_allowed("http://officeagent.acme-nextcloud.svc:13080/"))
         self.assertTrue(tp.target_allowed("http://x.y.svc.cluster.local/mcp"))
         self.assertFalse(tp.target_allowed("http://127.0.0.1/mcp"))
         self.assertFalse(tp.target_allowed("ftp://x.svc/"))
@@ -437,7 +437,7 @@ class TargetTest(AgentTokenTest):
         self.start_with_targets()
         os.environ["SSL_CERT_FILE"] = os.path.join(os.path.dirname(self.targets_file), "absent.pem")
         with self.assertLogs(level="ERROR"):
-            _, resp = self.get("/_target/hoolia-aib.officeagent")
+            _, resp = self.get("/_target/acme-agents.officeagent")
             resp.read()
         self.assertEqual(resp.status, 502)
         self.assertEqual(self.tls.requests, [])
@@ -447,13 +447,13 @@ class TargetTest(AgentTokenTest):
         self.write_targets({})
         time.sleep(0.01)
         os.utime(self.targets_file, (time.time() + 5, time.time() + 5))
-        _, resp = self.get("/_target/hoolia-aib.officeagent")
+        _, resp = self.get("/_target/acme-agents.officeagent")
         self.assertEqual(resp.status, 403)
         resp.read()
 
     def test_without_targets_file_the_prefix_is_refused(self):
         self.start_token_endpoint()
-        _, resp = self.get("/_target/hoolia-aib.officeagent")
+        _, resp = self.get("/_target/acme-agents.officeagent")
         self.assertEqual(resp.status, 403)
         resp.read()
         self.assertEqual(self.tls.requests, [])

@@ -25,7 +25,7 @@ ms = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(ms)
 
 
-def remote(name, url, annotations=None, namespace="hoolia-aib"):
+def remote(name, url, annotations=None, namespace="acme-agents"):
     return {"metadata": {"name": name, "namespace": namespace, "annotations": annotations or {}},
             "spec": {"url": url, "protocol": "STREAMABLE_HTTP"}}
 
@@ -82,12 +82,12 @@ class AnnotationTest(unittest.TestCase):
         ms.PRM_CACHE.clear()
 
     def test_same_issuer_goes_through_the_token_proxy(self):
-        url = "https://office.hoolia.eu/mcp/officeagent"
+        url = "https://office.example.com/mcp/officeagent"
         server, reason = ms.to_server(remote("officeagent", url, {
             "mcp.openshift.eu/auth": "oidc", "mcp.openshift.eu/oidc-issuer": ISSUER + "/"}))
         self.assertEqual(reason, "")
-        self.assertEqual(server["url"], "http://127.0.0.1:8099/_target/hoolia-aib.officeagent")
-        self.assertEqual(ms.TARGETS, {"hoolia-aib.officeagent": url})
+        self.assertEqual(server["url"], "http://127.0.0.1:8099/_target/acme-agents.officeagent")
+        self.assertEqual(ms.TARGETS, {"acme-agents.officeagent": url})
 
     def test_other_issuer_is_skipped_with_a_reason(self):
         server, reason = ms.to_server(remote("x", "https://x.example.com/mcp", {
@@ -103,10 +103,10 @@ class AnnotationTest(unittest.TestCase):
         self.assertIn("neither https nor a cluster Service", reason)
 
     def test_cluster_service_over_http_is_allowed(self):
-        url = "http://officeagent.hoolia-nextcloud.svc:13080/"
+        url = "http://officeagent.acme-nextcloud.svc:13080/"
         server, _ = ms.to_server(remote("officeagent", url, {
             "mcp.openshift.eu/auth": "oidc", "mcp.openshift.eu/oidc-issuer": ISSUER}))
-        self.assertTrue(server["url"].endswith("/_target/hoolia-aib.officeagent"))
+        self.assertTrue(server["url"].endswith("/_target/acme-agents.officeagent"))
 
     def test_human_oauth_login_is_unchanged(self):
         ms.oauth_client = lambda obj: ({"type": "oauth2"}, "")
@@ -118,15 +118,15 @@ class AnnotationTest(unittest.TestCase):
         self.assertEqual(ms.TARGETS, {})
 
     def test_gateway_url_keeps_the_serviceaccount_path(self):
-        server, _ = ms.to_server(remote("slack", "https://gateway.example.com/mcp/hoolia-aib/slack"))
-        self.assertEqual(server["url"], "http://127.0.0.1:8099/mcp/hoolia-aib/slack")
+        server, _ = ms.to_server(remote("slack", "https://gateway.example.com/mcp/acme-agents/slack"))
+        self.assertEqual(server["url"], "http://127.0.0.1:8099/mcp/acme-agents/slack")
 
     def test_targets_file_is_written_for_the_proxy(self):
-        ms.to_server(remote("officeagent", "https://office.hoolia.eu/mcp/officeagent", {
+        ms.to_server(remote("officeagent", "https://office.example.com/mcp/officeagent", {
             "mcp.openshift.eu/auth": "oidc", "mcp.openshift.eu/oidc-issuer": ISSUER}))
         ms.write_targets()
         with open(os.environ["TARGETS_FILE"]) as f:
-            self.assertEqual(json.load(f), {"hoolia-aib.officeagent": "https://office.hoolia.eu/mcp/officeagent"})
+            self.assertEqual(json.load(f), {"acme-agents.officeagent": "https://office.example.com/mcp/officeagent"})
 
 
 class DiscoveryTest(unittest.TestCase):
@@ -137,15 +137,15 @@ class DiscoveryTest(unittest.TestCase):
     def test_metadata_at_the_rfc_address_names_the_agent_issuer(self):
         fake = MetadataServer([ISSUER])
         server, _ = ms.to_server(remote("officeagent", fake.url))
-        self.assertTrue(server["url"].endswith("/_target/hoolia-aib.officeagent"))
-        self.assertEqual(ms.TARGETS["hoolia-aib.officeagent"], fake.url)
+        self.assertTrue(server["url"].endswith("/_target/acme-agents.officeagent"))
+        self.assertEqual(ms.TARGETS["acme-agents.officeagent"], fake.url)
         # probing never sends a credential
         self.assertTrue(all("Authorization" not in h for _, _, h in fake.requests))
 
     def test_metadata_appended_to_the_server_path(self):
         fake = MetadataServer([ISSUER], where="appended")
         server, _ = ms.to_server(remote("officeagent", fake.url))
-        self.assertTrue(server["url"].endswith("/_target/hoolia-aib.officeagent"))
+        self.assertTrue(server["url"].endswith("/_target/acme-agents.officeagent"))
 
     def test_metadata_of_another_issuer_leaves_the_url_as_is(self):
         fake = MetadataServer(["https://other.example.com/realms/a"])
