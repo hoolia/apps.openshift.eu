@@ -60,6 +60,11 @@ Without `certificate.enabled` the mail ports use a certificate of the cluster's 
 service CA. Mail clients and other mail servers do not trust it. Set `certificate.enabled`
 before real use.
 
+A client from the networks in `upstream.subnet` (inside the cluster) may log in without
+TLS, as Mailu's own containers do. A mail client in the same project uses the front end's
+webmail ports, `mailu-front:10143` (IMAP) and `mailu-front:10025` (SMTP), with the
+mailbox password or an app token of the mailbox.
+
 Secrets left empty are generated at the first install and kept on every upgrade with
 `helm upgrade`. A tool that renders the chart without access to the cluster, such as
 Argo CD or `helm template`, cannot read the existing Secret and generates new values on
