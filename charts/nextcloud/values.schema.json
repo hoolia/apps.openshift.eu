@@ -281,7 +281,16 @@
       "properties": {
         "enabled": {
           "type": "boolean",
-          "title": "Mailbox in the Mail app for every user"
+          "title": "Mailbox in the Mail app for every user with an address in a mail domain"
+        },
+        "domains": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$"
+          },
+          "title": "Mail domains",
+          "description": "Domains hosted on the mail server; empty: the Mailu domain"
         }
       }
     },

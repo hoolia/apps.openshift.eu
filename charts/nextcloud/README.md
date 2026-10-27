@@ -6,8 +6,8 @@ Nextcloud for files, calendar and contacts, with OnlyOffice for editing document
 browser. The chart runs Nextcloud on the upstream Nextcloud chart, a MariaDB database
 through the platform's MariaDB operator, and an OnlyOffice document server. Around that
 it runs Redis, the push server for the clients (notify_push) and the whiteboard backend.
-A Mailu mail server runs in the same project, and every Nextcloud user finds a mailbox on
-it in the Mail app. Team folders (the app `groupfolders`) are installed at the first start.
+A Mailu mail server runs in the same project, and every Nextcloud user with an address
+in its mail domain finds a mailbox with that address in the Mail app. Team folders (the app `groupfolders`) are installed at the first start.
 Nextcloud Talk with its signaling, TURN and recording servers, an AI assistant on an
 OpenAI-compatible API, a database backup to object storage and monitoring are optional.
 For the project's agents the chart runs three MCP servers in the same project and publishes
@@ -42,10 +42,11 @@ password:
 | `secrets.generator.enabled` | `false` | The External Secrets Operator makes the credentials Secrets and generates their empty passwords once. |
 | `global.publicAddress.shared` | `false` | Share one public address between the public Services of the project. See Delivery instructions. |
 | `mailu.enabled` | `true` | Run a Mailu mail server in the same project. Its values are those of the `mailu` chart, under `mailu`. |
-| `mailu.upstream.domain` | `example.org` | Mail domain: the part after the @ of every mailbox. Set it. |
+| `mailu.upstream.domain` | `example.org` | Mail domain of the mail server, normally the domain of the users' login email addresses. Set it. |
 | `mailu.upstream.initialAccount.domain` | `example.org` | Domain of the first mail admin account, `admin@<domain>`. Same value as the mail domain. |
 | `mailu.upstream.hostnames` | `[mail.example.org]` | Hostnames of the mail server; the first one is its name towards other mail servers and the target of the MX record. Set it to `mail.<mail domain>`. |
-| `mail.enabled` | `true` | With `mailu.enabled`: install the Mail app and give every user a mailbox on the mail server, see Mail for every user. |
+| `mail.enabled` | `true` | With `mailu.enabled`: install the Mail app and give every user with an address in a mail domain a mailbox with that address, see Mail for every user. |
+| `mail.domains` | `[]` | Domains hosted on the mail server. Empty: `mailu.upstream.domain`. Only domains you own, never a public mail provider. |
 | `settings.apps` | `[groupfolders]` | Store apps installed and enabled at every start. `groupfolders` is Team folders. |
 | `hsts.enabled` | `true` | Send the Strict-Transport-Security header `hsts.header` on every hostname of this chart. |
 | `settings.maintenanceWindowStart` | `1` | Hour (UTC) at which the heavy daily jobs start. Empty: not set. |
@@ -143,33 +144,51 @@ other values under `settings`. With `onlyoffice.enabled=false` it disables the a
 Nextcloud stay as they are. An app of an enabled component that you disable in Nextcloud
 is enabled again at the next start: switch the component off in the values instead.
 
-## Mail for every user
-
-With `mailu.enabled` and `mail.enabled` (both default) every Nextcloud user finds a
-mailbox in the Mail app, also a user who logs in with OpenID Connect and has no Nextcloud
-password. Once a minute the cron container of the Nextcloud pod gives each new user:
-
-1. A mailbox `<user id>@<mail domain>` on the Mailu server, made through the Mailu API
-   with the token of the Secret `mailu-secrets` and a random password nobody uses. The
-   part of the user id before an `@` is taken, in lower case.
-2. An app token of that mailbox, valid only from the networks in `mailu.upstream.subnet`
-   (inside the cluster).
-3. A Mail account with that token, on the mail front end `mailu-front`: IMAP on port
-   10143 and SMTP on port 10025, the ports Mailu keeps for webmail inside the project.
-
-A user is handled once; the result is a file per user in `<data directory>/.chart-mail`.
-A mailbox that exists already and was not made for that user is never connected: the
-user then gets no Mail account, and the log of the container `nextcloud-cron` says so
-(`mail: <user>: no Mail account, <address> exists for someone else`). Users read their
-mail in Nextcloud. The Mailu webmail (`/webmail` on the Route `mailu`) asks for the
-mailbox password, which a user sets in the Mailu admin interface after an administrator
-sets a first one there. After you switch a component on or off with `helm upgrade`, restart
-Nextcloud and the worker:
+After you switch a component on or off with `helm upgrade`, restart Nextcloud and the
+worker:
 
     oc rollout restart deployment/nextcloud
     oc rollout restart deployment/nextcloud-taskprocessing
 
 The second command applies only with `ai.enabled` or `taskprocessing.enabled`.
+
+## Mail for every user
+
+With `mailu.enabled` and `mail.enabled` (both default) a Nextcloud user whose email
+address is in one of the mail domains finds a mailbox with exactly that address in the
+Mail app. For a user who logs in with OpenID Connect that is the login email, which
+`user_oidc` stores in Nextcloud; the user needs no Nextcloud password. Once a minute the
+cron container of the Nextcloud pod gives each new user:
+
+1. A mailbox with the user's email address on the Mailu server, made through the Mailu
+   API with the token of the Secret `mailu-secrets` and a random password nobody uses.
+2. An app token of that mailbox, valid only from the networks in `mailu.upstream.subnet`
+   (inside the cluster).
+3. A Mail account with that address as email and IMAP user, on the mail front end
+   `mailu-front`: IMAP on port 10143 and SMTP on port 10025, the ports Mailu keeps for
+   webmail inside the project.
+
+The mail domains are `mail.domains`, by default only `mailu.upstream.domain`. The
+script adds each of them to Mailu. List the domains you own, the normal case is the
+domain of your company. Mail for a domain arrives only when its `MX` record points at
+this mail server, see Delivery instructions. Never list a domain of a public mail
+provider such as `gmail.com`: Mailu treats every domain it hosts as local, so mail from
+this server to anyone at that provider would stay here instead of leaving.
+
+These users get no mailbox; the log of the container `nextcloud-cron` names each of
+them once (`mail: <user>: no mailbox, <reason>`):
+
+- A user without an email address. The user is tried again once an address is set.
+- A user whose address is in another domain, for example a private address. Tried
+  again when the address changes.
+- A user whose address belongs to a mailbox that exists already and was not made for
+  that user.
+
+A user is handled once; the result is a file per user in `<data directory>/.chart-mail`.
+A user who got a mailbox `<user id>@<mail domain>` from chart 0.14.0 keeps it; it is not
+changed or deleted. Users read their mail in Nextcloud. The Mailu webmail (`/webmail` on
+the Route `mailu`) asks for the mailbox password, which a user sets in the Mailu admin
+interface after an administrator sets a first one there.
 
 ## Office documents for agents
 
@@ -346,6 +365,10 @@ untouched. Install the skipped release first. A new install starts at the latest
   to your store.
 - Mail needs DNS records and a public address: see the Delivery instructions of the
   `mailu` chart. Set `mailu.enabled=false` when you send mail through another server.
+- Each further domain in `mail.domains` needs the same `MX`, SPF and DMARC records as
+  the mail domain, pointing at the same mail server, before its mail arrives here. Its
+  DKIM key is made in the mail admin interface under Mail domains (`global.dkim.managed`
+  covers `mailu.upstream.domain` only).
 - Talk works inside one network without more. For calls across networks the TURN server
   needs a public address:
   1. Ask the platform team for the annotation that selects the public address pool and

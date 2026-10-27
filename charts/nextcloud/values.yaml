@@ -22,10 +22,13 @@ settings:
   apps:
   - groupfolders
 
-# Mail app with a mailbox <user id>@<mail domain> for every user on the mail server of
-# this chart; the mail domain is mailu.upstream.domain
+# Mail app with a mailbox for every user on the mail server of this chart, with the
+# user's own email address (for OpenID Connect users the login email)
 mail:
   enabled: true
+  # domains hosted on the mail server; only users with an address in one get a mailbox.
+  # Empty: mailu.upstream.domain. Never a public provider such as gmail.com
+  domains: []
 
 # Strict-Transport-Security header of Nextcloud and of every Route
 hsts:
