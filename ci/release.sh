@@ -7,6 +7,11 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 C=${1:?chart name}
+# a library chart is packaged inside the charts that depend on it, never released alone
+if grep -q '^type: library' "charts/$C/Chart.yaml"; then
+  echo "charts/$C is a library chart, not released"
+  exit 0
+fi
 for t in gitleaks syft; do
   command -v $t >/dev/null || { echo "$t is required for a release"; exit 1; }
 done

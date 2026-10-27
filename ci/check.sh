@@ -26,9 +26,13 @@ for c in charts/*/; do
   ci=""
   [ -f "$c/ci/test-values.yaml" ] && ci="-f $c/ci/test-values.yaml"
   helm lint "$c" --namespace test $ci >/dev/null || { echo "FAIL $n: helm lint"; fail=1; }
+  # a library chart renders nothing of its own; the charts that use it are rendered
+  library=false
+  grep -q '^type: library' "$c/Chart.yaml" && library=true
   # a chart without secrets of its own (a bundle of other charts) has no secrets.type
   modes=none
   grep -q '^secrets:' "$c/values.yaml" && modes="kubernetes externalSecret"
+  [ $library = true ] && modes=""
   for mode in $modes; do
     args="$ci"
     [ "$mode" = none ] || args="$args --set secrets.type=$mode"
@@ -39,11 +43,12 @@ for c in charts/*/; do
     if echo "$out" | grep -q 'system:openshift:scc:'; then echo "FAIL $n: SCC binding"; fail=1; fi
     lab=$(echo "$out" | python3 ci/check_labels.py "$n") || { echo "FAIL $n: labels in $mode render:"; echo "$lab" | sed 's/^/  /'; fail=1; }
   done
-  # a public upstream source archive and an image this repository publishes (images/) are
+  # a public upstream source archive and an image this repository's maintainers publish
+  # (images/, or a patched upstream build on pkg.grn.cloud) are
   # provenance, not platform identity; the neutral MCP label domain mcp.openshift.eu is
   # shared by every chart
   id=$(grep -rniE 'grncloud|grn\.cloud|hoolia|berry|146\.19\.|openshift\.eu|panther' "$c/templates" "$c/values.yaml" |
-    grep -vE '^[^:]+:[0-9]+:\s*(package: opencode-a2a @ https://github\.com/hoolia/opencode-a2a/archive/|version: [0-9.]+\+hoolia\.[0-9]+$|repository: ghcr\.io/hoolia/[a-z0-9-]+$)' |
+    grep -vE '^[^:]+:[0-9]+:\s*(package: opencode-a2a @ https://github\.com/hoolia/opencode-a2a/archive/|version: [0-9.]+\+hoolia\.[0-9]+$|repository: (ghcr\.io/hoolia|pkg\.grn\.cloud/grn\.cloud)/[a-z0-9-]+$)' |
     sed -E 's/mcp\.openshift\.eu//gI' | grep -iE 'grncloud|grn\.cloud|hoolia|berry|146\.19\.|openshift\.eu|panther' ||
     true)
   [ -z "$id" ] || { echo "FAIL $n: platform identity: $id"; fail=1; }
