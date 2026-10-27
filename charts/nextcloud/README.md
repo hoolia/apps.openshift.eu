@@ -46,6 +46,9 @@ password:
 | `mcp-officeagent.enabled` | `true` | Run the Office documents MCP server for agents in the same project. Its values are those of the `mcp-officeagent` chart, under `mcp-officeagent`. |
 | `mcp-officeagent.service.labels` | empty | Extra labels on the MCP server's Service, for example the exposure label of an MCP gateway. |
 | `mcp-officeagent.networkPolicy.ingressNamespaces` | empty | Namespaces (label selectors) that may call the MCP server besides the own project, for example the namespace of an MCP gateway. |
+| `mcp-officeagent.auth.enabled` | `true` | Check the caller's bearer token before the MCP server, so it can be exposed beyond the project. |
+| `mcp-officeagent.auth.issuerUrl` | empty | OpenID Connect issuer of the callers' tokens, set once by the platform for every instance. Empty: every call but `/healthz` is refused. |
+| `mcp-officeagent.auth.audiences` | the release namespace | A token must be issued for one of these. The default is the instance's OpenID Connect client named after its project; set `oidc.clientId` here when it differs. |
 | `mcp-onlyoffice-live.enabled` | `true` | Run the live editing MCP server for agents in the same project. Its values are those of the `mcp-onlyoffice-live` chart, under `mcp-onlyoffice-live`. |
 | `mcp-onlyoffice-live.service.labels` | empty | Extra labels on the live editing server's Service, for example the exposure label of an MCP gateway. |
 | `mcp-onlyoffice-live.networkPolicy.ingressNamespaces` | empty | Namespaces (label selectors) that may call the live editing server besides the own project. |
@@ -133,6 +136,12 @@ document of a Nextcloud user in four steps:
 
 Nextcloud keeps the previous content as a version of the file, so a user restores it
 under Versions in the file's details.
+
+The server checks every caller's token (`mcp-officeagent.auth.enabled`, on by default): a
+bearer JWT of `mcp-officeagent.auth.issuerUrl` issued for this instance, by default the
+OpenID Connect client named after the project. A gateway that passes the caller's own token
+through can then reach it through a Route of the Service `officeagent`. Until the issuer is
+set the server refuses every call but `/healthz`; Nextcloud itself is not affected.
 
 A file that is open in OnlyOffice is overwritten by the editor's next save, so step 4
 fails with `423 Locked` while anyone has the file open (`onlyoffice.lockFiles`). Edit such
