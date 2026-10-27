@@ -104,6 +104,45 @@ resources:
     cpu: "1"
     memory: 1Gi
 
+# Token check in front of the server (an Envoy sidecar): every request but /healthz needs a
+# bearer JWT that the issuer signed; the Service port then reaches the sidecar and the
+# server listens on localhost only. Off: the server asks callers for no credential, so only
+# a gateway that authenticates callers may reach it
+auth:
+  enabled: false
+  # OpenID Connect issuer of the tokens (the iss claim). Empty with auth.enabled: every
+  # request but /healthz is refused
+  issuerUrl: ""
+  # signing keys of the issuer; empty: <issuerUrl>/protocol/openid-connect/certs (Keycloak)
+  jwksUri: ""
+  # a token's aud claim must name one of these; empty: any audience. Each entry is a
+  # template, for example "{{ .Release.Namespace }}"
+  audiences: []
+  # a token's groups claim must name one of these; empty: any group
+  allowedGroups: []
+  # claim that carries the groups of the caller
+  groupsClaim: groups
+  # localhost port of the server behind the sidecar
+  upstreamPort: 13081
+  # longest silence on an open response stream
+  streamIdleTimeout: 3600s
+  # trust store of the sidecar for the JWKS address
+  caFile: /etc/ssl/certs/ca-certificates.crt
+  # trace, debug, info, warning, error, critical or off
+  logLevel: warning
+  # Envoy proxy image, published by the Envoy project
+  image:
+    repository: docker.io/envoyproxy/envoy
+    tag: distroless-v1.39.3@sha256:7369b033550a14997e5d698677b7b51f0210a80754f5d084c5caa1a78268267b
+    pullPolicy: IfNotPresent
+  # requests and limits of the sidecar
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      memory: 128Mi
+
 networkPolicy:
   enabled: true
   # Namespaces (label selectors) that may call the server besides its own, e.g. the gateway's

@@ -1,6 +1,7 @@
 {{- if .Values.enabled }}
 {{- $oa := .Values.officeagent }}
 {{- $docs := .Values.documents }}
+{{- $auth := .Values.auth }}
 {{- if not (or $oa.session.enabled $docs.enabled) }}
 {{- fail "officeagent.session.enabled or documents.enabled must be true: the server needs a connection" }}
 {{- end }}
@@ -25,6 +26,10 @@ spec:
       labels:
         {{- include "mcp-officeagent.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: server
+      {{- if $auth.enabled }}
+      annotations:
+        checksum/auth: {{ include (print $.Template.BasePath "/configmap-auth.yaml") . | sha256sum }}
+      {{- end }}
     spec:
       # the server needs no Kubernetes API access
       automountServiceAccountToken: false
@@ -41,7 +46,12 @@ spec:
         - name: HOME
           value: /tmp
         - name: ASPNETCORE_URLS
+          {{- if $auth.enabled }}
+          # only the token check in the same pod reaches the server
+          value: http://127.0.0.1:{{ $auth.upstreamPort }}
+          {{- else }}
           value: http://0.0.0.0:{{ .Values.port }}
+          {{- end }}
         - name: OfficeAgent__Transport
           value: http
         - name: OfficeAgent__AllowCreation
@@ -78,19 +88,23 @@ spec:
           value: {{ $e | quote }}
         {{- end }}
         {{- end }}
+        {{- if not $auth.enabled }}
         ports:
         - name: mcp
           containerPort: {{ .Values.port }}
           protocol: TCP
+        {{- end }}
         readinessProbe:
           httpGet:
             path: /healthz
-            port: mcp
+            # with auth.enabled through the token check, which lets /healthz pass
+            port: {{ if $auth.enabled }}{{ .Values.port }}{{ else }}mcp{{ end }}
           periodSeconds: 10
         livenessProbe:
           httpGet:
             path: /healthz
-            port: mcp
+            # with auth.enabled through the token check, which lets /healthz pass
+            port: {{ if $auth.enabled }}{{ .Values.port }}{{ else }}mcp{{ end }}
           initialDelaySeconds: 20
           periodSeconds: 30
         resources:
@@ -110,9 +124,47 @@ spec:
         - name: documents
           mountPath: /documents
         {{- end }}
+      {{- if $auth.enabled }}
+      - name: auth
+        image: "{{ $auth.image.repository }}:{{ $auth.image.tag }}"
+        imagePullPolicy: {{ $auth.image.pullPolicy }}
+        args:
+        - --config-path
+        - /etc/envoy/envoy.yaml
+        - --log-level
+        - {{ $auth.logLevel }}
+        ports:
+        - name: mcp
+          containerPort: {{ .Values.port }}
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: mcp
+          periodSeconds: 10
+        resources:
+          {{- toYaml $auth.resources | nindent 10 }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
+        volumeMounts:
+        - name: auth
+          mountPath: /etc/envoy
+          readOnly: true
+      {{- end }}
       volumes:
       - name: tmp
         emptyDir: {}
+      {{- if $auth.enabled }}
+      - name: auth
+        configMap:
+          name: {{ include "mcp-officeagent.name" . }}-auth
+      {{- end }}
       {{- if $docs.enabled }}
       - name: documents
         {{- if $docs.persistence.enabled }}
