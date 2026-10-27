@@ -35,8 +35,8 @@ spec:
 
 | The server needs | Use | Example chart |
 |---|---|---|
-| No account, or one account for every caller | A Secret of the chart, read by the server itself | `playwright-mcp`, `atlassian-mcp` with `credentials.mode: shared` |
-| The caller's own account, which the caller holds | `agentgateway.dev/mcp-credential-header` | `atlassian-mcp` with `credentials.mode: perCaller` |
+| No account, or one account for every caller | A Secret of the chart, read by the server itself | `mcp-playwright`, `mcp-atlassian` with `credentials.mode: shared` |
+| The caller's own account, which the caller holds | `agentgateway.dev/mcp-credential-header` | `mcp-atlassian` with `credentials.mode: perCaller` |
 | An account per agent, which nobody hands out by hand | `agentgateway.dev/mcp-credential-extauth` and a credential service in the chart | `mcp-sonarqube` with `credentials.mode: broker` |
 | The user's own login at a vendor | No Service key: a RemoteMCPServer with OAuth annotations | see [Agent OAuth login](oauth.md) |
 
@@ -45,20 +45,45 @@ why a per-caller credential travels in a second header.
 
 ## A token check in the chart
 
-A server that a gateway reaches from outside its cluster, for example through a Route, cannot
-rely on the gateway alone: anything that reaches the Route reaches the server. A chart that
-allows this puts a token check in front of the server, switched by these values:
+A server that a gateway or an agent reaches from outside its cluster, for example through a
+Route, cannot rely on the gateway alone: anything that reaches the Route reaches the server.
+Every MCP server chart whose server does not authenticate callers itself carries the same
+token check, the library chart `mcp-auth`: an oauth2-proxy sidecar that takes the Service
+port, switched by these values.
 
 | Value | Who sets it | Content |
 |---|---|---|
 | `auth.enabled` | the chart, or the parent chart that exposes the server | Switches the check on |
-| `auth.issuerUrl` | the platform, once for all installations: a constant value of the product or the default of a Template | Issuer of the callers' tokens. Empty: the check refuses every request but `/healthz` |
-| `auth.audiences` | derived by the parent chart from the instance, when it can | Audiences a token must carry, so a token for another application is refused |
-| `auth.allowedGroups` | the user, optionally | Groups a token must carry |
+| `auth.issuerUrl` | the platform, once for all installations: a constant value of the product or the default of a Template | Issuer of the callers' tokens. Empty: the check refuses every request but the health paths |
+| `auth.audiences` | derived by the parent chart from the instance, when it can | Audiences a token must carry, so a token for another application is refused. Empty: the release namespace |
+| `auth.allowedGroups` | the parent chart or the user | Groups a token must carry |
+| `auth.resourceUrl` | the parent chart that publishes the server | Public address, named in the protected resource metadata |
 
-The gateway then passes the caller's own token to the server (auth passthrough). The chart
-holds no issuer address as a default: a chart never names a platform. `mcp-officeagent` is the
-reference chart.
+The caller's token reaches the server unchanged. The check answers 401 without a valid
+token, 403 for a token of another group, and serves `/.well-known/oauth-protected-resource`
+(RFC 9728) without a token, so an agent finds the issuer. The chart holds no issuer address
+as a default: a chart never names a platform. The README of `mcp-auth` describes the
+values; `mcp-officeagent` is the reference chart.
+
+| Chart | Caller authentication |
+|---|---|
+| `mcp-officeagent`, `mcp-slack`, `mcp-playwright`, `mcp-atlassian` (shared mode), `mcp-server` | `mcp-auth`, optional |
+| `mcp-nextcloud`, `mcp-onlyoffice-live` | the server itself: Nextcloud checks the caller's token |
+| `mcp-gmail`, `mcp-google-*`, `mcp-microsoft-365` | the vendor's OAuth login |
+
+## An agent token for a server of the same issuer
+
+An agent that holds its own OpenID Connect token sends it to a server that takes tokens of
+the same issuer. A RemoteMCPServer says so with two annotations; without them the agent
+reads the server's protected resource metadata.
+
+| Key | Kind | Value | Effect |
+|---|---|---|---|
+| `mcp.openshift.eu/auth` | annotation | `oidc` | The server takes OpenID Connect bearer tokens |
+| `mcp.openshift.eu/oidc-issuer` | annotation | Issuer URL, as the tokens' `iss` claim | The agent sends its own token when this is its own issuer, and skips the server otherwise |
+
+The `openhands` chart acts on them: its token proxy forwards only to the URLs its MCP sync
+registered from these RemoteMCPServers, over https or to a cluster Service.
 
 ## On the grn.cloud platform
 

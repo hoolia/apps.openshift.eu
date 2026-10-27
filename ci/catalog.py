@@ -10,6 +10,8 @@ chart release. The website merges it with index.yaml, which lists the released c
   category  apps.openshift.eu/category, else mcp.openshift.eu/category
   vendor    apps.openshift.eu/vendor: the organisation behind the software
 
+A library chart (type: library) is part of other charts and is left out.
+
 usage: ci/catalog.py [--check] [output file]
   --check  fail when a chart lacks a vendor or a category, writes nothing
 """
@@ -50,8 +52,13 @@ def entry(chart_dir: pathlib.Path) -> dict:
     return doc
 
 
+def is_library(chart_dir: pathlib.Path) -> bool:
+    return (yaml.safe_load((chart_dir / "Chart.yaml").read_text()) or {}).get("type") == "library"
+
+
 def catalog(charts: pathlib.Path = CHARTS) -> dict:
-    return {d.name: entry(d) for d in sorted(charts.iterdir()) if (d / "Chart.yaml").is_file()}
+    return {d.name: entry(d) for d in sorted(charts.iterdir())
+            if (d / "Chart.yaml").is_file() and not is_library(d)}
 
 
 def problems(cat: dict) -> list:

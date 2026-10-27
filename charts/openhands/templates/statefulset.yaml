@@ -250,6 +250,9 @@ spec:
           value: {{ .tokenUrl | quote }}
         - name: AGENT_TOKEN_PATHS
           value: {{ join "," .paths | quote }}
+        # MCP servers of the agent's issuer, written by mcp-sync: /_target/<id>
+        - name: TARGETS_FILE
+          value: /var/run/mcp-targets/targets.json
         {{- end }}
         {{- end }}
         # listens on 127.0.0.1 only, so the probe runs inside the container
@@ -271,6 +274,9 @@ spec:
         {{- if .Values.tokenProxy.agentToken.tokenUrl }}
         - name: agent-token
           mountPath: /var/run/secrets/agent-token
+          readOnly: true
+        - name: mcp-targets
+          mountPath: /var/run/mcp-targets
           readOnly: true
         {{- end }}
         resources:
@@ -308,6 +314,13 @@ spec:
           value: {{ .Values.gateway.upstream | quote }}
         - name: TOKEN_PROXY_PORT
           value: {{ .Values.tokenProxy.port | quote }}
+        {{- if and .Values.gateway.upstream .Values.tokenProxy.agentToken.tokenUrl }}
+        # servers that take tokens of this issuer get the agent token via the token proxy
+        - name: AGENT_TOKEN_URL
+          value: {{ .Values.tokenProxy.agentToken.tokenUrl | quote }}
+        - name: TARGETS_FILE
+          value: /var/run/mcp-targets/targets.json
+        {{- end }}
         - name: PUBLISH
           value: {{ .Values.mcpPublish.enabled | quote }}
         - name: RESYNC
@@ -329,6 +342,10 @@ spec:
         - name: scripts
           mountPath: /app
           readOnly: true
+        {{- if and .Values.gateway.upstream .Values.tokenProxy.agentToken.tokenUrl }}
+        - name: mcp-targets
+          mountPath: /var/run/mcp-targets
+        {{- end }}
         resources:
           {{- toYaml $mcp.resources | nindent 10 }}
         securityContext:
@@ -412,6 +429,11 @@ spec:
               audience: {{ required "tokenProxy.agentToken.audience is required with tokenUrl" .audience }}
               expirationSeconds: 600
               path: token
+      # where mcp-sync tells the token proxy which MCP servers get the agent token
+      - name: mcp-targets
+        emptyDir:
+          medium: Memory
+          sizeLimit: 1Mi
       {{- end }}
       {{- end }}
       {{- end }}

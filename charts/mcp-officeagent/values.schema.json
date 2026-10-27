@@ -212,10 +212,6 @@
           "type": "string",
           "pattern": "^(https?://[^\\s]+)?$"
         },
-        "jwksUri": {
-          "type": "string",
-          "pattern": "^(https?://[^\\s]+)?$"
-        },
         "audiences": {
           "type": "array",
           "items": {
@@ -230,44 +226,60 @@
             "minLength": 1
           }
         },
+        "resourceUrl": {
+          "type": "string"
+        },
         "groupsClaim": {
           "type": "string",
-          "pattern": "^[A-Za-z0-9_.-]+$"
+          "pattern": "^[A-Za-z0-9_.:/-]+$"
         },
         "upstreamPort": {
           "type": "integer",
-          "minimum": 1,
+          "minimum": 1024,
           "maximum": 65535
         },
-        "streamIdleTimeout": {
+        "skipAuthRoutes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "upstreamTimeout": {
           "type": "string",
           "pattern": "^[0-9]+(ms|s|m|h)$"
         },
-        "caFile": {
+        "flushInterval": {
           "type": "string",
-          "minLength": 1
+          "pattern": "^[0-9]+(ms|s|m|h)$"
         },
-        "logLevel": {
-          "type": "string",
-          "enum": [
-            "trace",
-            "debug",
-            "info",
-            "warning",
-            "error",
-            "critical",
-            "off"
-          ]
+        "existingSecret": {
+          "type": "string"
+        },
+        "cookieSecret": {
+          "type": "string"
+        },
+        "clientSecret": {
+          "type": "string"
+        },
+        "extraArgs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^--"
+          }
         },
         "image": {
           "type": "object",
           "additionalProperties": false,
           "properties": {
             "repository": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             },
             "tag": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             },
             "pullPolicy": {
               "type": "string",
@@ -313,6 +325,9 @@
           }
         }
       }
+    },
+    "mcp-auth": {
+      "type": "object"
     }
   }
 }

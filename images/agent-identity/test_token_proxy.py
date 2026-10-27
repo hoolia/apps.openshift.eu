@@ -336,5 +336,128 @@ class AgentTokenTest(ProxyCase):
                     os.environ[key] = value
 
 
+def self_signed(directory):
+    """A certificate for 127.0.0.1 and its key, made with the openssl command."""
+    import subprocess
+    cert, key = os.path.join(directory, "cert.pem"), os.path.join(directory, "key.pem")
+    subprocess.run(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1",
+                    "-subj", "/CN=127.0.0.1", "-addext", "subjectAltName=IP:127.0.0.1",
+                    "-keyout", key, "-out", cert], check=True, capture_output=True)
+    return cert, key
+
+
+class TargetTest(AgentTokenTest):
+    """/_target/<id>: the agent token to a URL the MCP sync registered, and nowhere else."""
+
+    def setUp(self):
+        super().setUp()
+        import ssl
+        directory = tempfile.mkdtemp(prefix="token-proxy-targets-")
+        self.cert, key = self_signed(directory)
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        context.load_cert_chain(self.cert, key)
+        self.tls = FakeUpstream()
+        self.tls.server.socket = context.wrap_socket(self.tls.server.socket, server_side=True)
+        self.tls_url = f"https://127.0.0.1:{self.tls.server.server_port}"
+        self.targets_file = os.path.join(directory, "targets.json")
+        self.write_targets({"hoolia-aib.officeagent": self.tls_url + "/mcp/officeagent",
+                            "hoolia-aib.plain": "http://127.0.0.1:1/mcp",
+                            "hoolia-aib.svc": "http://officeagent.hoolia-nextcloud.svc:13080/"})
+        saved = os.environ.get("SSL_CERT_FILE")
+        os.environ["SSL_CERT_FILE"] = self.cert
+        self.addCleanup(lambda: os.environ.pop("SSL_CERT_FILE", None) if saved is None
+                        else os.environ.__setitem__("SSL_CERT_FILE", saved))
+
+    def write_targets(self, targets):
+        with open(self.targets_file + ".tmp", "w") as handle:
+            json.dump(targets, handle)
+        os.replace(self.targets_file + ".tmp", self.targets_file)
+
+    def start_with_targets(self):
+        self.start_token_endpoint()
+        self.proxy.shutdown()
+        self.proxy.server_close()
+        self.settings = tp.Settings(
+            token_file=self.token_file, upstream=self.upstream.url, port=0,
+            agent_token_url=self.token_endpoint.url, agent_token_assertion_file=self.assertion_file,
+            agent_token_paths=("/mcp",), targets_file=self.targets_file)
+        self.proxy = tp.build_server(self.settings, port=0)
+        threading.Thread(target=self.proxy.serve_forever, daemon=True).start()
+        self.addCleanup(self.proxy.shutdown)
+        self.addCleanup(self.proxy.server_close)
+        self.port = self.proxy.server_port
+
+    def test_registered_target_gets_the_agent_token_over_verified_tls(self):
+        self.start_with_targets()
+        _, resp = self.get("/_target/hoolia-aib.officeagent", headers={"Authorization": "Bearer caller"},
+                           method="POST", body=b'{"jsonrpc":"2.0"}')
+        self.assertEqual(resp.status, 200)
+        resp.read()
+        method, path, headers, body = self.tls.requests[0]
+        self.assertEqual((method, path, body), ("POST", "/mcp/officeagent", b'{"jsonrpc":"2.0"}'))
+        self.assertEqual(headers["Authorization"], "Bearer kc-1")
+        self.assertEqual(headers["Host"], f"127.0.0.1:{self.tls.server.server_port}")
+        self.assertEqual(self.upstream.requests, [])
+
+    def test_target_keeps_the_rest_of_the_path_and_the_query(self):
+        self.start_with_targets()
+        _, resp = self.get("/_target/hoolia-aib.officeagent/sub?x=1")
+        resp.read()
+        self.assertEqual(self.tls.requests[0][1], "/mcp/officeagent/sub?x=1")
+
+    def test_target_relays_an_event_stream(self):
+        self.start_with_targets()
+        self.write_targets({"hoolia-aib.stream": self.tls_url + "/stream"})
+        _, resp = self.get("/_target/hoolia-aib.stream")
+        self.assertEqual(resp.getheader("Content-Type"), "text/event-stream")
+        self.assertEqual(resp.read1(64), b"data: 1\n\n")
+        self.tls.first_chunk_read.set()
+        self.assertEqual(resp.read(), b"data: 2\n\ndata: 3\n\n")
+
+    def test_unknown_target_is_refused_without_a_token(self):
+        self.start_with_targets()
+        for path in ("/_target/other", "/_target/../etc", "/_target/https:%2F%2Fevil.example"):
+            _, resp = self.get(path)
+            self.assertEqual(resp.status, 403)
+            resp.read()
+        self.assertEqual(self.tls.requests + self.upstream.requests, [])
+        self.assertEqual(self.token_endpoint.forms, [])
+
+    def test_plain_http_target_outside_the_cluster_is_refused(self):
+        self.start_with_targets()
+        _, resp = self.get("/_target/hoolia-aib.plain")
+        self.assertEqual(resp.status, 403)
+        resp.read()
+        self.assertTrue(tp.target_allowed("http://officeagent.hoolia-nextcloud.svc:13080/"))
+        self.assertTrue(tp.target_allowed("http://x.y.svc.cluster.local/mcp"))
+        self.assertFalse(tp.target_allowed("http://127.0.0.1/mcp"))
+        self.assertFalse(tp.target_allowed("ftp://x.svc/"))
+
+    def test_untrusted_certificate_is_refused(self):
+        self.start_with_targets()
+        os.environ["SSL_CERT_FILE"] = os.path.join(os.path.dirname(self.targets_file), "absent.pem")
+        with self.assertLogs(level="ERROR"):
+            _, resp = self.get("/_target/hoolia-aib.officeagent")
+            resp.read()
+        self.assertEqual(resp.status, 502)
+        self.assertEqual(self.tls.requests, [])
+
+    def test_targets_file_is_read_again_when_it_changes(self):
+        self.start_with_targets()
+        self.write_targets({})
+        time.sleep(0.01)
+        os.utime(self.targets_file, (time.time() + 5, time.time() + 5))
+        _, resp = self.get("/_target/hoolia-aib.officeagent")
+        self.assertEqual(resp.status, 403)
+        resp.read()
+
+    def test_without_targets_file_the_prefix_is_refused(self):
+        self.start_token_endpoint()
+        _, resp = self.get("/_target/hoolia-aib.officeagent")
+        self.assertEqual(resp.status, 403)
+        resp.read()
+        self.assertEqual(self.tls.requests, [])
+
+
 if __name__ == "__main__":
     unittest.main()

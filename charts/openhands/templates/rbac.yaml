@@ -23,7 +23,7 @@ subjects:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: {{ $name }}-mcp-discovery
+  name: mcp-discovery-{{ $name }}
   namespace: {{ include "openhands.namespace" . }}
   labels:
     {{- include "openhands.labels" . | nindent 4 }}

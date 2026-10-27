@@ -20,6 +20,14 @@ registers itself at the server) and the scopes of openhands.dev/oauth-scopes. It
 in the UI first; the stored login (auth.state) is never sent, and the client is sent
 again only when it changed.
 
+A server that takes OpenID Connect tokens of the agent's own issuer (the realm of
+AGENT_TOKEN_URL) gets the agent's token through the token proxy: one annotated
+<LABEL_DOMAIN>/auth=oidc with <LABEL_DOMAIN>/oidc-issuer equal to that issuer, or one
+whose protected resource metadata (RFC 9728, fetched without a credential and cached)
+names that issuer for its own URL. Its URL must be https or a cluster Service. The entry
+points at the proxy's /_target/<namespace>.<name>, and TARGETS_FILE tells the proxy where
+that goes; the proxy sends the token nowhere else.
+
 With PUBLISH it also works the other way: every remote MCP server the user added in the
 UI becomes an AgentgatewayBackend of the namespace, with the headers OpenHands would send
 in a Secret it owns, so the platform publishes it to the team as a RemoteMCPServer.
@@ -60,6 +68,7 @@ KNOWN_ICONS = {
     "kagent-tools": "https://raw.githubusercontent.com/kagent-dev/kagent/main/img/icon-light.svg",
     "librenms": "https://raw.githubusercontent.com/librenms/librenms/master/html/images/librenms_logo_light.svg",
     "memory": SIMPLE_ICONS + "qdrant",
+    "office-live": SIMPLE_ICONS + "onlyoffice",
     "netbox": "https://raw.githubusercontent.com/netbox-community/netbox/main/netbox/project-static/img/netbox_icon.svg",
     "warden": SIMPLE_ICONS + "vaultwarden",
     "wispr-flow": "https://cdn.prod.website-files.com/682f84b3838c89f8ff7667db/68d27d1a8a10f417b5644527_flow-wc-v2.png",
@@ -94,6 +103,22 @@ CLIENT_AUTH_ANNOTATION = "openhands.dev/oauth-client-auth-method"
 OAUTH_FIELDS = ("type", "client_id", "client_secret", "scopes", "client_auth_method")
 # digest of the OAuth client last written per entry; empty after a start
 SENT: dict[str, str] = {}
+# the agent's own token (token proxy, AGENT_TOKEN_URL) also goes to a server that takes
+# tokens of the same issuer: declared on the RemoteMCPServer (OIDC_ANNOTATION=oidc and
+# ISSUER_ANNOTATION), else found in its protected resource metadata (RFC 9728)
+AGENT_TOKEN_URL = os.environ.get("AGENT_TOKEN_URL", "").strip()
+KEYCLOAK_TOKEN_PATH = "/protocol/openid-connect/token"
+AGENT_ISSUER = (AGENT_TOKEN_URL[:-len(KEYCLOAK_TOKEN_PATH)]
+                if AGENT_TOKEN_URL.endswith(KEYCLOAK_TOKEN_PATH) else "").rstrip("/")
+OIDC_ANNOTATION = f"{LABEL_DOMAIN or 'mcp.openshift.eu'}/auth"
+ISSUER_ANNOTATION = f"{LABEL_DOMAIN or 'mcp.openshift.eu'}/oidc-issuer"
+# targets the token proxy forwards to with the agent token, id to URL; read by the proxy
+TARGETS_FILE = os.environ.get("TARGETS_FILE", "/var/run/mcp-targets/targets.json")
+TARGETS: dict[str, str] = {}
+PRM = "/.well-known/oauth-protected-resource"
+# protected resource metadata per server URL: (expiry, authorization servers or None)
+PRM_CACHE: dict[str, tuple[float, list | None]] = {}
+PRM_TTL = int(os.environ.get("PRM_TTL", "3600"))
 
 
 def log(msg: str) -> None:
@@ -369,13 +394,96 @@ def oauth_client(obj: dict) -> tuple[dict | None, str]:
     return {**common, "client_id": client_id, "client_secret": client_secret or None}, ""
 
 
+def agent_token_target(url: str) -> bool:
+    """A URL the agent token may go to: https, or plain http to a Service of the cluster."""
+    u = urllib.parse.urlsplit(url)
+    if u.scheme == "https" and u.hostname:
+        return True
+    return u.scheme == "http" and bool(u.hostname) and (
+        u.hostname.endswith(".svc") or u.hostname.endswith(".svc.cluster.local"))
+
+
+def _get_json(url: str) -> dict | None:
+    """A JSON document fetched without any credential; None on any failure."""
+    req = urllib.request.Request(url, headers={"Accept": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            doc = json.loads(resp.read(65536))
+    except (OSError, ValueError, urllib.error.HTTPError):
+        return None
+    return doc if isinstance(doc, dict) else None
+
+
+def _metadata_url_from_challenge(url: str) -> str:
+    """resource_metadata of the WWW-Authenticate challenge of an unauthenticated POST."""
+    req = urllib.request.Request(url, data=b"{}", method="POST", headers={
+        "Content-Type": "application/json", "Accept": "application/json, text/event-stream"})
+    try:
+        with urllib.request.urlopen(req, timeout=5):
+            return ""
+    except urllib.error.HTTPError as err:
+        m = re.search(r'resource_metadata="([^"]+)"', err.headers.get("WWW-Authenticate", ""))
+        return m.group(1) if m else ""
+    except (OSError, ValueError):
+        return ""
+
+
+def authorization_servers(url: str) -> list | None:
+    """Authorization servers of the server at url from its protected resource metadata
+    (RFC 9728), cached; never sends a token. None when it publishes none for this URL."""
+    now = time.monotonic()
+    cached = PRM_CACHE.get(url)
+    if cached and cached[0] > now:
+        return cached[1]
+    u = urllib.parse.urlsplit(url)
+    path = u.path.rstrip("/")
+    candidates = [_metadata_url_from_challenge(url),
+                  f"{u.scheme}://{u.netloc}{PRM}{path}",
+                  url.rstrip("/") + PRM]
+    found = None
+    for candidate in filter(None, candidates):
+        doc = _get_json(candidate)
+        servers = (doc or {}).get("authorization_servers")
+        # the metadata must name this very server as its resource (RFC 9728 3.3)
+        if isinstance(servers, list) and str(doc.get("resource", "")).rstrip("/") == url.rstrip("/"):
+            found = [str(s).rstrip("/") for s in servers]
+            break
+    PRM_CACHE[url] = (now + PRM_TTL, found)
+    return found
+
+
+def register_target(meta: dict, url: str) -> str:
+    """The token proxy address that reaches url with the agent token."""
+    target = re.sub(r"[^a-z0-9.-]", "-", f"{meta['namespace']}.{meta['name']}".lower())
+    TARGETS[target] = url
+    return f"{PROXY}/_target/{target}"
+
+
+def write_targets() -> None:
+    """Writes TARGETS for the token proxy when they changed."""
+    try:
+        with open(TARGETS_FILE) as f:
+            if json.load(f) == TARGETS:
+                return
+    except (OSError, ValueError):
+        pass
+    tmp = TARGETS_FILE + ".tmp"
+    try:
+        with open(tmp, "w") as f:
+            json.dump(TARGETS, f, sort_keys=True)
+        os.replace(tmp, TARGETS_FILE)
+    except OSError as err:
+        log(f"could not write {TARGETS_FILE}: {err}")
+
+
 def to_server(obj: dict) -> tuple[dict | None, str]:
     """The entry for a RemoteMCPServer; else None and why it is skipped."""
     spec = obj.get("spec", {})
     url = spec.get("url", "")
     meta = obj["metadata"]
+    annotations = meta.get("annotations") or {}
     authentication = None
-    if (meta.get("annotations") or {}).get(AUTH_ANNOTATION) == "oauth2":
+    if annotations.get(AUTH_ANNOTATION) == "oauth2":
         # each user logs in at the vendor; the gateway and its token are not involved
         authentication, reason = oauth_client(obj)
         if authentication is None:
@@ -383,6 +491,19 @@ def to_server(obj: dict) -> tuple[dict | None, str]:
     elif UPSTREAM and url.startswith(UPSTREAM + "/"):
         # the token proxy adds the pod's own ServiceAccount token
         url = PROXY + url[len(UPSTREAM):]
+    elif annotations.get(OIDC_ANNOTATION) == "oidc":
+        issuer = annotations.get(ISSUER_ANNOTATION, "").rstrip("/")
+        if not (AGENT_ISSUER and UPSTREAM):
+            return None, "takes OpenID Connect tokens, and this agent has no agent token"
+        if issuer != AGENT_ISSUER:
+            return None, f"takes tokens of issuer {issuer or '(none)'}, not of the agent's issuer {AGENT_ISSUER}"
+        if not agent_token_target(url):
+            return None, "takes the agent token, but its URL is neither https nor a cluster Service"
+        url = register_target(meta, url)
+    elif (AGENT_ISSUER and UPSTREAM and not spec.get("headersFrom") and agent_token_target(url)
+          and AGENT_ISSUER in (authorization_servers(url) or [])):
+        # its protected resource metadata names the agent's issuer
+        url = register_target(meta, url)
     elif spec.get("headersFrom"):
         return None, "needs headers from a Secret"
     if not url:
@@ -465,6 +586,7 @@ def sync(namespace: str, current: dict) -> None:
     objects = [o for o in objects if o["metadata"]["name"] not in OWN and selected(o)]
     own_names = {o["metadata"]["name"] for o in objects}
     wanted = {}
+    TARGETS.clear()
     for obj in objects + [o for o in visible_servers(namespace) if selected(o)]:
         meta = obj["metadata"]
         key = meta["name"]
@@ -475,6 +597,8 @@ def sync(namespace: str, current: dict) -> None:
             log(f"skipped {meta['namespace']}/{meta['name']}: {reason}")
         else:
             wanted[key] = server
+    if AGENT_ISSUER:
+        write_targets()
     stored = Stored()
     for name, server in wanted.items():
         have = current.get(name)

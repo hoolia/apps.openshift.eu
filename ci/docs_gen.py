@@ -73,6 +73,8 @@ def annotation(meta, key):
 
 
 def kind_of(meta):
+    if meta.get("type") == "library":
+        return "Library"
     words = set(meta.get("keywords") or [])
     if annotation(meta, "server") or "mcp-server" in words:
         return "MCP server"

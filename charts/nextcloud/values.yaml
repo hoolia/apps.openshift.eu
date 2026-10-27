@@ -345,21 +345,58 @@ mailu:
       annotations:
         argocd.argoproj.io/sync-options: Delete=false,Prune=false
 
+# Routes of the MCP servers below on the Nextcloud host: https://<host>/mcp/<server>
+# (nextcloud, officeagent, office-live), served with the certificate of the host
+mcp:
+  route:
+    enabled: true
+    # longest wait for a response of an MCP server
+    timeout: 300s
+    # extra labels and annotations of these Routes, for example a platform's own label
+    labels: {}
+    annotations: {}
+
+# Nextcloud MCP server for the project's agents, in the same project: files, notes,
+# calendar, contacts, deck, tables and talk as the calling account; its values are those of
+# the mcp-nextcloud chart. It passes the caller's bearer token to this Nextcloud, which
+# checks it, so it needs no token check of its own
+mcp-nextcloud:
+  enabled: true
+  service:
+    # extra labels on the Service, for example the exposure label of an MCP gateway
+    labels: {}
+  networkPolicy:
+    # namespaces (label selectors) that may call the server besides its own: the router,
+    # for the Route, and for example the namespace of an MCP gateway
+    ingressNamespaces:
+    - matchLabels:
+        network.openshift.io/policy-group: ingress
+
 # Office documents MCP server for the project's agents, in the same project; its values
 # are those of the mcp-officeagent chart
 mcp-officeagent:
   enabled: true
-  # token check in front of the server, so it can be exposed beyond the project, for
-  # example through a Route that an MCP gateway passes the caller's token to
+  # token check in front of the server, which the Route exposes beyond the project
   auth:
     enabled: true
     # OpenID Connect issuer of the callers' tokens; the platform sets it once for all
-    # instances. Empty: every call but /healthz is refused
+    # instances. Empty: every call but the health paths is refused (401)
     issuerUrl: ""
     # a token must be issued for this Nextcloud: the instance's OpenID Connect client,
     # named after the project. Set it to oidc.clientId when that differs
     audiences:
     - "{{ .Release.Namespace }}"
+    # a token must carry this group: the administrators of the tenant, <tenant>-admins,
+    # where the tenant is the part of the project name before the first "-"
+    allowedGroups:
+    - "{{ splitList \"-\" .Release.Namespace | first }}-admins"
+    # address callers use, named in the server's protected resource metadata; set it to
+    # https://<nextcloud host>/mcp/officeagent. Empty: the Service inside the cluster
+    resourceUrl: ""
+    # a GitOps tool that renders without cluster access passes both, else they change on
+    # every render
+    cookieSecret: ""
+    clientSecret: ""
   documents:
     persistence:
       # the agents' documents survive deleting the Application, as the files do
@@ -369,13 +406,16 @@ mcp-officeagent:
     # extra labels on the Service, for example the exposure label of an MCP gateway
     labels: {}
   networkPolicy:
-    # namespaces (label selectors) that may call the server besides its own, e.g. the
-    # namespace of an MCP gateway
-    ingressNamespaces: []
+    # namespaces (label selectors) that may call the server besides its own: the router,
+    # for the Route, and for example the namespace of an MCP gateway
+    ingressNamespaces:
+    - matchLabels:
+        network.openshift.io/policy-group: ingress
 
 # Live editing MCP server for the project's agents, in the same project: an agent opens a
 # document in OnlyOffice as itself and edits it while people watch; its values are those of
-# the mcp-onlyoffice-live chart. It reaches this Nextcloud at the Service nextcloud
+# the mcp-onlyoffice-live chart. It reaches this Nextcloud at the Service nextcloud and
+# passes the caller's token to it, so it needs no token check of its own
 mcp-onlyoffice-live:
   enabled: true
   nextcloud:
@@ -387,9 +427,11 @@ mcp-onlyoffice-live:
     # extra labels on the Service, for example the exposure label of an MCP gateway
     labels: {}
   networkPolicy:
-    # namespaces (label selectors) that may call the server besides its own, e.g. the
-    # namespace of an MCP gateway
-    ingressNamespaces: []
+    # namespaces (label selectors) that may call the server besides its own: the router,
+    # for the Route, and for example the namespace of an MCP gateway
+    ingressNamespaces:
+    - matchLabels:
+        network.openshift.io/policy-group: ingress
 
 global:
   # DKIM signing key of the mail server, made by cert-manager; the platform then

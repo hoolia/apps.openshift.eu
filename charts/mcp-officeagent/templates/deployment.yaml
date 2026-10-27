@@ -26,10 +26,6 @@ spec:
       labels:
         {{- include "mcp-officeagent.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: server
-      {{- if $auth.enabled }}
-      annotations:
-        checksum/auth: {{ include (print $.Template.BasePath "/configmap-auth.yaml") . | sha256sum }}
-      {{- end }}
     spec:
       # the server needs no Kubernetes API access
       automountServiceAccountToken: false
@@ -45,13 +41,9 @@ spec:
         env:
         - name: HOME
           value: /tmp
+        # with auth.enabled only the token check in the same pod reaches the server
         - name: ASPNETCORE_URLS
-          {{- if $auth.enabled }}
-          # only the token check in the same pod reaches the server
-          value: http://127.0.0.1:{{ $auth.upstreamPort }}
-          {{- else }}
-          value: http://0.0.0.0:{{ .Values.port }}
-          {{- end }}
+          value: http://{{ include "mcp-auth.serverHost" . }}:{{ include "mcp-auth.serverPort" (dict "root" . "port" .Values.port) }}
         - name: OfficeAgent__Transport
           value: http
         - name: OfficeAgent__AllowCreation
@@ -125,45 +117,13 @@ spec:
           mountPath: /documents
         {{- end }}
       {{- if $auth.enabled }}
-      - name: auth
-        image: "{{ $auth.image.repository }}:{{ $auth.image.tag }}"
-        imagePullPolicy: {{ $auth.image.pullPolicy }}
-        args:
-        - --config-path
-        - /etc/envoy/envoy.yaml
-        - --log-level
-        - {{ $auth.logLevel }}
-        ports:
-        - name: mcp
-          containerPort: {{ .Values.port }}
-          protocol: TCP
-        readinessProbe:
-          httpGet:
-            path: /healthz
-            port: mcp
-          periodSeconds: 10
-        resources:
-          {{- toYaml $auth.resources | nindent 10 }}
-        securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-            - ALL
-          runAsNonRoot: true
-          seccompProfile:
-            type: RuntimeDefault
-        volumeMounts:
-        - name: auth
-          mountPath: /etc/envoy
-          readOnly: true
+      {{- include "mcp-auth.container" (dict "root" . "name" (include "mcp-officeagent.name" .) "port" .Values.port "healthPath" "/healthz") | nindent 6 }}
       {{- end }}
       volumes:
       - name: tmp
         emptyDir: {}
-      {{- if $auth.enabled }}
-      - name: auth
-        configMap:
-          name: {{ include "mcp-officeagent.name" . }}-auth
+      {{- with include "mcp-auth.volumes" (dict "root" . "name" (include "mcp-officeagent.name" .)) }}
+      {{- . | nindent 6 }}
       {{- end }}
       {{- if $docs.enabled }}
       - name: documents
