@@ -365,7 +365,8 @@ upstream:
       timeoutSeconds: 10
     # a lock on master.pid can outlive a killed postfix on network storage; the
     # stock start script then keeps the file and postfix refuses to start. One
-    # postfix per pod (Recreate), so the start script removes it unconditionally
+    # postfix per pod (Recreate), so the start script removes it unconditionally.
+    # Replace with POSTFIX_QUEUE_EXCLUSIVE=true once Mailu/Mailu#4159 is released
     initContainers:
     - name: patch-startup
       image: '{{ .Values.imageRegistry }}/{{ .Values.postfix.image.repository }}:{{ default (include "mailu.version" .) .Values.postfix.image.tag }}'
