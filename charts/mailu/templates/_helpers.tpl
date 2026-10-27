@@ -8,6 +8,11 @@
 {{- required "upstream.existingSecret is required" .Values.upstream.existingSecret -}}
 {{- end -}}
 
+{{/* Hostname of the outgoing address. */}}
+{{- define "mailu-wrapper.egressHostname" -}}
+{{- .Values.egressService.hostname | default (printf "outbound.%s" .Values.upstream.domain) -}}
+{{- end -}}
+
 {{/* Labels that select the pods of one upstream component. */}}
 {{- define "mailu-wrapper.selector" -}}
 app.kubernetes.io/name: {{ .context.Values.upstream.nameOverride }}
@@ -55,11 +60,6 @@ metallb.io/allow-shared-ip: {{ $p.sharingKey | default .Release.Namespace | quot
 metallb.io/loadBalancerIPs: {{ . | quote }}
 {{- end }}
 {{- end }}
-{{- end -}}
-
-{{/* Services that share an address must all use the policy Cluster. */}}
-{{- define "mailu-wrapper.trafficPolicy" -}}
-{{- if ((.root.Values.global).publicAddress).shared -}}Cluster{{- else -}}{{ .policy }}{{- end -}}
 {{- end -}}
 
 {{/* Labels that are the same on every object of the chart. */}}
