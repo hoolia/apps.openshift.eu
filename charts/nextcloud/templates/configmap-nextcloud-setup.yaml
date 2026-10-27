@@ -223,6 +223,10 @@ data:
       if php occ "$create" "$uid" "$name" "$addr" "$front" 10143 none "$addr" "$token" "$front" 10025 none "$addr" "$token" >/dev/null; then
         echo "$addr" > "$state/$uid"
         log "$uid: Mail account $addr"
+        # the mailboxes, Sent among them, are known before the user first sends
+        account=$(php occ mail:account:export "$uid" --output=json \
+          | php -r 'foreach (json_decode(stream_get_contents(STDIN), true) ?: [] as $a) if (($a["email"] ?? "") === $argv[1]) echo $a["id"];' "$addr")
+        [ -n "$account" ] && timeout 120 php occ mail:account:sync "$account" >/dev/null 2>&1
       else
         del "token/$id"
         log "$uid: Mail account $addr not created"
