@@ -1,10 +1,5 @@
 {
  "charts": {
-  "atlassian-mcp": {
-   "category": "productivity",
-   "type": "mcp-server",
-   "vendor": "sooperset"
-  },
   "bifrost": {
    "category": "ai-gateway",
    "type": "app",
@@ -35,6 +30,11 @@
    "category": "productivity",
    "type": "mcp-bundle",
    "vendor": "GRN.CLOUD B.V."
+  },
+  "mcp-atlassian": {
+   "category": "productivity",
+   "type": "mcp-server",
+   "vendor": "sooperset"
   },
   "mcp-bundle-google-workspace": {
    "bundle": "google-workspace",
@@ -90,6 +90,13 @@
    "type": "mcp-server",
    "vendor": "Softeria"
   },
+  "mcp-nextcloud": {
+   "bundle": "nextcloud",
+   "category": "collaboration",
+   "server": "nextcloud",
+   "type": "mcp-server",
+   "vendor": "cbcoutinho"
+  },
   "mcp-officeagent": {
    "bundle": "officeagent",
    "category": "documents",
@@ -103,6 +110,11 @@
    "server": "office-live",
    "type": "mcp-server",
    "vendor": "GRN.CLOUD B.V."
+  },
+  "mcp-playwright": {
+   "category": "automation",
+   "type": "mcp-server",
+   "vendor": "Microsoft"
   },
   "mcp-server": {
    "category": "custom",
@@ -160,11 +172,6 @@
    "category": "ai-chat",
    "type": "app",
    "vendor": "Open WebUI"
-  },
-  "playwright-mcp": {
-   "category": "automation",
-   "type": "mcp-server",
-   "vendor": "Microsoft"
   },
   "qdrant": {
    "category": "database",
