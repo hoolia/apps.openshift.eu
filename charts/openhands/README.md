@@ -44,8 +44,10 @@ oc extract secret/team-session-api-key --keys=value --to=-
 
 - `team` (default: empty): Team of the tenant the app serves. Every object goes into `<tenant>-<team>`, a namespace the team already has; Argo CD's destination namespace stays empty. Empty: the release namespace.
 - `tenant` (default: empty): Tenant the app belongs to; required with `team`.
-- `image.repository`, `image.tag` (default: `ghcr.io/openhands/agent-canvas`, `1.33.0`): Upstream image, and the base of the build.
-- `build.enabled` (default: true): Build the image with the toolset in the project.
+- `image.repository`, `image.tag`, `image.digest` (default: `ghcr.io/openhands/agent-canvas`, `1.34.0`, the digest of that release): Upstream image, pinned by digest, and the base of the build.
+- `build.enabled` (default: true): Build the image with the toolset in the project. The image is tagged `<image.tag>-<chart version>`, for example `1.34.0-0.13.0`, so every chart release builds its own image once; each tag has its own BuildConfig, which builds when it is created.
+- `build.revision` (default: empty): Appended to the tag as `-<revision>`. Raise it in a release that changes `build.tools` or `build.toolsImage`: the tag, and with it the build, changes only with `image.tag`, the chart version or this value.
+- `build.wait.enabled`, `build.wait.timeoutSeconds` (default: true, 3600): An Argo CD Sync hook Job between the build (sync wave -2) and the StatefulSet (wave 0) waits until the build of the new tag is Complete, so the pod keeps running the previous image while the new one builds. A failed build, or no Complete build within the timeout, fails the sync and leaves the StatefulSet unchanged. Plain `helm upgrade` does not order the objects: the pod switches to the new tag at once and waits for the image.
 - `build.toolsImage` (default: empty): Image whose binaries, Go toolchain, `/tools`, `/opt/sonar-scanner` and Ansible collections are copied in. Empty: Debian packages and `build.tools` only.
 - `build.pullSecret` (default: empty): Pull secret for `build.toolsImage` and the base image.
 - `build.tools` (default: see `values.yaml`): `{kind: uv|npm|pip|venv|tarball, command, args, check}` per tool; `check` is the command the build runs to prove it starts. A `uv` tool whose command the base image already has is kept. `venv` installs the requirement in `args` with pip into `/opt/venv/<command>`; `tarball` takes `args` `<url> <sha256>`, checks the download against the digest and installs the archive member named `command`.

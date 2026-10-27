@@ -8,12 +8,24 @@ image:
   # upstream all-in-one image (frontend, agent-server, automation); used as is
   # when build.enabled is false, else the base of the build
   repository: ghcr.io/openhands/agent-canvas
-  tag: 1.33.0
+  # upstream release; the built image is tagged <tag>-<chart version>[-<build.revision>]
+  tag: 1.34.0
+  # digest of that release's image index, pulled instead of the tag; empty: the tag
+  digest: sha256:638c5e3ce76df74344bb18bd85f44af395337ade8e71f04532099fb380febadf
   pullPolicy: IfNotPresent
 
 build:
   # build the image with the toolset below in the project
   enabled: true
+  # raise it in a release that changes toolsImage or tools, so the build runs again
+  # under a new tag; empty: the tag is <image.tag>-<chart version>
+  revision: ""
+  wait:
+    # Argo CD Sync hook: the StatefulSet moves to a new tag only after its build is
+    # Complete, and the pod keeps the previous image until then
+    enabled: true
+    # how long the hook waits for the build before the sync fails
+    timeoutSeconds: 3600
   # image whose /usr/local/bin binaries, /usr/local/go, /tools, /opt/sonar-scanner and
   # Ansible collections are copied in, for example an opencode-agent image. Empty:
   # only the Debian packages and the tools below

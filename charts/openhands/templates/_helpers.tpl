@@ -80,18 +80,30 @@ the cluster, else a new random one. Takes value, existing (Secret data), key, le
 {{- end }}
 {{- end -}}
 
-{{/* A changed Containerfile, build script or toolset gets a new image tag */}}
-{{- define "openhands.buildHash" -}}
-{{- list (include "openhands.containerfile" .) (.Files.Get "files/install-tools.sh") (.Files.Get "files/verify-tools.sh") (.Files.Get "files/mcp_oauth_redirect.py") (include "openhands.toolsTxt" .) (include "openhands.checksTxt" .) | join "\n" | sha256sum | trunc 8 -}}
+{{/* Upstream image: by digest when one is given (tag plus digest is refused by some pullers) */}}
+{{- define "openhands.upstreamImage" -}}
+{{- if .Values.image.digest -}}
+{{- printf "%s@%s" .Values.image.repository .Values.image.digest -}}
+{{- else -}}
+{{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}
+{{- end -}}
 {{- end -}}
 
+{{/* Built image tag: upstream version, chart version, optional build.revision */}}
 {{- define "openhands.imageTag" -}}
-{{- printf "%s-%s" .Values.image.tag (include "openhands.buildHash" .) -}}
+{{- $tag := printf "%s-%s" .Values.image.tag (.Chart.Version | replace "+" "_") -}}
+{{- with .Values.build.revision }}{{ $tag = printf "%s-%v" $tag . }}{{ end -}}
+{{- $tag -}}
+{{- end -}}
+
+{{/* Name of the BuildConfig and its build context: one per image tag */}}
+{{- define "openhands.buildName" -}}
+{{- printf "%s-%s" (include "openhands.name" .) (include "openhands.imageTag" . | lower | replace "." "-" | replace "_" "-") -}}
 {{- end -}}
 
 {{- define "openhands.image" -}}
 {{- if not .Values.build.enabled -}}
-{{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}
+{{- include "openhands.upstreamImage" . -}}
 {{- else if eq .Values.build.output.kind "DockerImage" -}}
 {{- printf "%s:%s" (required "build.output.name is required for DockerImage" .Values.build.output.name) (include "openhands.imageTag" .) -}}
 {{- else -}}

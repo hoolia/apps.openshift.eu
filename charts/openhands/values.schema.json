@@ -13,6 +13,10 @@
           "type": "string",
           "minLength": 1
         },
+        "digest": {
+          "type": "string",
+          "pattern": "^(sha256:[0-9a-f]{64})?$"
+        },
         "pullPolicy": {
           "type": "string",
           "enum": [
@@ -28,6 +32,25 @@
       "properties": {
         "enabled": {
           "type": "boolean"
+        },
+        "revision": {
+          "type": [
+            "string",
+            "integer"
+          ],
+          "pattern": "^[A-Za-z0-9_.-]*$"
+        },
+        "wait": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "timeoutSeconds": {
+              "type": "integer",
+              "minimum": 60
+            }
+          }
         },
         "output": {
           "type": "object",
