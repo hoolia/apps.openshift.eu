@@ -24,7 +24,16 @@ credentials:
   # authenticate to the gateway and to Atlassian at once (Service annotation
   # agentgateway.dev/mcp-credential-header). Empty: no annotation
   gatewayHeader: X-Atlassian-Authorization
-  # shared mode: Secret with JIRA_USERNAME, JIRA_API_TOKEN (and CONFLUENCE_* if different)
+  # shared mode: a caller that sends its own account in gatewayHeader acts as itself; the
+  # shared account serves callers without one. Needs gatewayHeader, not auth.enabled
+  callerOverride: false
+  # Cloud ID of the site (https://<site>/_edge/tenant_info). Bearer tokens (OAuth access
+  # tokens, service account API keys) then go to api.atlassian.com/ex/<product>/<cloudId>.
+  # In shared mode it needs the shared account as ATLASSIAN_OAUTH_ACCESS_TOKEN in
+  # existingSecret. Empty: Bearer tokens go to the site URL, which refuses them
+  cloudId: ""
+  # shared mode: Secret with JIRA_USERNAME, JIRA_API_TOKEN (and CONFLUENCE_* if different),
+  # or with cloudId ATLASSIAN_OAUTH_ACCESS_TOKEN
   existingSecret: ""
 
 # Extra plain environment variables of the server, name to value

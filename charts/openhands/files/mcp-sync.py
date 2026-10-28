@@ -28,6 +28,14 @@ names that issuer for its own URL. Its URL must be https or a cluster Service. T
 points at the proxy's /_target/<namespace>.<name>, and TARGETS_FILE tells the proxy where
 that goes; the proxy sends the token nowhere else.
 
+An entry of SERVER_SETTINGS (chart value mcp.servers) with a url adds a server that has no
+RemoteMCPServer; one with an auth sends the agent's own credential to the entry of that name
+(and of that namespace, when given) in one request header: read from the files of a mounted
+vault secret on every pass, stored as the entry's secret (auth api_key, redacted in the UI)
+and written again only when it changed. Under the token proxy, which sets Authorization to
+the agent token, the header must be another one. The credential goes only to https, the
+token proxy or a cluster Service, and is never logged.
+
 With PUBLISH it also works the other way: every remote MCP server the user added in the
 UI becomes an AgentgatewayBackend of the namespace, with the headers OpenHands would send
 in a Secret it owns, so the platform publishes it to the team as a RemoteMCPServer.
@@ -57,6 +65,11 @@ INTERVAL = int(os.environ.get("INTERVAL", "60"))
 SELECTOR = os.environ.get("LABEL_SELECTOR", "")
 DISCOVERY = os.environ.get("DISCOVERY", "true") == "true"
 DESCRIPTION_PREFIX = "RemoteMCPServer "
+# entries of SERVER_SETTINGS with a url; with DESCRIPTION_PREFIX the entries this script owns
+VALUE_PREFIX = "Chart value mcp.servers "
+OURS = (DESCRIPTION_PREFIX, VALUE_PREFIX)
+# appended to the description of an entry that carries a credential from SERVER_SETTINGS
+CREDENTIAL_NOTE = ", with the agent's credential"
 # icon URL of a server: this annotation on the RemoteMCPServer, else the logo of a known name
 ICON_ANNOTATION = "openhands.dev/icon"
 SIMPLE_ICONS = "https://cdn.simpleicons.org/"
@@ -119,6 +132,11 @@ PRM = "/.well-known/oauth-protected-resource"
 # protected resource metadata per server URL: (expiry, authorization servers or None)
 PRM_CACHE: dict[str, tuple[float, list | None]] = {}
 PRM_TTL = int(os.environ.get("PRM_TTL", "3600"))
+# chart value mcp.servers: name to {url, auth}; auth holds the directory and file names of a
+# mounted vault secret, the header and the format, never a credential
+SERVER_SETTINGS: dict[str, dict] = json.loads(os.environ.get("SERVER_SETTINGS") or "{}")
+# digest of the credential header last written per entry; empty after a start
+CRED_SENT: dict[str, str] = {}
 
 
 def log(msg: str) -> None:
@@ -326,7 +344,7 @@ def publish(namespace: str, current: dict, full: bool) -> None:
     ours = {b["metadata"].get("annotations", {}).get(NAME_ANNOTATION): b for b in backends.values()
             if b["metadata"].get("labels", {}).get(PUBLISHED_LABEL) == AGENT}
     user = {n: s for n, s in current.items()
-            if n not in MANAGED and not str(s.get("description", "")).startswith(DESCRIPTION_PREFIX)}
+            if n not in MANAGED and not str(s.get("description", "")).startswith(OURS)}
     OWN.clear()
     OWN.update(b["metadata"]["name"] for b in ours.values())
     secrets = None
@@ -538,8 +556,13 @@ class Stored:
         if self.servers is None:
             status, settings = agent("GET", "/api/settings", plaintext=True)
             self.servers = (settings.get("agent_settings", {}).get("mcp_config", {}) or {}) if status == 200 else {}
-        auth = (self.servers.get(name) or {}).get("auth") or {}
-        return auth.get("authentication") or {}
+        return self.auth(name).get("authentication") or {}
+
+    def auth(self, name: str) -> dict:
+        if self.servers is None:
+            status, settings = agent("GET", "/api/settings", plaintext=True)
+            self.servers = (settings.get("agent_settings", {}).get("mcp_config", {}) or {}) if status == 200 else {}
+        return (self.servers.get(name) or {}).get("auth") or {}
 
 
 def client_changed(name: str, have: dict, authentication: dict, stored: Stored) -> bool:
@@ -558,23 +581,91 @@ def client_changed(name: str, have: dict, authentication: dict, stored: Stored) 
     return True
 
 
+def oauth(server: dict) -> bool:
+    return (server.get("auth") or {}).get("strategy") == "oauth2"
+
+
+def credential(spec: dict) -> tuple[str, str] | None:
+    """(header, value) built from the files of the mounted vault secret; None when one is
+    missing, empty or holds a line break."""
+    def read(key: str) -> str:
+        with open(os.path.join(spec["dir"], key), encoding="utf-8") as f:
+            return f.read().strip()
+    fmt = spec.get("format", "basic")
+    try:
+        token = read(spec["token"])
+        user = read(spec["user"]) if fmt == "basic" else ""
+    except (OSError, KeyError, ValueError):
+        return None
+    if not token or (fmt == "basic" and not user) or any(c in token + user for c in "\r\n"):
+        return None
+    if fmt == "basic":
+        value = "Basic " + base64.b64encode(f"{user}:{token}".encode()).decode()
+    elif fmt == "bearer":
+        value = "Bearer " + token
+    else:
+        value = token
+    return spec.get("header") or "Authorization", value
+
+
+def with_credential(name: str, origin: str, server: dict) -> dict:
+    """The entry with its credential from SERVER_SETTINGS; unchanged without one."""
+    spec = (SERVER_SETTINGS.get(name) or {}).get("auth")
+    if not spec or oauth(server):
+        return server
+    if spec.get("namespace") and spec["namespace"] != origin:
+        return server
+    url = server["url"]
+    if not (url.startswith(PROXY + "/") or agent_token_target(url)):
+        log(f"no credential for {name}: its URL is neither https, the token proxy nor a cluster Service")
+        return server
+    cred = credential(spec)
+    if cred is None:
+        log(f"no credential for {name} yet: the files in {spec.get('dir')} are missing or empty")
+        return server
+    header, value = cred
+    if url.startswith(PROXY + "/") and header.lower() == "authorization":
+        log(f"no credential for {name}: the token proxy replaces Authorization; choose another header")
+        return server
+    return {**server, "description": server["description"] + CREDENTIAL_NOTE,
+            "auth": {"strategy": "api_key", "header_name": header, "value": value}}
+
+
+def credential_changed(name: str, have: dict, auth: dict, stored: Stored) -> bool:
+    """True when the entry's stored credential differs from auth."""
+    shown = have.get("auth") or {}
+    # the value is redacted in an ordinary read
+    if shown.get("strategy") != auth["strategy"] or shown.get("header_name") != auth["header_name"]:
+        return True
+    if name in CRED_SENT:
+        return CRED_SENT[name] != digest(auth)
+    # after a start: compare the stored value once
+    if stored.auth(name).get("value") == auth["value"]:
+        CRED_SENT[name] = digest(auth)
+        return False
+    return True
+
+
 def add(name: str, server: dict) -> None:
     body = dict(server)
     auth = body.get("auth")
-    if auth is not None:
+    if oauth(body):
         body["auth"] = {**auth, "authentication": {k: v for k, v in auth["authentication"].items() if v is not None}}
     # an OAuth server works only after the user logged in to it
-    body["enabled"] = auth is None
+    body["enabled"] = not oauth(body)
     if agent("POST", f"/api/settings/mcp/{name}", body)[0] not in (200, 201):
         log(f"could not add {name}")
         return
-    if auth is not None:
+    if oauth(body):
         SENT[name] = digest(auth["authentication"])
+    elif auth is not None:
+        CRED_SENT[name] = digest(auth)
     log(f"added {name}")
 
 
 def remove(name: str) -> bool:
     SENT.pop(name, None)
+    CRED_SENT.pop(name, None)
     return agent("DELETE", f"/api/settings/mcp/{name}")[0] in (200, 204)
 
 
@@ -586,6 +677,7 @@ def sync(namespace: str, current: dict) -> None:
     objects = [o for o in objects if o["metadata"]["name"] not in OWN and selected(o)]
     own_names = {o["metadata"]["name"] for o in objects}
     wanted = {}
+    origin = {}
     TARGETS.clear()
     for obj in objects + [o for o in visible_servers(namespace) if selected(o)]:
         meta = obj["metadata"]
@@ -597,6 +689,20 @@ def sync(namespace: str, current: dict) -> None:
             log(f"skipped {meta['namespace']}/{meta['name']}: {reason}")
         else:
             wanted[key] = server
+            origin[key] = meta["namespace"]
+    for name, settings in SERVER_SETTINGS.items():
+        if not settings.get("url"):
+            continue
+        # a server by URL; it takes the place of a RemoteMCPServer of the same name
+        obj = {"metadata": {"name": name, "namespace": namespace},
+               "spec": {"url": settings["url"], "protocol": settings.get("protocol", "")}}
+        server, reason = to_server(obj)
+        if server is None:
+            log(f"skipped mcp.servers {name}: {reason}")
+            continue
+        wanted[name] = {**server, "description": VALUE_PREFIX + name}
+        origin[name] = namespace
+    wanted = {name: with_credential(name, origin[name], server) for name, server in wanted.items()}
     if AGENT_ISSUER:
         write_targets()
     stored = Stored()
@@ -605,18 +711,33 @@ def sync(namespace: str, current: dict) -> None:
         if have is None:
             add(name, server)
             continue
-        if not str(have.get("description", "")).startswith(DESCRIPTION_PREFIX):
+        if not str(have.get("description", "")).startswith(OURS):
             # a same-named entry the user made stays as it is
             continue
         auth = server.get("auth")
-        if ((have.get("auth") or {}).get("strategy") == "oauth2") != (auth is not None):
+        if oauth(have) != oauth(server):
             # switched between OAuth and no login: the entry starts over
             if remove(name):
                 add(name, server)
             continue
         # the user's enabled switch and the stored login (auth.state) are never sent
         patch = {k: v for k, v in server.items() if k != "auth" and have.get(k) != v}
-        if auth is not None and client_changed(name, have, auth["authentication"], stored):
+        if auth is None and str(have.get("description", "")).endswith(CREDENTIAL_NOTE):
+            # the credential was taken out of the values: the stored one goes too
+            patch["auth"] = None
+            if agent("PATCH", "/api/settings", {"agent_settings_diff": {"mcp_config": {name: patch}}})[0] not in (200, 201):
+                log(f"could not update {name}")
+            else:
+                CRED_SENT.pop(name, None)
+                log(f"removed the credential of {name}")
+        elif auth is not None and not oauth(server) and credential_changed(name, have, auth, stored):
+            patch["auth"] = auth
+            if agent("PATCH", "/api/settings", {"agent_settings_diff": {"mcp_config": {name: patch}}})[0] not in (200, 201):
+                log(f"could not update {name}")
+            else:
+                CRED_SENT[name] = digest(auth)
+                log(f"updated the credential of {name}")
+        elif auth is not None and oauth(server) and client_changed(name, have, auth["authentication"], stored):
             # merged into the stored auth; only the settings-wide diff deletes on a null
             patch["auth"] = auth
             body = {"agent_settings_diff": {"mcp_config": {name: patch}}}
@@ -629,7 +750,7 @@ def sync(namespace: str, current: dict) -> None:
             if agent("PATCH", f"/api/settings/mcp/{name}", patch)[0] not in (200, 201):
                 log(f"could not update {name}")
     for name, have in current.items():
-        if name not in wanted and str(have.get("description", "")).startswith(DESCRIPTION_PREFIX):
+        if name not in wanted and str(have.get("description", "")).startswith(OURS):
             if remove(name):
                 log(f"removed {name}")
 

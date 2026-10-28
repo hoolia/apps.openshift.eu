@@ -236,8 +236,22 @@ mcp:
   labelDomain: mcp.openshift.eu
   # add-on bundles to use, for example [google]
   bundles: []
-  # add-on servers to use, for example [gmail]
+  # add-on servers to use, by name, for example [gmail]. An entry may also be
+  # {name, url, auth}: url adds a server that has no RemoteMCPServer; auth sends the
+  # agent's own credential for it from vaultSecrets (see README)
   servers: []
+  # - name: atlassian
+  #   auth:
+  #     # vaultSecrets entry with the credential
+  #     secretRef: jira
+  #     # request header; not Authorization on a gateway URL, which carries the agent token
+  #     header: X-Atlassian-Authorization
+  #     # basic: Basic base64(<userKey>:<tokenKey>); bearer: Bearer <tokenKey>; raw: <tokenKey>
+  #     format: basic
+  #     userKey: JIRA_USERNAME
+  #     tokenKey: JIRA_API_TOKEN
+  #     # only the RemoteMCPServer of this namespace gets it; empty: the entry of that name
+  #     namespace: ""
   # ClusterRole, installed with kagent, that reads RemoteMCPServers; bound in the
   # release namespace. Empty: no binding (the ServiceAccount's edit role may cover it)
   clusterRole: kagent-remotemcpserver-view
@@ -250,6 +264,26 @@ mcp:
 
 # deprecated former name of mcp, still read in this version: its keys override mcp
 mcpDiscovery: {}
+
+# Secrets read from vault items of a secret store, one ExternalSecret and Secret
+# <release>-<name> per entry, mounted read-only as files under
+# /var/run/vault-secrets/<name>/<key>, never as environment. Mounted into mcp-sync when
+# an mcp.servers auth names it, and into agent-canvas with agent: true
+vaultSecrets: []
+# - name: jira
+#   # vault item; empty: <release>-<name>
+#   item: atlassian-mcp-team
+#   # empty: secrets.externalSecret.storeKind, storeName and refreshInterval
+#   storeKind: ""
+#   storeName: ""
+#   refreshInterval: ""
+#   # file (key of the Secret) to property of the item: login.username,
+#   # login.password, notes or a custom field name
+#   data:
+#     JIRA_USERNAME: login.username
+#     JIRA_API_TOKEN: login.password
+#   # also mount it into the agent container, for the agent's own tools
+#   agent: false
 
 # Remote MCP servers a user adds in the UI become AgentgatewayBackends of the namespace,
 # so the platform publishes them to the whole team. OAuth and in-pod servers stay personal.

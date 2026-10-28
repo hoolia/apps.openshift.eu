@@ -188,6 +188,57 @@ seccompProfile:
 {{- toJson (mergeOverwrite (deepCopy .Values.mcp) (deepCopy (.Values.mcpDiscovery | default dict))) -}}
 {{- end -}}
 
+{{/* names of mcp.servers, whose entries are a name or {name, url, auth} */}}
+{{- define "openhands.mcpServerNames" -}}
+{{- $names := list -}}
+{{- range (include "openhands.mcp" . | fromJson).servers -}}
+{{- if kindIs "string" . }}{{ $names = append $names . }}{{ else }}{{ $names = append $names .name }}{{ end -}}
+{{- end -}}
+{{- toJson $names -}}
+{{- end -}}
+
+{{/*
+mcp.servers entries with a url or an auth, for mcp-sync: name to {url, auth}, auth with
+the directory of the mounted vault secret and the file names; never a secret value
+*/}}
+{{- define "openhands.mcpServerSettings" -}}
+{{- $out := dict -}}
+{{- $vault := dict -}}
+{{- range .Values.vaultSecrets }}{{ $_ := set $vault .name . }}{{ end -}}
+{{- range (include "openhands.mcp" . | fromJson).servers -}}
+{{- if kindIs "map" . -}}
+{{- $s := dict -}}
+{{- with .url }}{{ $_ := set $s "url" . }}{{ end -}}
+{{- with .auth -}}
+{{- $v := index $vault (.secretRef | default "") -}}
+{{- if not $v }}{{ fail (printf "mcp.servers auth.secretRef %q is not a vaultSecrets name" (.secretRef | default "")) }}{{ end -}}
+{{- $format := .format | default "basic" -}}
+{{- if not (has $format (list "basic" "bearer" "raw")) }}{{ fail (printf "mcp.servers auth.format %q: basic, bearer or raw" $format) }}{{ end -}}
+{{- $keys := list (required "mcp.servers auth.tokenKey is required" .tokenKey) -}}
+{{- if eq $format "basic" }}{{ $keys = append $keys (required "mcp.servers auth.userKey is required with format basic" .userKey) }}{{ end -}}
+{{- range $keys }}{{ if not (hasKey $v.data .) }}{{ fail (printf "mcp.servers auth: key %s is not in vaultSecrets %s data" . $v.name) }}{{ end }}{{ end -}}
+{{- $a := dict "dir" (printf "/var/run/vault-secrets/%s" $v.name) "header" (.header | default "Authorization") "format" $format "token" .tokenKey -}}
+{{- if eq $format "basic" }}{{ $_ := set $a "user" .userKey }}{{ end -}}
+{{- with .namespace }}{{ $_ := set $a "namespace" . }}{{ end -}}
+{{- $_ := set $s "auth" $a -}}
+{{- end -}}
+{{- if $s }}{{ $_ := set $out (required "mcp.servers[].name is required" .name) $s }}{{ end -}}
+{{- end -}}
+{{- end -}}
+{{- toJson $out -}}
+{{- end -}}
+
+{{/* vaultSecrets names an mcp.servers auth refers to: mounted into mcp-sync */}}
+{{- define "openhands.mcpAuthSecrets" -}}
+{{- $names := list -}}
+{{- range (include "openhands.mcp" . | fromJson).servers -}}
+{{- if and (kindIs "map" .) .auth -}}
+{{- $names = append $names .auth.secretRef -}}
+{{- end -}}
+{{- end -}}
+{{- toJson ($names | uniq) -}}
+{{- end -}}
+
 {{/* URL other agents reach the A2A shim on: the kagent agent's Service, else the shim's */}}
 {{- define "openhands.a2aPublicUrl" -}}
 {{- $name := include "openhands.name" . -}}

@@ -185,6 +185,13 @@ spec:
         - name: data
           mountPath: /home/openhands/workspace
           subPath: workspace
+        {{- range .Values.vaultSecrets }}
+        {{- if .agent }}
+        - name: vault-{{ .name }}
+          mountPath: /var/run/vault-secrets/{{ .name }}
+          readOnly: true
+        {{- end }}
+        {{- end }}
         resources:
           {{- toYaml .Values.resources | nindent 10 }}
         securityContext:
@@ -326,7 +333,10 @@ spec:
         - name: BUNDLES
           value: {{ join "," ($mcp.bundles | default list) | quote }}
         - name: SERVERS
-          value: {{ join "," ($mcp.servers | default list) | quote }}
+          value: {{ join "," (include "openhands.mcpServerNames" . | fromJsonArray) | quote }}
+        # mcp.servers with a url or an auth; credentials are read from the mounted files
+        - name: SERVER_SETTINGS
+          value: {{ include "openhands.mcpServerSettings" . | quote }}
         - name: UPSTREAM
           value: {{ .Values.gateway.upstream | quote }}
         - name: TOKEN_PROXY_PORT
@@ -362,6 +372,11 @@ spec:
         {{- if and .Values.gateway.upstream .Values.tokenProxy.agentToken.tokenUrl }}
         - name: mcp-targets
           mountPath: /var/run/mcp-targets
+        {{- end }}
+        {{- range include "openhands.mcpAuthSecrets" . | fromJsonArray }}
+        - name: vault-{{ . }}
+          mountPath: /var/run/vault-secrets/{{ . }}
+          readOnly: true
         {{- end }}
         resources:
           {{- toYaml $mcp.resources | nindent 10 }}
@@ -425,6 +440,18 @@ spec:
       - name: scripts
         configMap:
           name: {{ $name }}-scripts
+      {{- $auth := include "openhands.mcpAuthSecrets" . | fromJsonArray }}
+      {{- range .Values.vaultSecrets }}
+      {{- if or .agent (has .name $auth) }}
+      # files readable by the pod's user through its fsGroup only
+      - name: vault-{{ .name }}
+        secret:
+          secretName: {{ $name }}-{{ .name }}
+          defaultMode: 0440
+          # the pod starts before the secret store answers; mcp-sync waits for the files
+          optional: true
+      {{- end }}
+      {{- end }}
       {{- if .Values.gateway.upstream }}
       # the agent's own credential for the gateway, renewed by the kubelet
       - name: api-token

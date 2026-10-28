@@ -10,6 +10,27 @@ The OpenCode image carries a command-line toolset, each tool at the newest upstr
 
 Local (stdio) MCP servers that an OpenCode project defines, such as `npx -y <package>` or `uvx <package>`, run inside the agent pod with the agent's own rights: its ServiceAccount, its work tree and its network access. npm, npx and uv keep their caches under `HOME` and `XDG_CACHE_HOME` on the work tree volume, so they work for the pod's arbitrary UID. `uvx` uses the image's Python and downloads another Python version into the volume when a package needs one.
 
+Remote MCP servers are entries of `mcp.servers`, written into `opencode.json`: `path` is a path on `gateway.upstream`, called through the token proxy with the agent's token; `url` is called as is. An entry with `auth` sends the agent's own credential for that server in one request header. The credential comes from `vaultSecrets`: each entry renders an `ExternalSecret` (target Secret `<person.name>-agent-<name>`) that reads the named properties of one vault item, mounted read-only into the opencode container as files `/var/run/vault-secrets/<name>/<key>` (mode `0440`), never as environment. Before OpenCode starts, `mcp-headers.sh` builds each header from those files into `/var/run/mcp-headers/<server>` (memory, mode `0600`) and `opencode.json` refers to it as `{file:/var/run/mcp-headers/<server>}`, so the credential is in no ConfigMap, pod spec, command line or log. `format: basic` sends `Basic base64(<userKey>:<tokenKey>)`, `bearer` sends `Bearer <tokenKey>`, `raw` sends `<tokenKey>`. A rotated vault item reaches OpenCode at the next pod start. With `path` the header must not be `Authorization`, which the token proxy sets to the agent's token; every other header passes through unchanged, and on a gateway that supports it the server's Service names that header (`agentgateway.dev/mcp-credential-header`) so the gateway hands it to the server as its `Authorization`.
+
+```yaml
+vaultSecrets:
+- name: jira
+  item: atlassian-person
+  data:
+    JIRA_USERNAME: login.username
+    JIRA_API_TOKEN: login.password
+mcp:
+  servers:
+  - name: atlassian
+    path: /mcp/<namespace>/atlassian
+    auth:
+      secretRef: jira
+      header: X-Atlassian-Authorization
+      format: basic
+      userKey: JIRA_USERNAME
+      tokenKey: JIRA_API_TOKEN
+```
+
 The A2A adapter keeps its task store and session bindings in the pod (`emptyDir`), not on the shared volume: during a rolling update the old and the new pod run side by side, and two adapters on one SQLite file over a shared file system fail with "locking protocol". A2A tasks and conversation bindings therefore start empty after a pod restart; OpenCode sessions stay on the volume.
 
 ## Install
@@ -58,6 +79,8 @@ The UI keeps the list of open projects in the browser, so it starts empty in a n
 - `a2a.peers` (default: empty): Agents this agent may call, as a name or `{name, namespace}` (namespace default: the release namespace). Each is reached at `<gateway.upstream origin>/a2a/<namespace>/<name>/` through the token proxy. With peers and `gateway.upstream` set, the opencode container gets `A2A_PEERS`, `A2A_GATEWAY_URL` and `A2A_PROXY_URL`, which a model plugin can turn into tools (the `@grncloud/opencode-grncloud` plugin registers `a2a_list_agents` and `a2a_call`), and the instructions describe those two tools.
 - `git.url`, `git.branch`, `secrets.gitToken`: Repository cloned into `/workspace` on first start, never overwritten. The token goes to the host of `git.url` only.
 - `opencode.plugins`, `opencode.npmScopes`, `opencode.env`, `opencode.config`: npm plugins, their registries, extra environment and overrides of `opencode.json`.
+- `mcp.servers` (default: empty): Remote MCP servers `{name, path, url, enabled, auth}`; `auth` is `secretRef` (a `vaultSecrets` name), `header` (default `Authorization`), `format` (`basic` (default), `bearer` or `raw`), `userKey` and `tokenKey`. `opencode.config` keys win over these entries.
+- `vaultSecrets` (default: empty): Vault items as files in the opencode container: `{name, item, data, storeKind, storeName, refreshInterval}`. `item` defaults to `<person.name>-agent-<name>`; `data` maps each file (Secret key) to a property of the item (`login.username`, `login.password`, `notes` or a custom field); the store and refresh interval default to `secrets.externalSecret`, whatever `secrets.type` is.
 - `opencode.disabledProviders` (default: `[opencode]`): Providers that are off by default, written as `disabled_providers`. `opencode` is opencode.ai's public inference, which sends prompts outside your gateway. OpenCode 2.1.1 has no UI switch for providers; a user turns one back on in their own `~/.config/opencode/opencode.json`, which outranks this file: `{"policies": [{"action": "provider.use", "resource": "opencode", "effect": "allow"}]}`.
 - `builds.enabled` (default: true): Build the OpenCode image (with the toolset and kubernetes-mcp-server) and the adapter image in your project. When false, set `a2a.image`, and `opencode.image` to an image that carries the toolset and `/tools/kubernetes-mcp-server`.
 - `builds.resources` (default: 100m CPU and 256Mi requested, 6Gi limit): The OpenCode image build; compiling `odf` needs several Gi.

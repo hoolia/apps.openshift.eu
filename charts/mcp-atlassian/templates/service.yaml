@@ -15,7 +15,7 @@ metadata:
     {{- end }}
     agentgateway.dev/mcp-path: {{ .Values.path | quote }}
     agentgateway.dev/mcp-target-name: {{ .Values.mcp.targetName | quote }}
-    {{- if and (eq .Values.credentials.mode "perCaller") .Values.credentials.gatewayHeader }}
+    {{- if and (or (eq .Values.credentials.mode "perCaller") .Values.credentials.callerOverride) .Values.credentials.gatewayHeader }}
     agentgateway.dev/mcp-credential-header: {{ .Values.credentials.gatewayHeader | quote }}
     {{- end }}
 spec:

@@ -1,5 +1,7 @@
 {{- if not (or .Values.jira.url .Values.confluence.url) }}{{ fail "jira.url or confluence.url is required" }}{{ end }}
 {{- if and (eq .Values.credentials.mode "shared") (not .Values.credentials.existingSecret) }}{{ fail "credentials.existingSecret is required in shared mode" }}{{ end }}
+{{- if and .Values.credentials.callerOverride (not .Values.credentials.gatewayHeader) }}{{ fail "credentials.callerOverride needs credentials.gatewayHeader" }}{{ end }}
+{{- if and .Values.auth.enabled .Values.credentials.callerOverride }}{{ fail "credentials.callerOverride cannot be combined with auth.enabled: the caller's account replaces the Authorization header that the token check reads" }}{{ end }}
 {{- if and .Values.auth.enabled (eq .Values.credentials.mode "perCaller") }}{{ fail "auth.enabled needs credentials.mode shared: the token check takes the Authorization header that perCaller mode reads the Atlassian account from" }}{{ end }}
 apiVersion: apps/v1
 kind: Deployment
@@ -62,6 +64,11 @@ spec:
         {{- else }}
         - name: ALLOW_GLOBAL_CRED_FALLBACK
           value: "true"
+        {{- end }}
+        {{- with .Values.credentials.cloudId }}
+        # Bearer tokens address the site through api.atlassian.com by this cloud ID
+        - name: ATLASSIAN_OAUTH_CLOUD_ID
+          value: {{ . | quote }}
         {{- end }}
         {{- range $k, $v := .Values.env }}
         - name: {{ $k }}
