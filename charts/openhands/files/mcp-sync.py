@@ -8,8 +8,8 @@ other URL is used as is, except when the object needs headers from a Secret. Ent
 it wrote carry DESCRIPTION_PREFIX; a name that occurs in two namespaces becomes
 <namespace>-<name> for the other namespace; those whose object is gone are removed, a same-named
 entry the user added wins, and the user's enabled switch is kept. Without the kagent
-CRDs it writes nothing. It also writes GIT_SECRET_NAME into the secrets store, which
-turns on the UI's git provider features. Never exits on an error.
+CRDs it writes nothing. It also writes GIT_SECRET_NAME into the secrets store, where
+the UI's pull request and issue lists look for a provider token. Never exits on an error.
 
 An object labelled <LABEL_DOMAIN>/addon=true is an add-on: it is written only when its
 <LABEL_DOMAIN>/bundle label is in BUNDLES or its <LABEL_DOMAIN>/server label (else its

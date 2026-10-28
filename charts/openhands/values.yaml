@@ -128,9 +128,23 @@ secrets:
 git:
   # Git host (no scheme) the token is sent to; empty: no token configured
   host: ""
-  # secrets store name the UI reads to offer its git provider features (GITLAB_TOKEN,
-  # GITHUB_TOKEN, BITBUCKET_TOKEN or FORGEJO_TOKEN); empty: not written
+  # secrets store name the git token is also written under, where the UI's pull request and
+  # issue lists look for it (GITLAB_TOKEN, GITHUB_TOKEN, BITBUCKET_TOKEN or FORGEJO_TOKEN);
+  # empty: not written
   uiSecretName: GITLAB_TOKEN
+  # further git hosts whose token is in the agent-server secrets store (Settings > Secrets
+  # or agentSecrets): git sends it for https clone, fetch and push. Each entry has type
+  # github or gitlab, host (default github.com or gitlab.com) and secretName (default
+  # GITHUB_TOKEN, else GITHUB_PERSONAL_ACCESS_TOKEN as the MCP library's GitHub card saves
+  # it; GITLAB_TOKEN for gitlab)
+  providers: []
+  # - type: gitlab
+  #   host: git.example.com
+  # directory under the home that the new-conversation picker lists repositories of; empty:
+  # not registered
+  repositoriesDir: repositories
+  # https URLs of repositories cloned into repositoriesDir at start when not there yet
+  repositories: []
   # commit identity
   userName: ""
   userEmail: ""
