@@ -8,15 +8,19 @@ names pod environment variables to hand to a stdio server. With gatewayModels,
 profiles for new gateway models are added on every start; without a model, the
 first gateway model named in preferredModels becomes the default. SEED_CONDENSER
 is written into the settings and every OpenHands agent profile once per change
-of its own value. Always exits 0 so a failed seed never kills the container.
+of its own value. On every start GIT_REPOSITORIES_DIR becomes a workspace parent, whose
+repositories the new-conversation picker lists, and each URL in GIT_REPOSITORIES that is
+not there yet is cloned into it. Always exits 0 so a failed seed never kills the container.
 """
 import hashlib
 import json
 import os
 import re
+import subprocess
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 
 API = "http://127.0.0.1:18000"
@@ -147,6 +151,41 @@ def seed_condenser() -> None:
         print("seed: condenser not written", file=sys.stderr)
 
 
+def seed_repositories() -> None:
+    """Workspace parent of the picker, and the repositories cloned into it once."""
+    parent = os.environ.get("GIT_REPOSITORIES_DIR") or ""
+    if not parent:
+        return
+    os.makedirs(parent, exist_ok=True)
+    if call("POST", "/api/workspaces/parents", {"parents": [
+            {"id": parent, "name": os.path.basename(parent), "path": parent}]}) != 200:
+        print("seed: workspace parent not written", file=sys.stderr)
+    for url in json.loads(os.environ.get("GIT_REPOSITORIES") or "[]"):
+        name = url.rstrip("/").rsplit("/", 1)[-1].removesuffix(".git")
+        dest = os.path.join(parent, name)
+        if not name or os.path.exists(dest):
+            continue
+        if urllib.parse.urlsplit(url).password:
+            print(f"seed: repository {name} skipped, its URL holds a password", file=sys.stderr)
+            continue
+        # a clone in progress stays hidden from the picker until it is complete
+        tmp = os.path.join(parent, f".{name}.clone")
+        subprocess.run(["rm", "-rf", tmp], check=False)
+        try:
+            # git asks the credential helpers of git.host and git.providers for the token
+            done = subprocess.run(
+                ["git", "clone", "--quiet", "--filter=blob:none", "--", url, tmp],
+                env={**os.environ, "GIT_TERMINAL_PROMPT": "0"}, timeout=900,
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
+        except (OSError, subprocess.TimeoutExpired):
+            done = False
+        if done:
+            os.rename(tmp, dest)
+        else:
+            subprocess.run(["rm", "-rf", tmp], check=False)
+            print(f"seed: repository {name} not cloned", file=sys.stderr)
+
+
 def add_gateway_profiles(llm: dict, conn: dict) -> None:
     """Profiles for gateway models that have none yet; existing profiles stay as edited."""
     status, conns = request("GET", "/api/llm/provider-connections")
@@ -186,6 +225,7 @@ def main() -> None:
     models = llm.pop("models", [])
     every = llm.pop("gatewayModels", False)
     preferred = llm.pop("preferredModels", [])
+    seed_repositories()
     seed_condenser()
     if os.path.exists(MARKER):
         if every and conn and llm.get("base_url"):

@@ -117,6 +117,14 @@ spec:
         {{- $git := list (dict "k" "safe.directory" "v" "*") }}
         {{- with .Values.git.userName }}{{ $git = append $git (dict "k" "user.name" "v" .) }}{{ end }}
         {{- with .Values.git.userEmail }}{{ $git = append $git (dict "k" "user.email" "v" .) }}{{ end }}
+        {{- /* before the git.host token, so a token in the secrets store wins */}}
+        {{- range .Values.git.providers }}
+        {{- $github := eq .type "github" }}
+        {{- $host := .host | default (ternary "github.com" "gitlab.com" $github) }}
+        {{- /* the GitHub card of the MCP library saves its token as GITHUB_PERSONAL_ACCESS_TOKEN */}}
+        {{- $names := .secretName | default (ternary "GITHUB_TOKEN GITHUB_PERSONAL_ACCESS_TOKEN" "GITLAB_TOKEN" $github) }}
+        {{- $git = append $git (dict "k" (printf "credential.https://%s.helper" $host) "v" (printf "!python3 /opt/openhands-scripts/git-credential.py %s %s" (ternary "x-access-token" "oauth2" $github) $names)) }}
+        {{- end }}
         {{- with .Values.git.host }}
         {{- $git = append $git (dict "k" (printf "credential.https://%s.helper" .) "v" "!f() { test \"$1\" = get && echo username=oauth2 && echo \"password=$GITLAB_TOKEN\"; }; f") }}
         {{- end }}
@@ -127,6 +135,13 @@ spec:
           value: {{ $c.k | quote }}
         - name: GIT_CONFIG_VALUE_{{ $i }}
           value: {{ $c.v | quote }}
+        {{- end }}
+        {{- with .Values.git.repositoriesDir }}
+        # the new-conversation picker lists the repositories in this directory
+        - name: GIT_REPOSITORIES_DIR
+          value: {{ printf "/home/openhands/%s" . | quote }}
+        - name: GIT_REPOSITORIES
+          value: {{ toJson $.Values.git.repositories | quote }}
         {{- end }}
         {{- range $k, $v := .Values.env }}
         - name: {{ $k }}
