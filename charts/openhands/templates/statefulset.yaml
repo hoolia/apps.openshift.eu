@@ -117,16 +117,22 @@ spec:
         {{- $git := list (dict "k" "safe.directory" "v" "*") }}
         {{- with .Values.git.userName }}{{ $git = append $git (dict "k" "user.name" "v" .) }}{{ end }}
         {{- with .Values.git.userEmail }}{{ $git = append $git (dict "k" "user.email" "v" .) }}{{ end }}
-        {{- /* before the git.host token, so a token in the secrets store wins */}}
-        {{- range .Values.git.providers }}
+        {{- /* github.com always: a GitHub token in the environment or the secrets store works */}}
+        {{- $providers := .Values.git.providers }}
+        {{- $hosts := list }}
+        {{- range $providers }}{{ $hosts = append $hosts (.host | default (ternary "github.com" "gitlab.com" (eq .type "github"))) }}{{ end }}
+        {{- if not (has "github.com" $hosts) }}{{ $providers = append $providers (dict "type" "github") }}{{ end }}
+        {{- /* before the git.host token, so a token in the environment or secrets store wins */}}
+        {{- range $providers }}
         {{- $github := eq .type "github" }}
         {{- $host := .host | default (ternary "github.com" "gitlab.com" $github) }}
-        {{- /* the GitHub card of the MCP library saves its token as GITHUB_PERSONAL_ACCESS_TOKEN */}}
-        {{- $names := .secretName | default (ternary "GITHUB_TOKEN GITHUB_PERSONAL_ACCESS_TOKEN" "GITLAB_TOKEN" $github) }}
+        {{- /* the GitHub card of the MCP library saves its token as GITHUB_PERSONAL_ACCESS_TOKEN;
+               GITLAB_TOKEN in the environment is the git.host token, so gitlab reads the store only */}}
+        {{- $names := .secretName | default (ternary "env:GITHUB_TOKEN env:GH_TOKEN env:GITHUB_PERSONAL_ACCESS_TOKEN GITHUB_TOKEN GITHUB_PERSONAL_ACCESS_TOKEN" "GITLAB_TOKEN" $github) }}
         {{- $git = append $git (dict "k" (printf "credential.https://%s.helper" $host) "v" (printf "!python3 /opt/openhands-scripts/git-credential.py %s %s" (ternary "x-access-token" "oauth2" $github) $names)) }}
         {{- end }}
         {{- with .Values.git.host }}
-        {{- $git = append $git (dict "k" (printf "credential.https://%s.helper" .) "v" "!f() { test \"$1\" = get && echo username=oauth2 && echo \"password=$GITLAB_TOKEN\"; }; f") }}
+        {{- $git = append $git (dict "k" (printf "credential.https://%s.helper" .) "v" (printf "!python3 /opt/openhands-scripts/git-credential.py %s env:GITLAB_TOKEN" (ternary "x-access-token" "oauth2" (eq . "github.com")))) }}
         {{- end }}
         - name: GIT_CONFIG_COUNT
           value: {{ len $git | quote }}
