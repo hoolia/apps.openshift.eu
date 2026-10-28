@@ -134,9 +134,11 @@ git:
   uiSecretName: GITLAB_TOKEN
   # further git hosts whose token is in the agent-server secrets store (Settings > Secrets
   # or agentSecrets): git sends it for https clone, fetch and push. Each entry has type
-  # github or gitlab, host (default github.com or gitlab.com) and secretName (default
-  # GITHUB_TOKEN, else GITHUB_PERSONAL_ACCESS_TOKEN as the MCP library's GitHub card saves
-  # it; GITLAB_TOKEN for gitlab)
+  # github or gitlab, host (default github.com or gitlab.com) and secretName (names
+  # separated by spaces, env:<VAR> for an environment variable). Default for github: the
+  # environment variables GITHUB_TOKEN, GH_TOKEN, GITHUB_PERSONAL_ACCESS_TOKEN, then the
+  # stored GITHUB_TOKEN or GITHUB_PERSONAL_ACCESS_TOKEN; for gitlab: the stored GITLAB_TOKEN.
+  # github.com is always configured, also without an entry
   providers: []
   # - type: gitlab
   #   host: git.example.com
