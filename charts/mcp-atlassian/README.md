@@ -15,6 +15,19 @@ port 8000, path `/mcp`, for a tenant or one of its teams.
   own Atlassian account or API token: a person decides who gets one.
 - `credentials.mode: shared`: one account for every caller, from `credentials.existingSecret`
   (`JIRA_USERNAME`, `JIRA_API_TOKEN`, optionally `CONFLUENCE_*`).
+- `credentials.mode: shared` with `credentials.callerOverride: true`: per caller with
+  fallback. A caller that sends its own account acts as itself; a caller without one acts as
+  the shared account. The Service then carries the gateway header annotation as in perCaller
+  mode. An invalid caller account is refused, never replaced by the shared one.
+- `credentials.cloudId`: the Cloud ID of the site (`https://<site>/_edge/tenant_info`). A
+  Bearer token (an OAuth access token, or an API key of an Atlassian service account, which
+  works only as Bearer) then goes to `https://api.atlassian.com/ex/jira/<cloudId>` and
+  `.../ex/confluence/<cloudId>`; a Basic account keeps going to the site URL, so one server
+  takes both. Without it a Bearer token goes to the site URL, which refuses it. In shared
+  mode the server itself then counts as an OAuth client: the shared account must be a Bearer
+  token too, `ATLASSIAN_OAUTH_ACCESS_TOKEN` in `credentials.existingSecret` (for example the
+  API key of a team service account), because a shared Basic account and Bearer callers do
+  not combine in one server.
 - Behind an MCP gateway the caller's `Authorization` header authenticates it to the gateway.
   The Service annotation `agentgateway.dev/mcp-credential-header` (from
   `credentials.gatewayHeader`, default `X-Atlassian-Authorization`) names the request header
@@ -55,8 +68,9 @@ For a team of a tenant, add `--set team=<team> --set tenant=<tenant>`.
 - Ready when the Deployment `<release>` is Available and the Service `<release>` answers on
   port 8000, path `/mcp`.
 - Callers send their own Atlassian credential: `Authorization: Basic base64(email:api_token)`
-  directly, or through an MCP gateway in the header named by
-  `agentgateway.dev/mcp-credential-header`.
+  or, with `credentials.cloudId`, `Authorization: Bearer <token>` directly, or through an MCP
+  gateway in the header named by `agentgateway.dev/mcp-credential-header`. The `openhands`
+  and `opencode-agent` charts send it from a vault item (`vaultSecrets` and `mcp.servers`).
 - A call without a credential answers 401 in perCaller mode; that is the expected result for
   a caller that has no Atlassian account yet.
 
@@ -68,7 +82,13 @@ For a team of a tenant, add `--set team=<team> --set tenant=<tenant>`.
 - `credentials.mode` (default: `perCaller`): `perCaller` or `shared`.
 - `credentials.gatewayHeader` (default: `X-Atlassian-Authorization`): header an MCP gateway
   copies into the backend `Authorization`; empty: no annotation.
+- `credentials.callerOverride` (default: false): shared mode only; callers may bring their
+  own account in `credentials.gatewayHeader`. Needs `credentials.gatewayHeader`; refused with
+  `auth.enabled`, whose token check reads the same `Authorization` header.
+- `credentials.cloudId` (default: empty): Cloud ID of the site, for Bearer tokens.
 - `credentials.existingSecret` (default: empty): the shared account; required in shared mode.
+  `JIRA_USERNAME` and `JIRA_API_TOKEN`, or with `credentials.cloudId`
+  `ATLASSIAN_OAUTH_ACCESS_TOKEN`.
 - `env` (default: `{}`): extra environment variables of the server.
 - `port`, `path` (default: `8000`, `/mcp`).
 - `mcp.appProtocol` (default: `agentgateway.dev/mcp`), `mcp.targetName` (default: `atlassian`).

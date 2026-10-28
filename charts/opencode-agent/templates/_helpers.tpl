@@ -199,6 +199,43 @@ CMD ["opencode-a2a", "serve"]
 {{- end -}}
 
 {{/* Namespace of every object: <tenant>-<team> for an app of a team, else the release namespace */}}
+{{/*
+mcp.servers as opencode.json "mcp" entries, name to {type, url, enabled, headers}; a
+header value is a {file:} reference to what mcp-headers.sh writes, never the credential
+*/}}
+{{- define "opencode-agent.mcpServers" -}}
+{{- $out := dict -}}
+{{- $vault := dict -}}
+{{- range .Values.vaultSecrets }}{{ $_ := set $vault .name . }}{{ end -}}
+{{- range .Values.mcp.servers -}}
+{{- $name := required "mcp.servers[].name is required" .name -}}
+{{- if not (regexMatch "^[a-zA-Z0-9][a-zA-Z0-9_-]*$" $name) }}{{ fail (printf "mcp.servers name %q: letters, digits, - and _ only" $name) }}{{ end -}}
+{{- $url := .url -}}
+{{- if .path -}}
+{{- if not $.Values.gateway.upstream }}{{ fail (printf "mcp.servers %s: path needs gateway.upstream" $name) }}{{ end -}}
+{{- $url = printf "http://127.0.0.1:%v%s" $.Values.tokenProxy.port .path -}}
+{{- end -}}
+{{- if not $url }}{{ fail (printf "mcp.servers %s: path or url is required" $name) }}{{ end -}}
+{{- $s := dict "type" "remote" "url" $url "enabled" (ne .enabled false) -}}
+{{- with .auth -}}
+{{- $v := index $vault (.secretRef | default "") -}}
+{{- if not $v }}{{ fail (printf "mcp.servers %s: auth.secretRef %q is not a vaultSecrets name" $name (.secretRef | default "")) }}{{ end -}}
+{{- $format := .format | default "basic" -}}
+{{- if not (has $format (list "basic" "bearer" "raw")) }}{{ fail (printf "mcp.servers %s: auth.format %q: basic, bearer or raw" $name $format) }}{{ end -}}
+{{- $keys := list (required "mcp.servers auth.tokenKey is required" .tokenKey) -}}
+{{- if eq $format "basic" }}{{ $keys = append $keys (required "mcp.servers auth.userKey is required with format basic" .userKey) }}{{ end -}}
+{{- range $keys }}{{ if not (hasKey $v.data .) }}{{ fail (printf "mcp.servers auth: key %s is not in vaultSecrets %s data" . $v.name) }}{{ end }}{{ end -}}
+{{- $header := .header | default "Authorization" -}}
+{{- if and $.Values.gateway.upstream (hasPrefix (printf "http://127.0.0.1:%v/" $.Values.tokenProxy.port) $url) (eq (lower $header) "authorization") -}}
+{{- fail (printf "mcp.servers %s: the token proxy sets Authorization to the agent token; choose another auth.header" $name) -}}
+{{- end -}}
+{{- $_ := set $s "headers" (dict $header (printf "{file:/var/run/mcp-headers/%s}" $name)) -}}
+{{- end -}}
+{{- $_ := set $out $name $s -}}
+{{- end -}}
+{{- toJson $out -}}
+{{- end -}}
+
 {{- define "opencode-agent.namespace" -}}
 {{- if .Values.team -}}
 {{- printf "%s-%s" (required "tenant is required with team" .Values.tenant) .Values.team -}}

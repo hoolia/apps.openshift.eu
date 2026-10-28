@@ -37,11 +37,18 @@ spec:
 |---|---|---|
 | No account, or one account for every caller | A Secret of the chart, read by the server itself | `mcp-playwright`, `mcp-atlassian` with `credentials.mode: shared` |
 | The caller's own account, which the caller holds | `agentgateway.dev/mcp-credential-header` | `mcp-atlassian` with `credentials.mode: perCaller` |
+| The caller's own account when it has one, else one shared account | `agentgateway.dev/mcp-credential-header` and a Secret of the chart | `mcp-atlassian` with `credentials.mode: shared` and `credentials.callerOverride: true` |
 | An account per agent, which nobody hands out by hand | `agentgateway.dev/mcp-credential-extauth` and a credential service in the chart | `mcp-sonarqube` with `credentials.mode: broker` |
 | The user's own login at a vendor | No Service key: a RemoteMCPServer with OAuth annotations | see [Agent OAuth login](oauth.md) |
 
 A caller's `Authorization` header always authenticates the caller to the gateway, which is
 why a per-caller credential travels in a second header.
+
+An agent of the `openhands` or `opencode-agent` chart sends that header from a vault item:
+`vaultSecrets` reads the item into a Secret mounted as files, and the `auth` of an
+`mcp.servers` entry names the header and how to build it (`basic`, `bearer` or `raw`). The
+agent's token proxy replaces only `Authorization`, so the second header reaches the gateway
+unchanged.
 
 ## A token check in the chart
 

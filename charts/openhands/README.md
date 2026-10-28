@@ -16,6 +16,26 @@ With `tokenProxy.agentToken.tokenUrl`, a server that takes OpenID Connect tokens
 
 A `RemoteMCPServer` labelled `<mcp.labelDomain>/addon: "true"` is an add-on: the agent gets it only when its `<mcp.labelDomain>/bundle` label is in `mcp.bundles` or its `<mcp.labelDomain>/server` label (else its name) is in `mcp.servers`. A `RemoteMCPServer` without that label is discovered as above.
 
+An agent brings its own credential to a shared MCP server through `vaultSecrets` and `mcp.servers`. Each `vaultSecrets` entry renders an `ExternalSecret` (target Secret `<release>-<name>`) that reads the named properties of one vault item from the secret store; the Secret is mounted read-only into `mcp-sync` as files `/var/run/vault-secrets/<name>/<key>` (mode `0440`), never as environment. An `mcp.servers` entry `{name, auth}` names the entry of that name (a discovered `RemoteMCPServer`, pinned to one namespace with `auth.namespace`) and how to build one request header from those files: `format: basic` sends `Basic base64(<userKey>:<tokenKey>)`, `bearer` sends `Bearer <tokenKey>`, `raw` sends `<tokenKey>`. `mcp-sync` reads the files on every pass and stores the header as the entry's secret (`auth` strategy `api_key`, shown redacted in **Settings > MCP**); it writes it again only when the files change, so a rotated vault item reaches the agent within `secrets.externalSecret.refreshInterval` plus one pass, without a restart. The entry's description ends in ", with the agent's credential". Taking the `auth` out of the values removes the stored header. An entry `{name, url}` adds a server that has no `RemoteMCPServer`, by URL. The credential goes only to the token proxy, to https or to a cluster Service.
+
+Under the token proxy the header must not be `Authorization`, which the proxy sets to the agent's own token; every other header passes through unchanged. On a gateway that supports it, the server's Service names that header (`agentgateway.dev/mcp-credential-header`, see the MCP gateway conventions), and the gateway hands it to the server as its `Authorization`. For a Jira and Confluence server of the `mcp-atlassian` chart:
+
+```yaml
+vaultSecrets:
+- name: atlassian
+  item: atlassian-agent
+  data:
+    ATLASSIAN_API_KEY: login.password
+mcp:
+  servers:
+  - name: atlassian
+    auth:
+      secretRef: atlassian
+      header: X-Atlassian-Authorization
+      format: bearer
+      tokenKey: ATLASSIAN_API_KEY
+```
+
 A `RemoteMCPServer` annotated `openhands.dev/auth: oauth2` is an MCP server each user logs in to with OAuth at its vendor. The entry uses the object's own URL, not the token proxy, and the pre-registered OAuth client in the Secret named by `openhands.dev/oauth-client` (keys `client_id` and `client_secret`, in the namespace of the `RemoteMCPServer`); without that annotation the agent registers itself at the server (dynamic client registration). It asks for the space-separated scopes of `openhands.dev/oauth-scopes`; `openhands.dev/oauth-client-auth-method` optionally sets the token endpoint authentication method (`client_secret_post`, `client_secret_basic` or `none`). The entry is added switched off: the user opens it under **Settings > MCP**, authorizes it in the browser (the vendor returns to `https://<route.host>/mcp-oauth/callback`, see `mcpOAuth.callbackPort`) and switches it on. The agent-server keeps the tokens in its settings, encrypted with the settings key, refreshes them during conversations and offers **Reauthorize** when a refresh fails. `mcp-sync` never touches the stored login or the switch; it writes the client again only when the client id, the scopes or the Secret change. The vendor must accept that callback URL as a redirect URI of the client. With `build.enabled`, an authorization request to `accounts.google.com` also asks for offline access, so Google issues a refresh token. OAuth servers are never published by `mcpPublish`.
 
 With `a2a.enabled` a fifth container, `a2a`, makes the agent an A2A server (protocol 0.3, JSON-RPC with SSE streaming) for other agents and kagent. The instance is the base agent at `/`: every A2A context becomes its own conversation, tagged `a2acontext=<contextId>` so the mapping survives restarts, and built from the persisted settings (model, key, MCP servers). Every titled top-level conversation started in the UI is also a sub-agent named `<release>/<title>`, with its own card and endpoint at `/agents/<slug>/`; a message there continues that conversation, `GET /agents` lists them and the base card names them as skills. Agent cards are public; calls need a bearer token: `a2a.staticTokenSecret`, a ServiceAccount token from a namespace `<tenant>` or `<tenant>-*`, or a token from one of `a2a.tenantAuth.oidcIssuers` whose `groups` claim holds `<tenant>` or `<tenant>-*`. The agent-server stays on loopback; the shim is reached through the Service `<release>-a2a`. With kagent installed and `a2a.kagent.enabled` the chart registers a BYO `Agent` named like the release: kagent runs a BYO agent as its own Deployment on port 8080, so that pod relays to the shim, using the namespace's `default` ServiceAccount. kagent chats as the logged-in user, whose token the relay passes on. Sub-agents are not separate kagent Agents (kagent runs a Deployment per Agent, and Agent names cannot hold `/`); kagent chats with the instance, a conversation per chat.
@@ -80,7 +100,8 @@ oc extract secret/team-session-api-key --keys=value --to=-
 - `mcp.labelSelector` (default: empty): Only `RemoteMCPServer` objects with these labels.
 - `mcp.labelDomain` (default: `mcp.openshift.eu`): Prefix of the add-on labels `<labelDomain>/addon`, `<labelDomain>/bundle` and `<labelDomain>/server`, the prefix the `mcp-*` charts of this repository stamp. Empty: no object is an add-on.
 - `mcp.bundles` (default: empty): Add-on bundles the agent gets.
-- `mcp.servers` (default: empty): Add-on servers the agent gets, by server name.
+- `mcp.servers` (default: empty): Add-on servers the agent gets, by server name. An entry may be `{name, url, auth}` instead: `url` adds a server by URL, `auth` (`secretRef`, `header` (default `Authorization`), `format` (`basic` (default), `bearer` or `raw`), `userKey`, `tokenKey`, `namespace`) sends the agent's own credential from `vaultSecrets`; see Purpose.
+- `vaultSecrets` (default: empty): Vault items as files: `{name, item, data, storeKind, storeName, refreshInterval, agent}`. `item` defaults to `<release>-<name>`; `data` maps each file (Secret key) to a property of the item (`login.username`, `login.password`, `notes` or a custom field); the store and refresh interval default to `secrets.externalSecret`. Mounted into `mcp-sync` when an `mcp.servers` auth names it, and into `agent-canvas` with `agent: true`. The pod starts without the Secret and picks it up when the store delivers it.
 - `mcp.clusterRole` (default: `kagent-remotemcpserver-view`): ClusterRole of the kagent installation that reads `RemoteMCPServer` objects, bound in the release namespace; empty for no binding.
 - `mcpDiscovery` (default: empty): Former name of `mcp`, still read in this version; its keys override `mcp`. Move them to `mcp`.
 - `a2a.enabled` (default: true): The A2A server sidecar; see Purpose.

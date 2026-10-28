@@ -167,5 +167,120 @@ class DiscoveryTest(unittest.TestCase):
         self.assertEqual(len(fake.requests), seen)
 
 
+class CredentialTest(unittest.TestCase):
+    """The agent's own credential from a mounted vault secret (chart value mcp.servers auth)."""
+
+    def setUp(self):
+        ms.TARGETS.clear()
+        ms.CRED_SENT.clear()
+        self.dir = tempfile.mkdtemp(dir=TMP)
+        self.write("JIRA_USERNAME", "agent@example.com")
+        self.write("JIRA_API_TOKEN", "token-1\n")
+        self.spec = {"dir": self.dir, "header": "X-Atlassian-Authorization", "format": "basic",
+                     "user": "JIRA_USERNAME", "token": "JIRA_API_TOKEN"}
+        ms.SERVER_SETTINGS.clear()
+        ms.SERVER_SETTINGS["atlassian"] = {"auth": self.spec}
+        self.calls = []
+        self.settings = {}
+        self.saved = (ms.agent, ms.remote_mcp_servers, ms.visible_servers)
+
+        def agent(method, path, body=None, plaintext=False):
+            self.calls.append((method, path, body))
+            if method == "GET":
+                return 200, {"agent_settings": {"mcp_config": self.settings}}
+            return 200, {}
+        ms.agent = agent
+        ms.remote_mcp_servers = lambda ns: [remote("atlassian", "https://gateway.example.com/mcp/acme/atlassian", namespace=ns)]
+        ms.visible_servers = lambda ns: []
+
+    def tearDown(self):
+        ms.agent, ms.remote_mcp_servers, ms.visible_servers = self.saved
+        ms.SERVER_SETTINGS.clear()
+
+    def write(self, key, value):
+        with open(os.path.join(self.dir, key), "w") as f:
+            f.write(value)
+
+    def writes(self):
+        return [c for c in self.calls if c[0] != "GET"]
+
+    def test_formats(self):
+        import base64
+        self.assertEqual(ms.credential(self.spec), ("X-Atlassian-Authorization",
+                         "Basic " + base64.b64encode(b"agent@example.com:token-1").decode()))
+        self.assertEqual(ms.credential({**self.spec, "format": "bearer"})[1], "Bearer token-1")
+        self.assertEqual(ms.credential({**self.spec, "format": "raw", "header": ""}), ("Authorization", "token-1"))
+
+    def test_missing_file_gives_no_credential(self):
+        os.remove(os.path.join(self.dir, "JIRA_USERNAME"))
+        self.assertIsNone(ms.credential(self.spec))
+
+    def test_entry_under_the_proxy_gets_the_header_as_a_secret(self):
+        server = ms.with_credential("atlassian", "acme", {"url": "http://127.0.0.1:8099/mcp/acme/atlassian", "description": "RemoteMCPServer acme/atlassian"})
+        self.assertEqual(server["auth"]["strategy"], "api_key")
+        self.assertEqual(server["auth"]["header_name"], "X-Atlassian-Authorization")
+        self.assertTrue(server["description"].endswith(ms.CREDENTIAL_NOTE))
+
+    def test_authorization_under_the_proxy_is_refused(self):
+        self.spec["header"] = "Authorization"
+        server = ms.with_credential("atlassian", "acme", {"url": "http://127.0.0.1:8099/mcp/acme/atlassian", "description": "d"})
+        self.assertNotIn("auth", server)
+
+    def test_plain_http_outside_the_cluster_gets_no_credential(self):
+        server = ms.with_credential("atlassian", "acme", {"url": "http://mcp.example.com/mcp", "description": "d"})
+        self.assertNotIn("auth", server)
+
+    def test_namespace_pins_the_server(self):
+        self.spec["namespace"] = "other"
+        server = ms.with_credential("atlassian", "acme", {"url": "https://mcp.example.com/mcp", "description": "d"})
+        self.assertNotIn("auth", server)
+
+    def test_sync_writes_once_and_again_on_rotation(self):
+        ms.sync("acme", {})
+        added = [c for c in self.writes() if c[0] == "POST"]
+        self.assertEqual(len(added), 1)
+        body = added[0][2]
+        self.assertEqual(body["auth"]["header_name"], "X-Atlassian-Authorization")
+        self.assertTrue(body["enabled"])
+        # the agent-server shows the value redacted
+        have = {**body, "auth": {**body["auth"], "value": "**********"}}
+        self.calls.clear()
+        ms.sync("acme", {"atlassian": have})
+        self.assertEqual(self.writes(), [])
+        self.write("JIRA_API_TOKEN", "token-2")
+        ms.sync("acme", {"atlassian": have})
+        patched = self.writes()
+        self.assertEqual(len(patched), 1)
+        self.assertEqual(patched[0][1], "/api/settings")
+        self.assertIn("auth", patched[0][2]["agent_settings_diff"]["mcp_config"]["atlassian"])
+
+    def test_after_a_start_the_stored_value_is_compared_once(self):
+        ms.sync("acme", {})
+        body = [c for c in self.writes() if c[0] == "POST"][0][2]
+        self.settings = {"atlassian": body}
+        ms.CRED_SENT.clear()
+        self.calls.clear()
+        ms.sync("acme", {"atlassian": {**body, "auth": {**body["auth"], "value": "**********"}}})
+        self.assertEqual(self.writes(), [])
+
+    def test_credential_taken_out_of_the_values_is_removed(self):
+        ms.sync("acme", {})
+        body = [c for c in self.writes() if c[0] == "POST"][0][2]
+        ms.SERVER_SETTINGS.clear()
+        self.calls.clear()
+        ms.sync("acme", {"atlassian": body})
+        patched = self.writes()
+        self.assertEqual(len(patched), 1)
+        self.assertIsNone(patched[0][2]["agent_settings_diff"]["mcp_config"]["atlassian"]["auth"])
+
+    def test_server_by_url(self):
+        ms.SERVER_SETTINGS["extra"] = {"url": "https://mcp.example.com/mcp", "auth": {**self.spec, "format": "bearer", "header": "Authorization"}}
+        ms.sync("acme", {})
+        added = {c[1].rsplit("/", 1)[-1]: c[2] for c in self.writes() if c[0] == "POST"}
+        self.assertTrue(added["extra"]["description"].startswith(ms.VALUE_PREFIX))
+        self.assertEqual(added["extra"]["auth"]["header_name"], "Authorization")
+        self.assertEqual(added["extra"]["url"], "https://mcp.example.com/mcp")
+
+
 if __name__ == "__main__":
     unittest.main()

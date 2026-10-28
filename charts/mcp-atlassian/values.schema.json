@@ -62,6 +62,13 @@
         },
         "existingSecret": {
           "type": "string"
+        },
+        "callerOverride": {
+          "type": "boolean"
+        },
+        "cloudId": {
+          "type": "string",
+          "pattern": "^([0-9a-f-]{36})?$"
         }
       }
     },
