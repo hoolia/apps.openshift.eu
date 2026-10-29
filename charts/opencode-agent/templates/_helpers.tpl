@@ -216,6 +216,9 @@ header value is a {file:} reference to what mcp-headers.sh writes, never the cre
 {{- $url = printf "http://127.0.0.1:%v%s" $.Values.tokenProxy.port .path -}}
 {{- end -}}
 {{- if not $url }}{{ fail (printf "mcp.servers %s: path or url is required" $name) }}{{ end -}}
+{{- if .agentToken -}}
+{{- $url = printf "http://127.0.0.1:%v/_target/%s" $.Values.tokenProxy.port (include "opencode-agent.mcpTargetId" (list $ .)) -}}
+{{- end -}}
 {{- $s := dict "type" "remote" "url" $url "enabled" (ne .enabled false) -}}
 {{- with .auth -}}
 {{- $v := index $vault (.secretRef | default "") -}}
@@ -232,6 +235,31 @@ header value is a {file:} reference to what mcp-headers.sh writes, never the cre
 {{- $_ := set $s "headers" (dict $header (printf "{file:/var/run/mcp-headers/%s}" $name)) -}}
 {{- end -}}
 {{- $_ := set $out $name $s -}}
+{{- end -}}
+{{- toJson $out -}}
+{{- end -}}
+
+{{/* token proxy target id of an mcp.servers entry with agentToken: <namespace>.<name> */}}
+{{- define "opencode-agent.mcpTargetId" -}}
+{{- $root := index . 0 -}}{{- $s := index . 1 -}}
+{{- printf "%s.%s" (include "opencode-agent.namespace" $root) (lower $s.name | replace "_" "-") -}}
+{{- end -}}
+
+{{/*
+mcp.servers entries with agentToken as the token proxy's targets file, id to URL: the proxy
+sends the agent's own token to that URL only
+*/}}
+{{- define "opencode-agent.mcpTargets" -}}
+{{- $out := dict -}}
+{{- range .Values.mcp.servers -}}
+{{- if .agentToken -}}
+{{- if not $.Values.tokenProxy.agentToken.tokenUrl }}{{ fail (printf "mcp.servers %s: agentToken needs tokenProxy.agentToken.tokenUrl" .name) }}{{ end -}}
+{{- if or .path (not .url) }}{{ fail (printf "mcp.servers %s: agentToken needs url, not path" .name) }}{{ end -}}
+{{- if not (regexMatch "^(https://|http://[a-z0-9.-]+\\.svc(\\.cluster\\.local)?(:[0-9]+)?(/|$))" .url) }}{{ fail (printf "mcp.servers %s: agentToken url must be https, or http to a Service" .name) }}{{ end -}}
+{{- $n := .name -}}
+{{- with .auth }}{{ if eq (lower (.header | default "Authorization")) "authorization" }}{{ fail (printf "mcp.servers %s: the token proxy sets Authorization to the agent token; choose another auth.header" $n) }}{{ end }}{{ end -}}
+{{- $_ := set $out (include "opencode-agent.mcpTargetId" (list $ .)) .url -}}
+{{- end -}}
 {{- end -}}
 {{- toJson $out -}}
 {{- end -}}
