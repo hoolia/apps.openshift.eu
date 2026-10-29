@@ -294,4 +294,25 @@ data:
         log "$uid: Mail account $addr not created"
       fi
     done < "$tmp/users"
+    # a Nextcloud administrator (group admin, from the Keycloak login) administers Mailu: a
+    # mailbox made here for one is a global admin, and stops being one when the user leaves
+    # the group; an address outside the mail domains (a public provider) gets no mailbox
+    php occ group:list --output=json \
+      | php -r 'echo implode("\n", json_decode(stream_get_contents(STDIN), true)["admin"] ?? []), "\n";' > "$tmp/admins"
+    patch() { curl -s -m 20 -o "$tmp/out" -w '%{http_code}' -X PATCH -H @"$tmp/auth" -H 'Content-Type: application/json' --data-binary @- "$api/$1"; }
+    while IFS="$(printf '\t')" read -r uid name addr; do
+      [ -s "$state/$uid" ] || continue
+      read -r made rest < "$state/$uid" || true
+      [ -n "$addr" ] && [ "$made" = "$addr" ] || continue
+      [ "$(get "user/$addr")" = 200 ] && [ "$(field comment)" = "nextcloud:$uid" ] || continue
+      want=false
+      grep -qxF "$uid" "$tmp/admins" && want=true
+      have=$(php -r 'echo empty(json_decode(file_get_contents($argv[1]), true)["global_admin"]) ? "false" : "true";' "$tmp/out")
+      [ "$have" = "$want" ] && continue
+      if [ "$(echo "{\"global_admin\": $want}" | patch "user/$addr")" = 200 ]; then
+        log "$uid: Mailu admin $want for $addr"
+      else
+        log "$uid: Mailu admin not set for $addr: $(cat "$tmp/out")"
+      fi
+    done < "$tmp/users"
   {{- end }}
