@@ -270,5 +270,5 @@ spec:
   selector:
     {{- include "wrapper.labels" "nextcloud-signaling" | nindent 4 }}
 ---
-{{ include "wrapper.pathRoute" (dict "root" . "name" "nextcloud-signaling" "partOf" "nextcloud-talk" "path" "/talk/signaling" "port" "http") }}
+{{ include "wrapper.pathRoute" (dict "root" . "name" "talk-signaling" "partOf" "nextcloud-talk" "path" "/talk/signaling" "service" "nextcloud-signaling" "port" "http") }}
 {{- end }}

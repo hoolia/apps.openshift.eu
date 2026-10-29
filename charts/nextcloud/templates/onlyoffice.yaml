@@ -109,5 +109,5 @@ spec:
     app.kubernetes.io/name: onlyoffice
     app.kubernetes.io/instance: onlyoffice
 ---
-{{ include "wrapper.pathRoute" (dict "root" . "name" "onlyoffice" "partOf" "nextcloud-office" "path" "/office" "port" "http" "headers" (dict "X-Forwarded-Prefix" "/office")) }}
+{{ include "wrapper.pathRoute" (dict "root" . "name" "office" "partOf" "nextcloud-office" "path" "/office" "service" "onlyoffice" "port" "http" "headers" (dict "X-Forwarded-Prefix" "/office")) }}
 {{- end }}
