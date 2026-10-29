@@ -84,7 +84,7 @@ data:
     {{- end }}
     {{- if .Values.onlyoffice.enabled }}
     app onlyoffice
-    set_app onlyoffice DocumentServerUrl "https://{{ include "wrapper.onlyofficeHost" . }}/"
+    set_app onlyoffice DocumentServerUrl "https://{{ $host }}/office/"
     set_app onlyoffice DocumentServerInternalUrl "http://onlyoffice/"
     set_app onlyoffice StorageUrl "{{ include "wrapper.internalUrl" . }}/"
     set_app_secret onlyoffice jwt_secret jwt-secret
@@ -112,7 +112,7 @@ data:
     {{- end }}
     {{- if .Values.talk.enabled }}
     app spreed
-    set_app_secret spreed signaling_servers signaling-secret "{\"servers\":[{\"server\":\"https://{{ include "wrapper.signalingHost" . }}/\",\"verify\":true}],\"secret\":\"@SECRET@\"}"
+    set_app_secret spreed signaling_servers signaling-secret "{\"servers\":[{\"server\":\"https://{{ $host }}/talk/signaling/\",\"verify\":true}],\"secret\":\"@SECRET@\"}"
     {{- if .Values.talk.turn.enabled }}
     {{- $turn := printf "%s:%v" (include "wrapper.turnHost" .) .Values.talk.turn.port }}
     # Talk declares the STUN and TURN lists as arrays; a plain string is refused
@@ -120,7 +120,7 @@ data:
     set_app_secret spreed turn_servers turn-secret "[{\"schemes\":\"turn\",\"server\":\"{{ $turn }}\",\"secret\":\"@SECRET@\",\"protocols\":\"udp,tcp\"}]" --type=array -n
     {{- end }}
     {{- if .Values.talk.recording.enabled }}
-    set_app_secret spreed recording_servers recording-secret "{\"servers\":[{\"server\":\"https://{{ $host }}/apps/talk/recording\",\"verify\":true}],\"secret\":\"@SECRET@\"}"
+    set_app_secret spreed recording_servers recording-secret "{\"servers\":[{\"server\":\"https://{{ $host }}/talk/recording\",\"verify\":true}],\"secret\":\"@SECRET@\"}"
     {{- end }}
     {{- end }}
     {{- if .Values.ai.enabled }}

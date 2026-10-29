@@ -112,10 +112,9 @@ database:
       cpu: "1"
       memory: 1Gi
 
+# served on https://<host>/office/
 onlyoffice:
   enabled: true
-  # empty: office-<hostname of Nextcloud>
-  host: ""
   image: docker.io/onlyoffice/documentserver:10.0.0.1@sha256:ca17889f10b11141cc6441836aebdd2835cf3e1b49681b2fd6e155c94b7850b3
   # the plugin agent-bridge in the Document Server, through which mcp-onlyoffice-live edits
   # documents live; invisible and idle in a person's editor
@@ -186,9 +185,8 @@ taskprocessing:
 talk:
   enabled: false
   initImage: docker.io/busybox:1.36
+  # served on https://<host>/talk/signaling/, the recording server on /talk/recording
   signaling:
-    # empty: signaling-<hostname of Nextcloud>
-    host: ""
     image: ghcr.io/strukturag/nextcloud-spreed-signaling:master
     # addresses that may read the statistics and metrics
     statsAllowedIps: 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16
@@ -348,8 +346,16 @@ backup:
 # Mail server in the same project; its values are those of the mailu chart
 mailu:
   enabled: true
-  # the mail server uses neither of these; they must be switched off at this depth
+  # the chart's own Route has a host of its own; mailRoute serves Mailu on the Nextcloud host
+  route:
+    enabled: false
   upstream:
+    # Mailu admin on https://<host>/mail/admin, Roundcube on https://<host>/mail/inbox
+    admin:
+      uri: /mail/admin
+    webmail:
+      uri: /mail/inbox
+    # the mail server uses neither of these; they must be switched off at this depth
     mariadb:
       enabled: false
     postgresql:
@@ -358,6 +364,10 @@ mailu:
     persistence:
       annotations:
         argocd.argoproj.io/sync-options: Delete=false,Prune=false
+
+# Route of Mailu's admin and webmail on the Nextcloud host: https://<host>/mail/
+mailRoute:
+  enabled: true
 
 # Routes of the MCP servers below on the Nextcloud host: https://<host>/mcp/<server>
 # (nextcloud, officeagent, office-live), served with the certificate of the host

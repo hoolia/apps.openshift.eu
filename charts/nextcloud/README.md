@@ -32,7 +32,6 @@ password:
 | Value | Default | Meaning |
 |---|---|---|
 | `nextcloud.nextcloud.host` | `nextcloud.example.org` | Hostname of Nextcloud. Set it. |
-| `onlyoffice.host` | empty | Hostname of OnlyOffice. Empty: `office-<hostname of Nextcloud>`. |
 | `onlyoffice.enabled` | `true` | Document editing. Nextcloud is connected to the document server at its start. |
 | `onlyoffice.agentBridge.enabled` | `true` | Serve the plugin `agent-bridge` from the document server, through which `mcp-onlyoffice-live` edits documents live. |
 | `onlyoffice.editFormats` | `[odt, ods, odp, rtf, txt, csv]` | Formats OnlyOffice opens for editing besides `docx`, `xlsx` and `pptx`. Saving them may lose formatting the format cannot hold. `doc`, `xls` and `ppt` cannot be edited in place: the editor converts them to a `docx`, `xlsx` or `pptx` copy. |
@@ -87,7 +86,6 @@ password:
 | `ai.models.completion` | empty | Default model for text. Also `image`, `speechToText`, `textToSpeech`. Empty: the choice of the app. |
 | `ai.providers.*` | text kinds on | Kinds of task the endpoint serves: `chat`, `text`, `translation`, `imageAnalysis`, `imageGeneration`, `speechToText`, `textToSpeech`. |
 | `talk.enabled` | `false` | Nextcloud Talk with a signaling server, NATS, a TURN server and call recording. |
-| `talk.signaling.host` | empty | Hostname of the signaling server. Empty: `signaling-<hostname of Nextcloud>`. |
 | `talk.turn.host` | empty | Public DNS name of the TURN server. Empty: `turn-<hostname of Nextcloud>`. |
 | `talk.turn.public` | `false` | Request a public address for the TURN server: LoadBalancer Service, DNS record request and NetworkPolicy. |
 | `talk.turn.externalIP` | empty | Public address of the TURN server. Empty with `talk.turn.public`: read from the DNS name when the pod starts. |
