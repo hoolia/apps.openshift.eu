@@ -36,8 +36,11 @@ data:
       proxy_cookie_path ~^/webmail(.*)$ /mail/inbox$1;
       proxy_cookie_path ~^/(.*)$ /mail/$1;
       sub_filter_once off;
-      sub_filter_types text/css application/javascript;
+      sub_filter_types text/css application/javascript application/json;
       sub_filter 'href="/webmail' 'href="/mail/inbox';
+      # Roundcube's JavaScript calls comm_path; its Mailu button links ../../admin
+      sub_filter '"/webmail/' '"/mail/inbox/';
+      sub_filter '"../../admin"' '"/mail/admin/"';
       sub_filter 'src="/webmail' 'src="/mail/inbox';
       sub_filter 'action="/webmail' 'action="/mail/inbox';
       sub_filter 'href="/' 'href="/mail/';
