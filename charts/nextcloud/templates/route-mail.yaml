@@ -25,6 +25,12 @@ data:
       proxy_set_header X-Forwarded-Proto https;
       proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
       proxy_set_header Accept-Encoding "";
+    # this server adds these again
+    proxy_hide_header X-Frame-Options;
+    proxy_hide_header X-Content-Type-Options;
+    proxy_hide_header X-Permitted-Cross-Domain-Policies;
+    proxy_hide_header Referrer-Policy;
+    proxy_hide_header Strict-Transport-Security;
       proxy_redirect ~^(https?://[^/]+)?/webmail(.*)$ $1/mail/inbox$2;
       proxy_redirect ~^(https?://[^/]+)?/(.*)$ $1/mail/$2;
       proxy_cookie_path ~^/webmail(.*)$ /mail/inbox$1;

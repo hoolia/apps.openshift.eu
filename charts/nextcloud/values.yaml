@@ -381,6 +381,9 @@ mailu:
 # Route of Mailu's admin and webmail on the Nextcloud host: https://<host>/mail/
 mailRoute:
   enabled: true
+  # Nextcloud menu entries (app External sites): Webmail for everyone, Mail admin for group
+  # admin; written only while the app has no sites, so a tenant's own entries stay
+  externalSites: true
 
 # Routes of the MCP servers below on the Nextcloud host: https://<host>/mcp/<server>
 # (nextcloud, officeagent, office-live), served with the certificate of the host

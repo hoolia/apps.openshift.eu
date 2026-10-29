@@ -110,6 +110,16 @@ data:
     set_app whiteboard collabBackendUrl "https://{{ $host }}/whiteboard"
     set_secret whiteboard jwt_secret_key whiteboard-jwt-secret
     {{- end }}
+    {{- if and .Values.mailu.enabled .Values.mailRoute.enabled .Values.mailRoute.externalSites }}
+    {{- $mail := printf "https://%s/mail" $host }}
+    {{- $sites := dict
+      "1" (dict "id" 1 "name" "Webmail" "url" (printf "%s/inbox/" $mail) "lang" "" "type" "link" "device" "" "icon" "external.svg" "groups" list "redirect" false)
+      "2" (dict "id" 2 "name" "Mail admin" "url" (printf "%s/admin/" $mail) "lang" "" "type" "link" "device" "" "icon" "settings.svg" "groups" (list "admin") "redirect" false) }}
+    app external
+    if [ -z "$(timeout 30 php occ config:app:get external sites 2>/dev/null)" ]; then
+      set_app external sites {{ $sites | toJson | squote }}
+    fi
+    {{- end }}
     {{- if .Values.talk.enabled }}
     app spreed
     set_app_secret spreed signaling_servers signaling-secret "{\"servers\":[{\"server\":\"https://{{ $host }}/talk/signaling/\",\"verify\":true}],\"secret\":\"@SECRET@\"}"
