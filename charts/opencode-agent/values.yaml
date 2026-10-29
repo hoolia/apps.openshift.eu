@@ -230,8 +230,10 @@ vaultSecrets: []
 #     JIRA_API_TOKEN: login.password
 
 mcp:
-  # remote MCP servers written into opencode.json: {name, path, url, enabled, auth}. path
-  # is on gateway.upstream through the token proxy, url is used as is. auth sends the
+  # remote MCP servers written into opencode.json: {name, path, url, enabled, agentToken,
+  # auth}. path is on gateway.upstream through the token proxy, url is used as is.
+  # agentToken: true sends url through the token proxy with the agent's own token
+  # (tokenProxy.agentToken), for a server that accepts tokens of that realm. auth sends the
   # agent's own credential from vaultSecrets in one header (see README)
   servers: []
   # - name: atlassian

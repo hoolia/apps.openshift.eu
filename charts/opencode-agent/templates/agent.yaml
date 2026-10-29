@@ -307,6 +307,10 @@ spec:
           value: {{ join "," .paths | quote }}
         {{- end }}
         {{- end }}
+        {{- if ne (include "opencode-agent.mcpTargets" .) "{}" }}
+        - name: TARGETS_FILE
+          value: /app/targets.json
+        {{- end }}
         # Listens on 127.0.0.1 only, so the probe runs inside the container
         readinessProbe:
           exec:
