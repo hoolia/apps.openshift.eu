@@ -191,8 +191,10 @@ condenser:
   enabled: true
   # events in the history before it is condensed to about half; at least 20
   maxSize: 120
-  # history tokens before it is condensed to about half; 0: the model's own limit
-  maxTokens: 120000
+  # history tokens before it is condensed to about half; 0: only the model's own input
+  # limit, unknown for most gateway models. The count includes every MCP tool definition,
+  # also tools the gateway defers, so a limit below that overhead condenses forever
+  maxTokens: 0
   # first events (system prompt, first task) that are never summarized
   keepFirst: 4
 
