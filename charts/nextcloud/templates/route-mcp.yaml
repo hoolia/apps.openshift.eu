@@ -13,13 +13,13 @@ host, which the Route nextcloud carries, covers them
 {{- end }}
 {{- end }}
 {{- with index .Values "mcp-officeagent" }}
-{{- if .enabled }}
+{{- if and $.Values.onlyoffice.enabled .enabled }}
 {{- $s := (.mcp | default dict).server | default "officeagent" }}
 {{- $servers = append $servers (dict "server" $s "service" (.nameOverride | default $s) "rewrite" "/" "metadata" (and .auth.enabled .auth.issuerUrl)) }}
 {{- end }}
 {{- end }}
 {{- with index .Values "mcp-onlyoffice-live" }}
-{{- if .enabled }}
+{{- if and $.Values.onlyoffice.enabled .enabled }}
 {{- $s := (.mcp | default dict).server | default "office-live" }}
 {{- $servers = append $servers (dict "server" $s "service" (.nameOverride | default $s) "rewrite" "/mcp") }}
 {{- end }}

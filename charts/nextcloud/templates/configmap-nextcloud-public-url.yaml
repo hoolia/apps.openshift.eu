@@ -1,4 +1,4 @@
-{{- if index .Values "mcp-onlyoffice-live" "enabled" }}
+{{- if and .Values.onlyoffice.enabled (index .Values "mcp-onlyoffice-live" "enabled") }}
 # Public address of Nextcloud, for the live editing MCP server's browser: it calls the API
 # on the Service nextcloud and opens the editor pages here
 apiVersion: v1

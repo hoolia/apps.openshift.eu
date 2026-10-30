@@ -61,7 +61,7 @@ password:
 | `mcp.route.labels`, `mcp.route.annotations` | empty | Extra labels and annotations of the MCP Routes, for example a label of the platform. |
 | `mcp-nextcloud.enabled` | `true` | Run the Nextcloud MCP server for agents in the same project. Its values are those of the `mcp-nextcloud` chart, under `mcp-nextcloud`. |
 | `mcp-nextcloud.networkPolicy.ingressNamespaces` | the router | Namespaces (label selectors) that may call the Nextcloud MCP server besides the own project. |
-| `mcp-officeagent.enabled` | `true` | Run the Office documents MCP server for agents in the same project. Its values are those of the `mcp-officeagent` chart, under `mcp-officeagent`. |
+| `mcp-officeagent.enabled` | `true` | Run the Office documents MCP server for agents in the same project, only with `onlyoffice.enabled`. Its values are those of the `mcp-officeagent` chart, under `mcp-officeagent`. |
 | `mcp-officeagent.service.labels` | empty | Extra labels on the MCP server's Service, for example the exposure label of an MCP gateway. |
 | `mcp-officeagent.networkPolicy.ingressNamespaces` | the router | Namespaces (label selectors) that may call the MCP server besides the own project: the router for the Route, and for example the namespace of an MCP gateway. |
 | `mcp-officeagent.auth.enabled` | `true` | Check the caller's bearer token before the MCP server, so it can be exposed beyond the project. |
@@ -70,7 +70,7 @@ password:
 | `mcp-officeagent.auth.allowedGroups` | `<tenant>-admins` | A token must carry one of these groups. The default is the administrators group of the tenant, the part of the project name before the first `-`: `acme-admins` in `acme-nextcloud`. |
 | `mcp-officeagent.auth.resourceUrl` | empty | Public address of the server, `https://<host>/mcp/officeagent`, named in its protected resource metadata so agents can discover the issuer. |
 | `mcp-officeagent.auth.cookieSecret`, `mcp-officeagent.auth.clientSecret` | generated once | Secrets the token check requires; a GitOps tool that renders without cluster access passes them. |
-| `mcp-onlyoffice-live.enabled` | `true` | Run the live editing MCP server for agents in the same project. Its values are those of the `mcp-onlyoffice-live` chart, under `mcp-onlyoffice-live`. |
+| `mcp-onlyoffice-live.enabled` | `true` | Run the live editing MCP server for agents in the same project, only with `onlyoffice.enabled`. Its values are those of the `mcp-onlyoffice-live` chart, under `mcp-onlyoffice-live`. |
 | `mcp-onlyoffice-live.service.labels` | empty | Extra labels on the live editing server's Service, for example the exposure label of an MCP gateway. |
 | `mcp-onlyoffice-live.networkPolicy.ingressNamespaces` | the router | Namespaces (label selectors) that may call the live editing server besides the own project. |
 | `taskprocessing.enabled` | `false` | Worker that runs queued tasks at once. Always runs when `ai.enabled`. |
