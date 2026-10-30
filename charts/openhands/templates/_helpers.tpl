@@ -133,6 +133,9 @@ seccompProfile:
 {{- with .Values.llm.models -}}
 {{- $_ := set $llm "models" . -}}
 {{- end -}}
+{{- with .Values.llm.profileDefaults -}}
+{{- $_ := set $llm "profileDefaults" . -}}
+{{- end -}}
 {{- if .Values.llm.gatewayModels -}}
 {{- $_ := set $llm "gatewayModels" true -}}
 {{- end -}}
@@ -146,14 +149,14 @@ seccompProfile:
 {{- if $llm }}{{ toJson $llm }}{{ end -}}
 {{- end -}}
 
-{{/* condenser settings the seed script writes, in the agent-server's field names */}}
+{{/* condenser settings the seed script writes, in the agent-server's field names; its
+     token limit is each LLM's max_input_tokens (llm.profileDefaults) */}}
 {{- define "openhands.seedCondenser" -}}
 {{- $c := .Values.condenser -}}
 {{- if ge (int $c.keepFirst) (sub (div (int $c.maxSize) 2) 1) -}}
 {{- fail "condenser.keepFirst must be less than condenser.maxSize / 2 - 1" -}}
 {{- end -}}
 {{- $out := dict "condenser_kind" "llm_summarizing" "enabled" $c.enabled "max_size" (int $c.maxSize) "keep_first" (int $c.keepFirst) "max_tokens" nil -}}
-{{- if $c.maxTokens }}{{ $_ := set $out "max_tokens" (int $c.maxTokens) }}{{ end -}}
 {{- toJson $out -}}
 {{- end -}}
 

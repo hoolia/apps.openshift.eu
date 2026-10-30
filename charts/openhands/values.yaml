@@ -181,6 +181,13 @@ llm:
     name: Gateway
     # LiteLLM provider of the gateway's API
     provider: openai
+  # OpenHands LLM settings for every profile on the connection, in the agent-server's
+  # field names (for example max_input_tokens, which also limits the condenser). Written
+  # into new profiles, and into existing ones once per value: a UI edit stays until then
+  profileDefaults:
+    stream: true
+    enable_encrypted_reasoning: false
+    inline_image_urls: true
 
 # History condenser of the OpenHands agent: old events are summarized by the agent's
 # own model. Written into the settings and every OpenHands agent profile when the pod
@@ -191,10 +198,6 @@ condenser:
   enabled: true
   # events in the history before it is condensed to about half; at least 20
   maxSize: 120
-  # history tokens before it is condensed to about half; 0: only the model's own input
-  # limit, unknown for most gateway models. The count includes every MCP tool definition,
-  # also tools the gateway defers, so a limit below that overhead condenses forever
-  maxTokens: 0
   # first events (system prompt, first task) that are never summarized
   keepFirst: 4
 
