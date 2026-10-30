@@ -41,6 +41,10 @@ data:
       # Roundcube's JavaScript calls comm_path; its Mailu button links ../../admin
       sub_filter '"/webmail/' '"/mail/inbox/';
       sub_filter '"../../admin"' '"/mail/admin/"';
+      # the admin hides its sidebar at 992px and less, the width of a Nextcloud frame:
+      # below 768px only, and between 768px and 991px it stays open
+      sub_filter 'data-widget="pushmenu"' 'data-widget="pushmenu" data-auto-collapse-size="767"';
+      sub_filter '</head>' '<style>@media (min-width:768px) and (max-width:991.98px){body:not(.sidebar-collapse) .main-sidebar,body:not(.sidebar-collapse) .main-sidebar::before{margin-left:0!important}body:not(.sidebar-collapse) .content-wrapper,body:not(.sidebar-collapse) .main-header,body:not(.sidebar-collapse) .main-footer{margin-left:250px!important}}</style></head>';
       sub_filter 'src="/webmail' 'src="/mail/inbox';
       sub_filter 'action="/webmail' 'action="/mail/inbox';
       sub_filter 'href="/' 'href="/mail/';
