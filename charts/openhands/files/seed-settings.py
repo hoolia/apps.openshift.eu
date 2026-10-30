@@ -25,6 +25,8 @@ import urllib.request
 
 API = "http://127.0.0.1:18000"
 STATE = os.path.join(os.environ.get("HOME", "/tmp"), ".openhands", "agent-canvas")
+# llm.profileDefaults, filled from SEED_LLM in main
+DEFAULTS: dict = {}
 MARKER = os.path.join(STATE, ".seeded-" + os.environ.get("SEED_HASH", "none"))
 
 
@@ -74,7 +76,7 @@ def seed_connection(llm: dict, conn: dict, models: list[str]) -> bool:
         # profile names are path segments; the model keeps its gateway prefix
         names[model] = model.rsplit("/", 1)[-1]
         if call("POST", f"/api/profiles/{names[model]}",
-                {"llm": {"model": model, "provider_connection_id": conn_id},
+                {"llm": {**DEFAULTS, "model": model, "provider_connection_id": conn_id},
                  "include_secrets": False}) not in (200, 201):
             print(f"seed: profile {names[model]} not written", file=sys.stderr)
             ok = False
@@ -121,6 +123,41 @@ def preferred_model(llm: dict, conn: dict, preferred: list[str]) -> str | None:
     """The first model of preferred, by name after the last "/", that the gateway lists."""
     listed = {m.rsplit("/", 1)[-1]: m for m in gateway_models(llm, conn)}
     return next((listed[name] for name in preferred if name in listed), None)
+
+
+def seed_profile_defaults(conn: dict | None) -> None:
+    """llm.profileDefaults into every profile on the connection, once per value."""
+    if not DEFAULTS or not conn:
+        return
+    raw = json.dumps(DEFAULTS, sort_keys=True)
+    marker = os.path.join(STATE, ".seeded-profile-defaults-" + hashlib.sha256(raw.encode()).hexdigest()[:8])
+    if os.path.exists(marker):
+        return
+    status, conns = request("GET", "/api/llm/provider-connections")
+    found = [c for c in conns or [] if c.get("display_name") == conn["display_name"]]
+    status, listing = request("GET", "/api/profiles")
+    if not found or status != 200:
+        print("seed: profile defaults not written", file=sys.stderr)
+        return
+    ok = True
+    for prof in (listing or {}).get("profiles", []):
+        if prof.get("provider_connection_id") != found[0]["id"]:
+            continue
+        status, detail = request("GET", f"/api/profiles/{prof['name']}")
+        config = (detail or {}).get("config")
+        if status != 200 or not config:
+            ok = False
+            continue
+        if all(config.get(k) == v for k, v in DEFAULTS.items()):
+            continue
+        body = {"llm": {**config, **DEFAULTS, "provider_connection_id": found[0]["id"]},
+                "include_secrets": False}
+        if call("POST", f"/api/profiles/{prof['name']}", body) not in (200, 201):
+            print(f"seed: defaults of profile {prof['name']} not written", file=sys.stderr)
+            ok = False
+    if ok:
+        os.makedirs(STATE, exist_ok=True)
+        open(marker, "w").close()
 
 
 def seed_condenser() -> None:
@@ -206,7 +243,7 @@ def add_gateway_profiles(llm: dict, conn: dict) -> None:
         if name in taken:
             continue
         if call("POST", f"/api/profiles/{name}",
-                {"llm": {"model": model, "provider_connection_id": found[0]["id"]},
+                {"llm": {**DEFAULTS, "model": model, "provider_connection_id": found[0]["id"]},
                  "include_secrets": False}) in (200, 201):
             taken.add(name)
         else:
@@ -225,11 +262,13 @@ def main() -> None:
     models = llm.pop("models", [])
     every = llm.pop("gatewayModels", False)
     preferred = llm.pop("preferredModels", [])
+    DEFAULTS.update(llm.pop("profileDefaults", None) or {})
     seed_repositories()
     seed_condenser()
     if os.path.exists(MARKER):
         if every and conn and llm.get("base_url"):
             add_gateway_profiles(llm, conn)
+        seed_profile_defaults(conn)
         return
     ok = True
     if preferred and not llm.get("model") and conn and llm.get("base_url"):
@@ -243,6 +282,7 @@ def main() -> None:
         ok = False
     if every and conn and llm.get("base_url"):
         add_gateway_profiles(llm, conn)
+    seed_profile_defaults(conn)
     for name, server in json.loads(os.environ.get("SEED_MCP") or "{}").items():
         # the agent-server starts stdio servers with a reduced environment
         pass_env = server.pop("passEnv", [])
