@@ -84,7 +84,7 @@ data:
     {{- end }}
     {{- if .Values.onlyoffice.enabled }}
     app onlyoffice
-    set_app onlyoffice DocumentServerUrl "https://{{ include "wrapper.onlyofficeHost" . }}/"
+    set_app onlyoffice DocumentServerUrl "https://{{ $host }}/office/"
     set_app onlyoffice DocumentServerInternalUrl "http://onlyoffice/"
     set_app onlyoffice StorageUrl "{{ include "wrapper.internalUrl" . }}/"
     set_app_secret onlyoffice jwt_secret jwt-secret
@@ -110,9 +110,19 @@ data:
     set_app whiteboard collabBackendUrl "https://{{ $host }}/whiteboard"
     set_secret whiteboard jwt_secret_key whiteboard-jwt-secret
     {{- end }}
+    {{- if and .Values.mailu.enabled .Values.mailRoute.enabled .Values.mailRoute.externalSites }}
+    {{- $mail := printf "https://%s/mail" $host }}
+    {{- $sites := dict
+      "1" (dict "id" 1 "name" "Webmail" "url" (printf "%s/inbox/" $mail) "lang" "" "type" "link" "device" "" "icon" "external.svg" "groups" list "redirect" false)
+      "2" (dict "id" 2 "name" "Mail admin" "url" (printf "%s/admin/" $mail) "lang" "" "type" "link" "device" "" "icon" "settings.svg" "groups" (list "admin") "redirect" false) }}
+    app external
+    if [ -z "$(timeout 30 php occ config:app:get external sites 2>/dev/null)" ]; then
+      set_app external sites {{ $sites | toJson | squote }}
+    fi
+    {{- end }}
     {{- if .Values.talk.enabled }}
     app spreed
-    set_app_secret spreed signaling_servers signaling-secret "{\"servers\":[{\"server\":\"https://{{ include "wrapper.signalingHost" . }}/\",\"verify\":true}],\"secret\":\"@SECRET@\"}"
+    set_app_secret spreed signaling_servers signaling-secret "{\"servers\":[{\"server\":\"https://{{ $host }}/talk/signaling/\",\"verify\":true}],\"secret\":\"@SECRET@\"}"
     {{- if .Values.talk.turn.enabled }}
     {{- $turn := printf "%s:%v" (include "wrapper.turnHost" .) .Values.talk.turn.port }}
     # Talk declares the STUN and TURN lists as arrays; a plain string is refused
@@ -120,7 +130,7 @@ data:
     set_app_secret spreed turn_servers turn-secret "[{\"schemes\":\"turn\",\"server\":\"{{ $turn }}\",\"secret\":\"@SECRET@\",\"protocols\":\"udp,tcp\"}]" --type=array -n
     {{- end }}
     {{- if .Values.talk.recording.enabled }}
-    set_app_secret spreed recording_servers recording-secret "{\"servers\":[{\"server\":\"https://{{ $host }}/apps/talk/recording\",\"verify\":true}],\"secret\":\"@SECRET@\"}"
+    set_app_secret spreed recording_servers recording-secret "{\"servers\":[{\"server\":\"https://{{ $host }}/talk/recording\",\"verify\":true}],\"secret\":\"@SECRET@\"}"
     {{- end }}
     {{- end }}
     {{- if .Values.ai.enabled }}
@@ -231,21 +241,26 @@ data:
     php occ user:list --info --output=json --limit=100000 \
       | php -r 'foreach (json_decode(stream_get_contents(STDIN), true) ?: [] as $u => $i)
           echo $u, "\t", $i["display_name"] ?? "", "\t", strtolower(trim($i["email"] ?? "")), "\n";' > "$tmp/users"
-    # skip <uid> <email> <reason>: no mailbox; tried again when the email address changes
-    skip() { log "$1: no mailbox, $3"; echo "skip $2" > "$state/$1"; }
+    # skip <uid> <email> <reason> <kind>: no mailbox; tried again when the email address
+    # changes, and a kind domain also when its domain becomes a mail domain
+    skip() { log "$1: no mailbox, $3"; echo "skip $2 ${4:-other}" > "$state/$1"; }
     while IFS="$(printf '\t')" read -r uid name addr; do
       if [ -e "$state/$uid" ]; then
-        read -r first rest < "$state/$uid" || true
-        [ "$first" = skip ] && [ "${rest:-}" != "$addr" ] || continue
+        read -r first was kind < "$state/$uid" || true
+        [ "$first" = skip ] || continue
+        if [ "${was:-}" = "$addr" ]; then
+          [ "${kind:-domain}" = domain ] || continue
+          case " $domains " in *" ${addr#*@} "*) ;; *) continue ;; esac
+        fi
       fi
       [ -n "$name" ] || name=$uid
-      [ -n "$addr" ] || { skip "$uid" "" "no email address"; continue; }
+      [ -n "$addr" ] || { skip "$uid" "" "no email address" none; continue; }
       case ${addr%@*} in
-        ''|*[!a-z0-9._+-]*) skip "$uid" "$addr" "$addr is no address Mailu takes"; continue ;;
+        ''|*[!a-z0-9._+-]*) skip "$uid" "$addr" "$addr is no address Mailu takes" address; continue ;;
       esac
       case " $domains " in
         *" ${addr#*@} "*) ;;
-        *) skip "$uid" "$addr" "${addr#*@} is not a mail domain of this server"; continue ;;
+        *) skip "$uid" "$addr" "${addr#*@} is not a mail domain of this server" domain; continue ;;
       esac
       case $(get "user/$addr") in
         404)
@@ -257,7 +272,7 @@ data:
         200)
           # an existing mailbox only when this script made it for this user
           [ "$(field comment)" = "nextcloud:$uid" ] \
-            || { skip "$uid" "$addr" "$addr exists for someone else"; continue; } ;;
+            || { skip "$uid" "$addr" "$addr exists for someone else" exists; continue; } ;;
         *) log "$uid: Mailu API not ready"; continue ;;
       esac
       # the token works only from the networks inside the cluster
@@ -282,6 +297,27 @@ data:
       else
         del "token/$id"
         log "$uid: Mail account $addr not created"
+      fi
+    done < "$tmp/users"
+    # a Nextcloud administrator (group admin, from the Keycloak login) administers Mailu: a
+    # mailbox made here for one is a global admin, and stops being one when the user leaves
+    # the group; an address outside the mail domains (a public provider) gets no mailbox
+    php occ group:list --output=json \
+      | php -r 'echo implode("\n", json_decode(stream_get_contents(STDIN), true)["admin"] ?? []), "\n";' > "$tmp/admins"
+    patch() { curl -s -m 20 -o "$tmp/out" -w '%{http_code}' -X PATCH -H @"$tmp/auth" -H 'Content-Type: application/json' --data-binary @- "$api/$1"; }
+    while IFS="$(printf '\t')" read -r uid name addr; do
+      [ -s "$state/$uid" ] || continue
+      read -r made rest < "$state/$uid" || true
+      [ -n "$addr" ] && [ "$made" = "$addr" ] || continue
+      [ "$(get "user/$addr")" = 200 ] && [ "$(field comment)" = "nextcloud:$uid" ] || continue
+      want=false
+      grep -qxF "$uid" "$tmp/admins" && want=true
+      have=$(php -r 'echo empty(json_decode(file_get_contents($argv[1]), true)["global_admin"]) ? "false" : "true";' "$tmp/out")
+      [ "$have" = "$want" ] && continue
+      if [ "$(echo "{\"global_admin\": $want}" | patch "user/$addr")" = 200 ]; then
+        log "$uid: Mailu admin $want for $addr"
+      else
+        log "$uid: Mailu admin not set for $addr: $(cat "$tmp/out")"
       fi
     done < "$tmp/users"
   {{- end }}

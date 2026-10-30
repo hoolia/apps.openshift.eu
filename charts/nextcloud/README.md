@@ -32,7 +32,6 @@ password:
 | Value | Default | Meaning |
 |---|---|---|
 | `nextcloud.nextcloud.host` | `nextcloud.example.org` | Hostname of Nextcloud. Set it. |
-| `onlyoffice.host` | empty | Hostname of OnlyOffice. Empty: `office-<hostname of Nextcloud>`. |
 | `onlyoffice.enabled` | `true` | Document editing. Nextcloud is connected to the document server at its start. |
 | `onlyoffice.agentBridge.enabled` | `true` | Serve the plugin `agent-bridge` from the document server, through which `mcp-onlyoffice-live` edits documents live. |
 | `onlyoffice.editFormats` | `[odt, ods, odp, rtf, txt, csv]` | Formats OnlyOffice opens for editing besides `docx`, `xlsx` and `pptx`. Saving them may lose formatting the format cannot hold. `doc`, `xls` and `ppt` cannot be edited in place: the editor converts them to a `docx`, `xlsx` or `pptx` copy. |
@@ -87,7 +86,6 @@ password:
 | `ai.models.completion` | empty | Default model for text. Also `image`, `speechToText`, `textToSpeech`. Empty: the choice of the app. |
 | `ai.providers.*` | text kinds on | Kinds of task the endpoint serves: `chat`, `text`, `translation`, `imageAnalysis`, `imageGeneration`, `speechToText`, `textToSpeech`. |
 | `talk.enabled` | `false` | Nextcloud Talk with a signaling server, NATS, a TURN server and call recording. |
-| `talk.signaling.host` | empty | Hostname of the signaling server. Empty: `signaling-<hostname of Nextcloud>`. |
 | `talk.turn.host` | empty | Public DNS name of the TURN server. Empty: `turn-<hostname of Nextcloud>`. |
 | `talk.turn.public` | `false` | Request a public address for the TURN server: LoadBalancer Service, DNS record request and NetworkPolicy. |
 | `talk.turn.externalIP` | empty | Public address of the TURN server. Empty with `talk.turn.public`: read from the DNS name when the pod starts. |
@@ -187,8 +185,8 @@ them once (`mail: <user>: no mailbox, <reason>`):
 
 A user is handled once; the result is a file per user in `<data directory>/.chart-mail`.
 A user who got a mailbox `<user id>@<mail domain>` from chart 0.14.0 keeps it; it is not
-changed or deleted. Users read their mail in Nextcloud. The Mailu webmail (`/webmail` on
-the Route `mailu`) asks for the mailbox password, which a user sets in the Mailu admin
+changed or deleted. Users read their mail in Nextcloud. The Mailu webmail (`https://<host>/mail/inbox/`,
+menu entry Webmail) asks for the mailbox password, which a user sets in the Mailu admin
 interface after an administrator sets a first one there.
 
 ## Office documents for agents
@@ -340,9 +338,7 @@ untouched. Install the skipped release first. A new install starts at the latest
 
   | Type | Name | Value | Needed for |
   |---|---|---|---|
-  | `CNAME` | `<host>` | `<ingress>` | Nextcloud, push and whiteboard |
-  | `CNAME` | `office-<host>` (or `onlyoffice.host`) | `<ingress>` | OnlyOffice |
-  | `CNAME` | `signaling-<host>` (or `talk.signaling.host`) | `<ingress>` | Talk |
+  | `CNAME` | `<host>` | `<ingress>` | Nextcloud and every component on its paths: OnlyOffice, Talk signaling, push, whiteboard, mail admin and webmail |
   | `A` | `turn-<host>` (or `talk.turn.host`) | address of `oc get service nextcloud-turn` | Talk across networks, with `talk.turn.public` |
   | `A` | `mail.<mail domain>` | address of `oc get service mailu-front-ext` | Mail |
   | `MX` | `<mail domain>` | `10 mail.<mail domain>.` | Mail. Requested with `mailu.dns.enabled`; a DNS provider that does not write `MX` records leaves it to you. |
@@ -366,6 +362,15 @@ untouched. Install the skipped release first. A new install starts at the latest
   to your store.
 - Mail needs DNS records and a public address: see the Delivery instructions of the
   `mailu` chart. Set `mailu.enabled=false` when you send mail through another server.
+- Mail admin. The first mail administrator is `admin@<mail domain>`. Its password is
+  generated once and kept in the Secret `mailu-secrets`, key `initial-account-password`,
+  never in a mail. Read it in the console under
+  `/k8s/ns/<project>/secrets/mailu-secrets` with Reveal values, or with
+  `oc get secret mailu-secrets -o jsonpath='{.data.initial-account-password}' | base64 -d`.
+  Sign in at `https://<host>/mail/admin/`, in Nextcloud the menu entry Mail admin (group
+  `admin` only, with `mailRoute.externalSites`). Change the password there after the
+  first sign-in; the Secret keeps the first one. Webmail is `https://<host>/mail/inbox/`,
+  menu entry Webmail.
 - Each further domain in `mail.domains` needs the same `MX`, SPF and DMARC records as
   the mail domain, pointing at the same mail server, before its mail arrives here. Its
   DKIM key is made in the mail admin interface under Mail domains (`global.dkim.managed`

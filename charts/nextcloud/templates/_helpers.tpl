@@ -2,14 +2,6 @@
 {{- required "nextcloud.nextcloud.host is required" .Values.nextcloud.nextcloud.host -}}
 {{- end -}}
 
-{{- define "wrapper.onlyofficeHost" -}}
-{{- if .Values.onlyoffice.host -}}
-{{- .Values.onlyoffice.host -}}
-{{- else -}}
-{{- printf "office-%s" (include "wrapper.host" .) -}}
-{{- end -}}
-{{- end -}}
-
 {{/*
 Value of one Secret key, base64: the given value, else the value already in the
 cluster, else a new random one.
@@ -27,10 +19,6 @@ cluster, else a new random one.
 {{- define "wrapper.existingData" -}}
 {{- $found := lookup "v1" "Secret" .namespace .name -}}
 {{- if $found -}}{{- $found.data | toJson -}}{{- else -}}{}{{- end -}}
-{{- end -}}
-
-{{- define "wrapper.signalingHost" -}}
-{{- .Values.talk.signaling.host | default (printf "signaling-%s" (include "wrapper.host" .)) -}}
 {{- end -}}
 
 {{- define "wrapper.turnHost" -}}
@@ -86,7 +74,8 @@ app.kubernetes.io/instance: {{ . }}
 
 {{/*
 A Route on the Nextcloud host that serves one path from a Service; partOf is its group.
-Optional: service (default: name), rewrite (default: /), labels and annotations (maps).
+Optional: service (default: name), rewrite (default: /), labels, annotations and headers
+(maps; headers are set on the request to the Service).
 */}}
 {{- define "wrapper.pathRoute" -}}
 apiVersion: route.openshift.io/v1
@@ -108,6 +97,18 @@ metadata:
 spec:
   host: {{ include "wrapper.host" .root }}
   path: {{ .path }}
+  {{- with .headers }}
+  httpHeaders:
+    actions:
+      request:
+      {{- range $name, $value := . }}
+      - name: {{ $name }}
+        action:
+          type: Set
+          set:
+            value: {{ $value | quote }}
+      {{- end }}
+  {{- end }}
   port:
     targetPort: {{ .port }}
   tls:
