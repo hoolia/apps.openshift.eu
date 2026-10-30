@@ -8,6 +8,9 @@ kind: ConfigMap
 metadata:
   name: {{ $front }}-mail-prefix
   labels:
+    app: nextcloud
+    app.kubernetes.io/name: nextcloud
+    app.kubernetes.io/component: mail
     app.kubernetes.io/part-of: nextcloud-mail
     {{- include "nextcloud.commonLabels" . | nindent 4 }}
 data:
