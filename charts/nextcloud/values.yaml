@@ -415,6 +415,7 @@ mcp-nextcloud:
 # Office documents MCP server for the project's agents, in the same project; its values
 # are those of the mcp-officeagent chart
 mcp-officeagent:
+  # only with onlyoffice.enabled
   enabled: true
   # token check in front of the server, which the Route exposes beyond the project
   auth:
@@ -457,6 +458,7 @@ mcp-officeagent:
 # the mcp-onlyoffice-live chart. It reaches this Nextcloud at the Service nextcloud and
 # passes the caller's token to it, so it needs no token check of its own
 mcp-onlyoffice-live:
+  # only with onlyoffice.enabled
   enabled: true
   nextcloud:
     # the ConfigMap of this chart with the public address of Nextcloud
@@ -523,7 +525,7 @@ nextcloud:
   # a chart upgrade restarts Nextcloud so its start-up setup runs again; equals the chart
   # version (templates/validate.yaml refuses a render where it does not)
   podAnnotations:
-    chart-version: 0.15.0
+    chart-version: 0.15.1
   nextcloud:
     host: nextcloud.example.org
     existingSecret:
