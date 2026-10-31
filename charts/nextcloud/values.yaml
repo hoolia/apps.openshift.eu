@@ -65,6 +65,9 @@ secrets:
   signalingBlockKey: ""
   recordingSecret: ""
   turnSecret: ""
+  # webmail login (mailRoute.sso): the name of the header Mailu trusts and the cookie key
+  # are derived from it, so only the login proxy can log a user in
+  mailLoginSecret: ""
   # key of the AI endpoint; never generated, required when ai.enabled
   aiApiKey: ""
   # secret of the OpenID Connect client; never generated, required when oidc.enabled
@@ -368,6 +371,22 @@ mailu:
       - name: mail-prefix
         mountPath: /overrides/mail-prefix.conf
         subPath: mail-prefix.conf
+    # login by header (mailRoute.sso) only from the front, under the name in Secret
+    # nextcloud-mail-login; without that Secret Mailu takes no login header
+    admin:
+      extraEnvVars:
+      - name: PROXY_AUTH_HEADER
+        valueFrom:
+          secretKeyRef:
+            name: nextcloud-mail-login
+            key: header
+            optional: true
+      - name: PROXY_AUTH_WHITELIST
+        valueFrom:
+          secretKeyRef:
+            name: nextcloud-mail-login
+            key: whitelist
+            optional: true
     # the mail server uses neither of these; they must be switched off at this depth
     mariadb:
       enabled: false
@@ -384,6 +403,21 @@ mailRoute:
   # Nextcloud menu entries (app External sites): Webmail for everyone, Mail admin for group
   # admin; written only while the app has no sites, so a tenant's own entries stay
   externalSites: true
+  # Webmail without a second login, with oidc set up and secrets.type kubernetes:
+  # https://<host>/mail/login signs the user in at the provider and opens Roundcube as the
+  # mailbox of the user's email, and the menu entry Webmail opens it. The provider's client
+  # needs the redirect URI https://<host>/mail/login/oauth2/callback. Without oidc Roundcube
+  # asks for the mailbox password; the Mail app logs in with the user's app token
+  sso:
+    enabled: true
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.5
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
 
 # Routes of the MCP servers below on the Nextcloud host: https://<host>/mcp/<server>
 # (nextcloud, officeagent, office-live), served with the certificate of the host
@@ -525,7 +559,7 @@ nextcloud:
   # a chart upgrade restarts Nextcloud so its start-up setup runs again; equals the chart
   # version (templates/validate.yaml refuses a render where it does not)
   podAnnotations:
-    chart-version: 0.15.1
+    chart-version: 0.16.0
   nextcloud:
     host: nextcloud.example.org
     existingSecret:

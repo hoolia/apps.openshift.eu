@@ -83,6 +83,7 @@ password:
 | `oidc.groupsClaim` | `groups` | Claim with the user's groups; groups matching `oidc.groupsRegex` are created and kept in step. |
 | `oidc.groupsRegex` | empty | Only users with a matching group may log in, for example `^(admin\|acme-admins)$`. A group `admin` in the claim makes the user an administrator. Empty: no restriction. |
 | `oidc.bearer` | `true` | API and WebDAV calls with a Bearer token of the provider; the user is created on the first call. |
+| `mailRoute.sso.enabled` | `true` | With OpenID Connect set up and `secrets.type` `kubernetes`: Webmail logs in at the provider, without the mailbox password. The client needs the redirect URI `https://<host>/mail/login/oauth2/callback`. |
 | `ai.models.completion` | empty | Default model for text. Also `image`, `speechToText`, `textToSpeech`. Empty: the choice of the app. |
 | `ai.providers.*` | text kinds on | Kinds of task the endpoint serves: `chat`, `text`, `translation`, `imageAnalysis`, `imageGeneration`, `speechToText`, `textToSpeech`. |
 | `talk.enabled` | `false` | Nextcloud Talk with a signaling server, NATS, a TURN server and call recording. |
@@ -185,9 +186,13 @@ them once (`mail: <user>: no mailbox, <reason>`):
 
 A user is handled once; the result is a file per user in `<data directory>/.chart-mail`.
 A user who got a mailbox `<user id>@<mail domain>` from chart 0.14.0 keeps it; it is not
-changed or deleted. Users read their mail in Nextcloud. The Mailu webmail (`https://<host>/mail/inbox/`,
-menu entry Webmail) asks for the mailbox password, which a user sets in the Mailu admin
-interface after an administrator sets a first one there.
+changed or deleted. Users read their mail in Nextcloud. With OpenID Connect set up, the menu
+entry Webmail opens `https://<host>/mail/login`: it logs the user in at the provider and
+opens the Mailu webmail as the mailbox of the user's email, without a password. Mailu takes
+that login only from its own front end, under a header name derived from
+`secrets.mailLoginSecret`. Without OpenID Connect the webmail (`https://<host>/mail/inbox/`)
+asks for the mailbox password, which a user sets in the Mailu admin interface after an
+administrator sets a first one there.
 
 ## Office documents for agents
 
