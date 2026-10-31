@@ -52,5 +52,8 @@ data:
       sub_filter 'src="/' 'src="/mail/';
       sub_filter 'action="/' 'action="/mail/';
       sub_filter 'url(/' 'url(/mail/';
+      # the admin's JavaScript navigates to data-clicked and loads tables from data-static
+      sub_filter 'data-clicked="/' 'data-clicked="/mail/';
+      sub_filter 'data-static="/' 'data-static="/mail/';
     }
 {{- end }}

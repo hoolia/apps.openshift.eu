@@ -356,6 +356,9 @@ mailu:
     # Mailu admin on https://<host>/mail/admin, Roundcube on https://<host>/mail/inbox:
     # front reads mail-prefix.conf of mailRoute; this list replaces the mailu chart's
     front:
+      # a chart upgrade reloads mail-prefix.conf; equals the chart version (templates/validate.yaml)
+      podAnnotations:
+        chart-version: 0.16.2
       extraVolumes:
       - name: dovecot-override
         configMap:
@@ -559,7 +562,7 @@ nextcloud:
   # a chart upgrade restarts Nextcloud so its start-up setup runs again; equals the chart
   # version (templates/validate.yaml refuses a render where it does not)
   podAnnotations:
-    chart-version: 0.16.1
+    chart-version: 0.16.2
   nextcloud:
     host: nextcloud.example.org
     existingSecret:
