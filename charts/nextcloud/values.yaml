@@ -559,7 +559,7 @@ nextcloud:
   # a chart upgrade restarts Nextcloud so its start-up setup runs again; equals the chart
   # version (templates/validate.yaml refuses a render where it does not)
   podAnnotations:
-    chart-version: 0.16.0
+    chart-version: 0.16.1
   nextcloud:
     host: nextcloud.example.org
     existingSecret:
