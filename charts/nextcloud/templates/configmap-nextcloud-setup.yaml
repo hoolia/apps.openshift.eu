@@ -112,12 +112,26 @@ data:
     {{- end }}
     {{- if and .Values.mailu.enabled .Values.mailRoute.enabled .Values.mailRoute.externalSites }}
     {{- $mail := printf "https://%s/mail" $host }}
+    {{- $inbox := printf "%s/inbox/" $mail }}
+    {{- $login := include "wrapper.mailLoginActive" . }}
+    {{- /* the provider's login page refuses a frame: the login opens as a page */}}
+    {{- $webmail := dict "id" 1 "name" "Webmail" "url" (ternary (printf "%s/login?url=/webmail/" $mail) $inbox (not (empty $login))) "lang" "" "type" "link" "device" "" "icon" "external.svg" "groups" list "redirect" (not (empty $login)) }}
     {{- $sites := dict
-      "1" (dict "id" 1 "name" "Webmail" "url" (printf "%s/inbox/" $mail) "lang" "" "type" "link" "device" "" "icon" "external.svg" "groups" list "redirect" false)
+      "1" $webmail
       "2" (dict "id" 2 "name" "Mail admin" "url" (printf "%s/admin/" $mail) "lang" "" "type" "link" "device" "" "icon" "settings.svg" "groups" (list "admin") "redirect" false) }}
     app external
-    if [ -z "$(timeout 30 php occ config:app:get external sites 2>/dev/null)" ]; then
+    sites="$(timeout 30 php occ config:app:get external sites 2>/dev/null)"
+    if [ -z "$sites" ]; then
       set_app external sites {{ $sites | toJson | squote }}
+    {{- if $login }}
+    else
+      # an entry still on the inbox gets the login; the tenant's own entries stay
+      new="$(printf '%s' "$sites" | OLD={{ $inbox | squote }} NEW={{ $webmail.url | squote }} php -r '
+        $s = json_decode(stream_get_contents(STDIN), true); $c = false;
+        if (is_array($s)) foreach ($s as &$e) { if (($e["url"] ?? "") === getenv("OLD")) { $e["url"] = getenv("NEW"); $e["redirect"] = true; $c = true; } }
+        if ($c) echo json_encode($s, JSON_UNESCAPED_SLASHES);')"
+      if [ -n "$new" ]; then set_app external sites "$new"; fi
+    {{- end }}
     fi
     {{- end }}
     {{- if .Values.talk.enabled }}
