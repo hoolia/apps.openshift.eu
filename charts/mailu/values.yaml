@@ -455,6 +455,18 @@ upstream:
         cpu: "1"
         memory: 768Mi
 
+  # off by default; when on it shares the mail volume, so it follows admin
+  fetchmail:
+    containerSecurityContext: *root
+    affinity: *followAdmin
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
+
   oletools:
     containerSecurityContext: *root
     resources:
