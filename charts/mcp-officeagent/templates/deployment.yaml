@@ -13,6 +13,8 @@ metadata:
   labels:
     {{- include "mcp-officeagent.labels" . | nindent 4 }}
     {{- include "mcp-officeagent.catalogLabels" . | nindent 4 }}
+  annotations:
+    app.openshift.io/custom-icon: https://avatars.githubusercontent.com/ONLYOFFICE
 spec:
   # session documents live in the memory of one process, the documents claim is ReadWriteOnce
   replicas: 1

@@ -165,20 +165,35 @@ Every object a chart renders from its own templates carries these labels in
   generated secret and restarts no pod unless the change is about that pod.
 - A value is not renamed or removed without a major version.
 
-## Preferred
+## Topology view
 
-These make a chart read well in the OpenShift console. They go on the workload's own
-metadata, never on a pod template, each as a literal line in the template.
+Every workload (Deployment, StatefulSet, DaemonSet) draws in the topology view of the
+OpenShift console with an icon, in its group, with an arrow to each component it depends
+on. The keys go on the workload's own metadata, never on a pod template, each as a literal
+line in the template.
 
-| Key | Kind | Value |
-|---|---|---|
-| `app.openshift.io/runtime` | label | Name of a console icon: `nodejs`, `python`, `java`, `golang`, `php`, `redis`, `postgresql` |
-| `app.openshift.io/vcs-uri` | annotation | Source repository of the component |
-| `app.openshift.io/connects-to` | annotation | JSON list of `{"apiVersion", "kind", "name"}`: the components this one depends on |
+| Key | Kind | Required | Value |
+|---|---|---|---|
+| `app.openshift.io/runtime` | label | this or `custom-icon` | Name of a console icon: `nodejs`, `python`, `java`, `golang`, `php`, `redis`, `postgresql`, `mariadb`, `openshift` |
+| `app.openshift.io/custom-icon` | annotation | this or `runtime` | URL of the product logo, for a product without a console icon |
+| `app.openshift.io/connects-to` | annotation | when the workload depends on another | JSON list of `{"apiVersion", "kind", "name"}`: the components this one depends on |
+| `app.openshift.io/vcs-uri` | annotation | no | Source repository of the component |
 
+- `ci/check.sh` fails when a workload of the chart's own templates has neither
+  `app.openshift.io/runtime` nor `app.openshift.io/custom-icon`.
+- A workload of a subchart gets the keys through the subchart's values for workload
+  metadata (`commonAnnotations`, `deploymentAnnotations` and the like). When the subchart
+  offers only one value for all its workloads, render it per workload from `.Template.Name`
+  (chart `mailu`, helpers `mailu-wrapper.topology*`). A subchart that offers only pod
+  labels stays without: a pod label restarts the pod.
+- A StatefulSet that an operator builds carries no keys: the operator's metadata field
+  also reaches the volume claim template.
 - An arrow goes from one component to another: the application to its database, its cache
   or its object storage, a worker to its queue. It does not go from a Service to its
-  Deployment.
+  Deployment. An arrow to a workload that does not exist is ignored, so a chart may point
+  at an optional component.
+
+## Preferred
 - `app.kubernetes.io/part-of` draws one box per group in the topology view. A chart with
   many workloads uses a few groups; a small chart uses one.
 - A NetworkPolicy admits only what the application needs between its own components.

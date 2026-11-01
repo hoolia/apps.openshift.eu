@@ -62,6 +62,42 @@ metallb.io/loadBalancerIPs: {{ . | quote }}
 {{- end }}
 {{- end -}}
 
+{{/*
+Component of an upstream workload: the directory of the template that renders it.
+Called from upstream commonAnnotations, so the context is the upstream chart's.
+*/}}
+{{- define "mailu-wrapper.topologyComponent" -}}
+{{- base (dir .Template.Name) -}}
+{{- end -}}
+
+{{/* Console icon of the upstream workload being rendered; empty on other objects. */}}
+{{- define "mailu-wrapper.topologyIcon" -}}
+{{- if eq (base .Template.Name) "deployment.yaml" -}}
+{{- $icons := .Values.topology.icon -}}
+{{- index $icons (include "mailu-wrapper.topologyComponent" .) | default $icons.default -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+JSON list of the workloads the upstream workload being rendered depends on; empty on
+other objects.
+*/}}
+{{- define "mailu-wrapper.topologyConnectsTo" -}}
+{{- if eq (base .Template.Name) "deployment.yaml" -}}
+{{- $out := list -}}
+{{- range index .Values.topology.connectsTo (include "mailu-wrapper.topologyComponent" .) | default list -}}
+{{- if eq . "redis" -}}
+{{- if $.Values.redis.enabled -}}
+{{- $out = append $out (dict "apiVersion" "apps/v1" "kind" "StatefulSet" "name" (printf "%s-redis-master" $.Release.Name)) -}}
+{{- end -}}
+{{- else -}}
+{{- $out = append $out (dict "apiVersion" "apps/v1" "kind" "Deployment" "name" (printf "%s-%s" (include "mailu.fullname" $) .)) -}}
+{{- end -}}
+{{- end -}}
+{{- $out | toJson -}}
+{{- end -}}
+{{- end -}}
+
 {{/* Labels that are the same on every object of the chart. */}}
 {{- define "mailu.commonLabels" -}}
 app.kubernetes.io/part-of: {{ .Release.Name | quote }}

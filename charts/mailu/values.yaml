@@ -160,6 +160,29 @@ upstream:
   commonLabels:
     app: '{{ include "mailu.names.fullname" . }}'
     app.kubernetes.io/part-of: '{{ .Release.Name }}'
+  # icon and arrows per Deployment from topology below; empty on other objects
+  commonAnnotations:
+    app.openshift.io/vcs-uri: https://github.com/Mailu/Mailu
+    app.openshift.io/custom-icon: '{{ include "mailu-wrapper.topologyIcon" . }}'
+    app.openshift.io/connects-to: '{{ include "mailu-wrapper.topologyConnectsTo" . }}'
+  # console topology view: icon of each component and the components it depends on;
+  # redis is the cache StatefulSet <release>-redis-master
+  topology:
+    icon:
+      default: https://avatars.githubusercontent.com/Mailu
+      front: https://avatars.githubusercontent.com/nginx
+      webmail: https://avatars.githubusercontent.com/roundcube
+      dovecot: https://avatars.githubusercontent.com/dovecot
+      rspamd: https://avatars.githubusercontent.com/rspamd
+      tika: https://avatars.githubusercontent.com/apache
+    connectsTo:
+      front: [admin, webmail, postfix, dovecot]
+      webmail: [front]
+      admin: [redis]
+      postfix: [admin, rspamd, dovecot]
+      dovecot: [admin, tika]
+      rspamd: [redis, oletools, clamav]
+      fetchmail: [front, admin]
 
   domain: example.org
   hostnames:
@@ -487,6 +510,9 @@ upstream:
         memory: 2Gi
 
   redis:
+    # workload metadata only: commonLabels would reach the pod template
+    commonAnnotations:
+      app.openshift.io/custom-icon: https://avatars.githubusercontent.com/redis
     master:
       # an empty seLinuxOptions fails admission unless the renderer detects OpenShift
       containerSecurityContext:

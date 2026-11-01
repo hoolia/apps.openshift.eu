@@ -12,6 +12,7 @@ metadata:
     {{- include "mcp-microsoft-365.commonLabels" . | nindent 4 }}
   annotations:
     app.openshift.io/vcs-uri: https://github.com/softeria/ms-365-mcp-server
+    app.openshift.io/custom-icon: https://avatars.githubusercontent.com/microsoft
 spec:
   # login state (PKCE) is kept in memory
   replicas: 1

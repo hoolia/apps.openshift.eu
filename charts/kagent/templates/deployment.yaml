@@ -9,6 +9,7 @@ metadata:
   labels:
     {{- include "tenant.labels" . | nindent 4 }}
     app.kubernetes.io/component: login
+    app.openshift.io/runtime: openshift
 spec:
   replicas: 1
   selector:
