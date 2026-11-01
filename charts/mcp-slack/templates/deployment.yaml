@@ -10,6 +10,8 @@ metadata:
     app.kubernetes.io/component: server
     {{- include "mcp-slack.commonLabels" . | nindent 4 }}
     {{- include "mcp-slack.catalogLabels" . | nindent 4 }}
+  annotations:
+    app.openshift.io/custom-icon: https://avatars.githubusercontent.com/slackapi
 spec:
   replicas: 1
   selector:

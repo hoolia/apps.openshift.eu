@@ -11,6 +11,8 @@ metadata:
   labels:
     {{- include "mcp-atlassian.labels" . | nindent 4 }}
     app.kubernetes.io/component: server
+  annotations:
+    app.openshift.io/custom-icon: https://avatars.githubusercontent.com/atlassian
 spec:
   replicas: 1
   selector:

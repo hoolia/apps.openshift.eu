@@ -14,6 +14,7 @@ metadata:
   name: nextcloud-turn
   annotations:
     app.openshift.io/vcs-uri: https://github.com/coturn/coturn
+    app.openshift.io/custom-icon: https://avatars.githubusercontent.com/coturn
   labels:
     app: nextcloud-turn
     app.kubernetes.io/name: nextcloud-turn

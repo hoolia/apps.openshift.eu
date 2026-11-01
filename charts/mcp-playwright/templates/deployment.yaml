@@ -6,6 +6,8 @@ metadata:
   labels:
     {{- include "mcp-playwright.labels" . | nindent 4 }}
     app.kubernetes.io/component: server
+  annotations:
+    app.openshift.io/custom-icon: https://playwright.dev/img/playwright-logo.svg
 spec:
   replicas: 1
   selector:

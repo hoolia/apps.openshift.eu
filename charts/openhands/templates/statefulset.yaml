@@ -8,6 +8,8 @@ metadata:
   labels:
     {{- include "openhands.labels" . | nindent 4 }}
     app.kubernetes.io/component: server
+  annotations:
+    app.openshift.io/custom-icon: https://avatars.githubusercontent.com/All-Hands-AI
 spec:
   replicas: 1
   serviceName: {{ $name }}-ui
