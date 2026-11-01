@@ -169,7 +169,8 @@ def collect(api, instance, merge_days, now=None):
     for project in projects:
         try:
             collect_project(api, project, base, metrics, now, merge_days)
-        except (urllib.error.URLError, OSError, ValueError, KeyError) as error:
+        # URLError and HTTPError are OSError
+        except (OSError, ValueError, KeyError) as error:
             # one project must not hide the others
             failed += 1
             print(f"{project.get('path_with_namespace')}: {error}", flush=True)
@@ -195,7 +196,8 @@ def serve(port):
             self.wfile.write(body)
 
         def log_message(self, *args):
-            pass
+            # every scrape would print a line; the collection logs its own errors
+            return
 
     ThreadingHTTPServer(("", port), Handler).serve_forever()
 
@@ -210,7 +212,7 @@ def main():
         started = time.monotonic()
         try:
             State.text = collect(api, instance, days)
-        except (urllib.error.URLError, OSError, ValueError) as error:
+        except (OSError, ValueError) as error:
             # the last good collection stays served; its timestamp shows the age
             print(f"collection failed: {error}", flush=True)
         time.sleep(max(30, interval - (time.monotonic() - started)))
