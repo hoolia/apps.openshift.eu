@@ -22,6 +22,8 @@ data:
 {{ .Files.Get "files/token-proxy.py" | indent 4 }}
   mcp-sync.py: |
 {{ .Files.Get "files/mcp-sync.py" | indent 4 }}
+  vscode-sync.py: |
+{{ .Files.Get "files/vscode-sync.py" | indent 4 }}
   a2a-shim.py: |
 {{ .Files.Get "files/a2a-shim.py" | indent 4 }}
   a2a-relay.py: |

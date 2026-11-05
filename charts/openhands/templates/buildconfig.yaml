@@ -39,6 +39,8 @@ data:
 {{ include "openhands.toolsTxt" . | indent 4 }}
   checks.txt: |
 {{ include "openhands.checksTxt" . | indent 4 }}
+  vscode-extensions.txt: |
+{{ include "openhands.vscodeExtensionsTxt" . | indent 4 }}
   mcp_oauth_redirect.py: |
 {{ .Files.Get "files/mcp_oauth_redirect.py" | indent 4 }}
   patch-mcp-icons.py: |
