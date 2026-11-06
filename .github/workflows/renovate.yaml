@@ -1,0 +1,34 @@
+name: Renovate
+on:
+  schedule:
+  # inside the "before 6am" Europe/Amsterdam schedule of renovate.json
+  - cron: "17 3 * * *"
+  workflow_dispatch:
+concurrency:
+  group: renovate
+  cancel-in-progress: false
+jobs:
+  renovate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+    # an app token, not GITHUB_TOKEN: pull requests opened with GITHUB_TOKEN run no checks
+    - name: Token of the Renovate app
+      id: app
+      uses: actions/create-github-app-token@v3
+      with:
+        app-id: ${{ secrets.RENOVATE_APP_ID }}
+        private-key: ${{ secrets.RENOVATE_APP_PRIVATE_KEY }}
+    - uses: renovatebot/github-action@v46.3.12
+      with:
+        token: ${{ steps.app.outputs.token }}
+        renovate-version: 44.221.4
+      env:
+        RENOVATE_REPOSITORIES: ${{ github.repository }}
+        RENOVATE_ONBOARDING: "false"
+        RENOVATE_REQUIRE_CONFIG: required
+        RENOVATE_PLATFORM_COMMIT: enabled
+        # only the release step of renovate.json may run
+        RENOVATE_ALLOWED_COMMANDS: '["^bash ci/renovate-release\\.sh "]'
+        LOG_LEVEL: info

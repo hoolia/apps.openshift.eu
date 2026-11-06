@@ -35,3 +35,13 @@ A chart is released when the `version` in its `Chart.yaml` changes on `main`: th
 workflow runs `ci/release.sh <chart>`, which a person can also run by hand (it needs
 `gitleaks` and `syft`). Each GitHub Release carries the package, the release notes from
 `release-notes/<chart>/<version>.md` and an SBOM of the chart's images.
+
+Renovate (workflow `renovate.yaml`, every morning and on demand) opens a pull request for
+every new upstream version of an image or a chart dependency, one per chart and upstream.
+`ci/renovate-release.sh` makes it releasable in the same pull request: the chart's
+`version` goes up (patch for an upstream patch or digest, minor otherwise), `appVersion`
+follows when it named the old version, and the release notes get an entry. Merging it
+releases the chart. A major upgrade waits for approval on the Renovate dashboard issue.
+The workflow needs the repository secrets `RENOVATE_APP_ID` and `RENOVATE_APP_PRIVATE_KEY`
+of a GitHub App with read and write access to contents, pull requests, issues and
+workflows.
