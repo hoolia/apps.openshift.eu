@@ -26,8 +26,17 @@ COPY --from=tools /tools /tools
 COPY --from=tools /opt/sonar-scanner /opt/sonar-scanner
 COPY --from=tools /usr/share/ansible/collections /usr/share/ansible/collections
 {{- end }}
-COPY install-tools.sh verify-tools.sh tools.txt checks.txt mcp_oauth_redirect.py patch-mcp-icons.py patch-acp-usage.py /tmp/build/
+COPY install-tools.sh verify-tools.sh tools.txt checks.txt vscode-extensions.txt mcp_oauth_redirect.py patch-mcp-icons.py patch-acp-usage.py /tmp/build/
 RUN sh /tmp/build/install-tools.sh
+# editor extensions from Open VSX, checked against their digest
+RUN set -eu; ovs=/openhands/.openvscode-server; \
+    while read -r url sha; do \
+      [ -n "$url" ] || continue; \
+      curl -fsSL --retry 5 --retry-delay 3 -o /tmp/ext.vsix "$url"; \
+      echo "$sha  /tmp/ext.vsix" | sha256sum -c -; \
+      "$ovs/bin/openvscode-server" --install-extension /tmp/ext.vsix --extensions-dir "$ovs/extensions"; \
+      rm -f /tmp/ext.vsix; \
+    done < /tmp/build/vscode-extensions.txt
 # installed MCP server cards show the icon of the server's settings
 RUN python3 /tmp/build/patch-mcp-icons.py
 # Claude Code over ACP survives a gateway that sends no token usage

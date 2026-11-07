@@ -78,6 +78,22 @@ the cluster, else a new random one. Takes value, existing (Secret data), key, le
 {{- range .Values.build.tools }}
 {{ .check }}
 {{- end }}
+{{- range .Values.vscode.extensions }}
+ls -d /openhands/.openvscode-server/extensions/{{ lower .id }}-{{ .version }}*
+{{- end }}
+{{- end -}}
+
+{{/* vscode-extensions.txt for the Containerfile: "<Open VSX package URL> <sha256>" per extension */}}
+{{- define "openhands.vscodeExtensionsTxt" -}}
+{{- range .Values.vscode.extensions -}}
+{{- $ns := index (splitList "." .id) 0 -}}
+{{- $ext := trimPrefix (printf "%s." $ns) .id -}}
+{{- if .platform -}}
+https://open-vsx.org/api/{{ $ns }}/{{ $ext }}/{{ .platform }}/{{ .version }}/file/{{ .id }}-{{ .version }}@{{ .platform }}.vsix {{ .sha256 }}
+{{ else -}}
+https://open-vsx.org/api/{{ $ns }}/{{ $ext }}/{{ .version }}/file/{{ .id }}-{{ .version }}.vsix {{ .sha256 }}
+{{ end -}}
+{{- end -}}
 {{- end -}}
 
 {{/* Upstream image: by digest when one is given (tag plus digest is refused by some pullers) */}}

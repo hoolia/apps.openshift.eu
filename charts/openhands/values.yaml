@@ -189,6 +189,44 @@ llm:
     enable_encrypted_reasoning: false
     inline_image_urls: true
 
+# The editor (VS Code in the browser) with a chat extension that uses the agent's own
+# models and MCP servers. Its built-in chat needs a GitHub Copilot sign-in and stays off
+vscode:
+  # extensions from Open VSX built into the image: id, version, sha256 of the package
+  # and platform (empty: the universal package)
+  extensions:
+  - id: Continue.continue
+    version: 2.1.0
+    platform: linux-x64
+    sha256: 3b62f9c538f4e2d158454a2506863b29fb4d4bfa8f03944890ea4bd1aafda77f
+  # vscode-sync writes ~/.continue/config.yaml every interval: every gateway model
+  # through the token proxy and every enabled MCP server of the agent-server settings.
+  # A config.yaml without its first line is the user's own and is left alone
+  chat:
+    # needs gateway.upstream
+    enabled: true
+    # models in gateway form listed first; the first is the default
+    models: []
+    # with models empty: the first gateway model whose name (after the last "/") is in
+    # this list becomes the default
+    preferredModels:
+    - glm-5.3-flash
+    - qwen3-coder-next
+    # also every other model the gateway lists
+    gatewayModels: true
+    # seconds between passes
+    interval: 60
+    resources:
+      requests:
+        cpu: 5m
+        memory: 24Mi
+      limits:
+        memory: 64Mi
+  # merged into the editor's machine settings; the user's own settings win
+  settings:
+    continue.telemetryEnabled: false
+    chat.disableAIFeatures: true
+
 # History condenser of the OpenHands agent: old events are summarized by the agent's
 # own model. Written into the settings and every OpenHands agent profile when the pod
 # starts after these values changed; an edit in the UI stays until then. ACP agents

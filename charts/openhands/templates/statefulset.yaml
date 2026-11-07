@@ -391,6 +391,46 @@ spec:
         securityContext:
           {{- include "openhands.containerSecurityContext" . | nindent 10 }}
       {{- end }}
+      {{- if and .Values.vscode.chat.enabled .Values.gateway.upstream }}
+      # the editor's chat gets the gateway models and the agent's MCP servers
+      - name: vscode-sync
+        image: {{ .Values.tokenProxy.image }}
+        imagePullPolicy: IfNotPresent
+        command:
+        - python3
+        - /app/vscode-sync.py
+        env:
+        - name: HOME
+          value: /home/openhands
+        - name: LOCAL_BACKEND_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ $name }}-session-api-key
+              key: value
+        - name: TOKEN_PROXY_PORT
+          value: {{ .Values.tokenProxy.port | quote }}
+        - name: INTERVAL
+          value: {{ int .Values.vscode.chat.interval | quote }}
+        - name: MODELS
+          value: {{ toJson .Values.vscode.chat.models | quote }}
+        - name: PREFERRED
+          value: {{ toJson .Values.vscode.chat.preferredModels | quote }}
+        - name: GATEWAY_MODELS
+          value: {{ .Values.vscode.chat.gatewayModels | quote }}
+        - name: SETTINGS
+          value: {{ toJson .Values.vscode.settings | quote }}
+        volumeMounts:
+        - name: scripts
+          mountPath: /app
+          readOnly: true
+        - name: data
+          mountPath: /home/openhands
+          subPath: home
+        resources:
+          {{- toYaml .Values.vscode.chat.resources | nindent 10 }}
+        securityContext:
+          {{- include "openhands.containerSecurityContext" . | nindent 10 }}
+      {{- end }}
       {{- if .Values.a2a.enabled }}
       # A2A server for other agents and kagent; the agent-server stays on loopback
       - name: a2a
