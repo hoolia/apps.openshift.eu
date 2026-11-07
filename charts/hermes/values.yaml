@@ -1,0 +1,161 @@
+# Team of the tenant the app serves: every object goes into <tenant>-<team>.
+# Empty: the release namespace
+team: ""
+# tenant the app belongs to; required with team
+tenant: ""
+
+image:
+  repository: docker.io/nousresearch/hermes-agent
+  tag: v0.23.0
+  # the digest of that tag (linux/amd64 and arm64 index); empty: by tag
+  digest: sha256:adb7890916de63245523492be8f68f9d2095fecbec4e2a6dab7960381f0fc002
+  pullPolicy: IfNotPresent
+  # the image's own user; the home must be owned by it
+  uid: 10000
+
+route:
+  # empty: OpenShift assigns a host under the default application domain
+  host: ""
+  # extra labels on the Route only, for example to pick a router shard
+  labels: {}
+  # the dashboard chat streams over long-lived connections
+  timeout: 3600s
+  # used when a host is set; certificate issued by cert-manager
+  annotations:
+    cert-manager.io/issuer-kind: ClusterIssuer
+    cert-manager.io/issuer-name: letsencrypt
+
+oauth:
+  # OpenShift user name (an email) of the only person admitted. Empty: allowedGroups
+  ownerEmail: ""
+  # OpenShift groups admitted (with ownerEmail: the owner must be in one).
+  # Both empty: everyone who may edit the project
+  allowedGroups: []
+  # ClusterRole holding the verb login on services/proxy that allowedGroups are bound
+  # to. Empty: the chart's own Role, which only an installer holding that verb can create
+  loginClusterRole: ""
+
+secrets:
+  # kubernetes: Secrets from the values below. externalSecret: from a secret store
+  type: kubernetes
+  # oauth-proxy cookie secret. Empty: generated once. A value that is not 16, 24 or
+  # 32 characters long is hashed to 32
+  cookieSecret: ""
+  externalSecret:
+    storeKind: ClusterSecretStore
+    storeName: ""
+    refreshInterval: 1h
+    # vault item of the cookie secret (its password). Empty: generated in the cluster
+    items:
+      cookieSecret: ""
+
+gateway:
+  # OpenAI-compatible model and MCP gateway the token proxy forwards to, for example
+  # https://api.example.com. Empty: no model is configured; set one in the dashboard
+  upstream: ""
+  # audience of the agent's ServiceAccount token. Empty: the host of upstream
+  audience: ""
+
+llm:
+  # model name on the gateway, written as the default model of config.yaml
+  model: ""
+  # context window of that model in tokens; 0: what the gateway reports. Hermes needs 64000
+  contextLength: 0
+
+mcp:
+  # turn every kagent RemoteMCPServer the agent may list into an MCP server of Hermes
+  enabled: true
+  # seconds between two passes
+  interval: 60
+  # label selector on RemoteMCPServers; empty: all
+  labelSelector: ""
+  # prefix of the selection labels <labelDomain>/addon, /bundle and /server
+  labelDomain: mcp.openshift.eu
+  # add-on bundles and servers this agent takes
+  bundles: []
+  servers: []
+  # RemoteMCPServers never used: <name> or <namespace>/<name>
+  exclude: []
+  # ClusterRole that may list RemoteMCPServers, bound in the release namespace;
+  # empty: no binding (the ServiceAccount's edit role must cover it)
+  clusterRole: kagent-remotemcpserver-view
+  # also look into every other Project the ServiceAccount can list
+  otherProjects: true
+
+skills:
+  # git repositories cloned at start into the external skill directory; each
+  # {name, url, ref, path}: path is the directory inside the repository that holds
+  # <skill>/SKILL.md (empty: the repository root)
+  repositories: []
+
+# merged into config.yaml at every start; keys set here win over the dashboard
+config: {}
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 768Mi
+  limits:
+    cpu: "2"
+    memory: 3Gi
+
+dashboard:
+  # loopback port of the dashboard; only the login proxy reaches it
+  port: 9119
+  resources:
+    requests:
+      cpu: 50m
+      memory: 384Mi
+    limits:
+      cpu: "1"
+      memory: 1536Mi
+
+oauthProxy:
+  # OpenShift oauth-proxy in front of the dashboard; the cluster keeps this tag current
+  image: image-registry.openshift-image-registry.svc:5000/openshift/oauth-proxy:v4.4
+  port: 4180
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      memory: 256Mi
+
+tokenProxy:
+  # image that runs the token proxy script
+  image: registry.access.redhat.com/ubi9/python-312-minimal
+  # loopback port the agent sends model and MCP calls to
+  port: 8099
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      memory: 256Mi
+
+mcpSync:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 64Mi
+    limits:
+      memory: 256Mi
+
+serviceAccount:
+  # labels on the agent's ServiceAccount
+  labels: {}
+
+# extra volumes of the pod and their mounts in the gateway and dashboard containers,
+# for example a shared download directory
+extraVolumes: []
+extraVolumeMounts: []
+
+nodeSelector: {}
+affinity: {}
+
+storage:
+  # the Hermes home: config, sessions, memories, skills, MCP OAuth tokens
+  size: 10Gi
+  accessMode: ReadWriteOnce
+  # empty: the default storage class
+  className: ""

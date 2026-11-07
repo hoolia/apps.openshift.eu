@@ -1,0 +1,342 @@
+{{- $name := include "hermes.name" . }}
+{{- $ns := include "hermes.namespace" . }}
+{{- $audience := include "hermes.audience" . }}
+{{- $home := "/opt/data/home" }}
+{{- $common := list (dict "name" "HOME" "value" $home) (dict "name" "HERMES_HOME" "value" $home) }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ $name }}
+  namespace: {{ $ns }}
+  labels:
+    {{- include "hermes.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+  annotations:
+    app.openshift.io/custom-icon: {{ .Chart.Icon }}
+spec:
+  replicas: 1
+  serviceName: {{ $name }}-ui
+  podManagementPolicy: OrderedReady
+  updateStrategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      {{- include "hermes.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "hermes.selectorLabels" . | nindent 8 }}
+      annotations:
+        checksum/scripts: {{ include (print $.Template.BasePath "/configmap-scripts.yaml") . | sha256sum }}
+        checksum/config: {{ include "hermes.config" . | sha256sum }}
+    spec:
+      serviceAccountName: {{ $name }}
+      # the ServiceAccount token goes only to the login proxy and mcp-sync, never to the agent
+      automountServiceAccountToken: false
+      # the dashboard checks that the gateway process is alive
+      shareProcessNamespace: true
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        # Hermes refuses a home that its own user does not own
+        runAsUser: {{ .Values.image.uid }}
+        runAsGroup: {{ .Values.image.uid }}
+        fsGroup: {{ .Values.image.uid }}
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+      - name: seed-config
+        image: {{ include "hermes.image" . }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command:
+        - /opt/hermes/.venv/bin/python
+        - /opt/hermes-scripts/seed-config.py
+        env:
+        {{- toYaml $common | nindent 8 }}
+        - name: CHART_CONFIG
+          value: {{ include "hermes.config" . | quote }}
+        - name: SKILL_REPOSITORIES
+          value: {{ toJson .Values.skills.repositories | quote }}
+        volumeMounts:
+        - name: scripts
+          mountPath: /opt/hermes-scripts
+          readOnly: true
+        - name: data
+          mountPath: /opt/data
+        - name: tmp
+          mountPath: /tmp
+        resources:
+          requests:
+            cpu: 10m
+            memory: 64Mi
+          limits:
+            cpu: 500m
+            memory: 256Mi
+        securityContext:
+          {{- include "hermes.containerSecurityContext" . | nindent 10 }}
+      containers:
+      - name: gateway
+        image: {{ include "hermes.image" . }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        # without s6: the gateway in the foreground, restarted by the kubelet
+        command:
+        - /opt/hermes/.venv/bin/hermes
+        - gateway
+        - run
+        - --no-supervise
+        env:
+        {{- toYaml $common | nindent 8 }}
+        - name: HERMES_GATEWAY_NO_SUPERVISE
+          value: "1"
+        volumeMounts:
+        - name: data
+          mountPath: /opt/data
+        - name: tmp
+          mountPath: /tmp
+        {{- with .Values.extraVolumeMounts }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
+        securityContext:
+          {{- include "hermes.containerSecurityContext" . | nindent 10 }}
+      - name: dashboard
+        image: {{ include "hermes.image" . }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        # on loopback: the only way in is the login proxy
+        command:
+        - /opt/hermes/.venv/bin/hermes
+        - dashboard
+        - --host
+        - 127.0.0.1
+        - --port
+        - {{ .Values.dashboard.port | quote }}
+        - --no-open
+        env:
+        {{- toYaml $common | nindent 8 }}
+        readinessProbe:
+          exec:
+            command:
+            - /opt/hermes/.venv/bin/python
+            - -c
+            - import urllib.request; urllib.request.urlopen("http://127.0.0.1:{{ .Values.dashboard.port }}/", timeout=3)
+          initialDelaySeconds: 10
+          periodSeconds: 15
+          timeoutSeconds: 5
+        volumeMounts:
+        - name: data
+          mountPath: /opt/data
+        - name: tmp
+          mountPath: /tmp
+        {{- with .Values.extraVolumeMounts }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        resources:
+          {{- toYaml .Values.dashboard.resources | nindent 10 }}
+        securityContext:
+          {{- include "hermes.containerSecurityContext" . | nindent 10 }}
+      - name: oauth-proxy
+        image: {{ .Values.oauthProxy.image }}
+        imagePullPolicy: IfNotPresent
+        args:
+        - --provider=openshift
+        - --openshift-service-account={{ $name }}
+        - --http-address=0.0.0.0:{{ .Values.oauthProxy.port }}
+        - --https-address=
+        - --upstream=http://127.0.0.1:{{ .Values.dashboard.port }}
+        - --upstream-timeout={{ .Values.route.timeout }}
+        # the dashboard accepts only its own loopback Host
+        - --pass-host-header=false
+        {{- if .Values.oauth.ownerEmail }}
+        - --authenticated-emails-file=/etc/oauth-proxy/emails.txt
+        # without an email domain only the emails file admits
+        - --email-domain=
+        {{- else }}
+        - --email-domain=*
+        {{- end }}
+        {{- if or .Values.oauth.allowedGroups (not .Values.oauth.ownerEmail) }}
+        # groups: verb login, which only the login Role grants; else project editors
+        - --openshift-sar={{ list (dict "namespace" $ns "resource" "services/proxy" "resourceName" (printf "%s-ui" $name) "verb" (include "hermes.loginVerb" .)) | toJson }}
+        {{- end }}
+        - --pass-basic-auth=false
+        - --cookie-name=_{{ $name | replace "-" "_" }}
+        - --cookie-secure=true
+        - --cookie-samesite=lax
+        - --skip-provider-button=true
+        env:
+        - name: OAUTH2_PROXY_COOKIE_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: {{ $name }}-cookie-secret
+              key: value
+        ports:
+        - name: ui
+          containerPort: {{ .Values.oauthProxy.port }}
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /oauth/healthz
+            port: ui
+          periodSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /oauth/healthz
+            port: ui
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          {{- toYaml .Values.oauthProxy.resources | nindent 10 }}
+        securityContext:
+          {{- include "hermes.containerSecurityContext" . | nindent 10 }}
+        volumeMounts:
+        - name: kube-api-access
+          mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+          readOnly: true
+        {{- if .Values.oauth.ownerEmail }}
+        - name: scripts
+          mountPath: /etc/oauth-proxy/emails.txt
+          subPath: emails.txt
+          readOnly: true
+        {{- end }}
+      {{- if .Values.gateway.upstream }}
+      - name: token-proxy
+        image: {{ .Values.tokenProxy.image }}
+        imagePullPolicy: IfNotPresent
+        command:
+        - python3
+        - /app/token-proxy.py
+        env:
+        - name: TOKEN_FILE
+          value: /var/run/secrets/api-token/token
+        - name: UPSTREAM
+          value: {{ .Values.gateway.upstream | quote }}
+        - name: PORT
+          value: {{ .Values.tokenProxy.port | quote }}
+        # listens on 127.0.0.1 only, so the probe runs inside the container
+        readinessProbe:
+          exec:
+            command:
+            - python3
+            - -c
+            - import urllib.request; urllib.request.urlopen("http://127.0.0.1:{{ .Values.tokenProxy.port }}/healthz", timeout=2)
+          initialDelaySeconds: 2
+          periodSeconds: 10
+        volumeMounts:
+        - name: scripts
+          mountPath: /app
+          readOnly: true
+        - name: api-token
+          mountPath: /var/run/secrets/api-token
+          readOnly: true
+        resources:
+          {{- toYaml .Values.tokenProxy.resources | nindent 10 }}
+        securityContext:
+          {{- include "hermes.containerSecurityContext" . | nindent 10 }}
+      {{- end }}
+      {{- if .Values.mcp.enabled }}
+      - name: mcp-sync
+        image: {{ include "hermes.image" . }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command:
+        - /opt/hermes/.venv/bin/python
+        - /opt/hermes-scripts/mcp-sync.py
+        env:
+        {{- toYaml $common | nindent 8 }}
+        - name: INTERVAL
+          value: {{ .Values.mcp.interval | quote }}
+        - name: LABEL_SELECTOR
+          value: {{ .Values.mcp.labelSelector | quote }}
+        - name: LABEL_DOMAIN
+          value: {{ .Values.mcp.labelDomain | quote }}
+        - name: BUNDLES
+          value: {{ join "," .Values.mcp.bundles | quote }}
+        - name: SERVERS
+          value: {{ join "," .Values.mcp.servers | quote }}
+        - name: EXCLUDE
+          value: {{ join "," .Values.mcp.exclude | quote }}
+        - name: OTHER_PROJECTS
+          value: {{ .Values.mcp.otherProjects | quote }}
+        - name: UPSTREAM
+          value: {{ .Values.gateway.upstream | quote }}
+        - name: TOKEN_PROXY_PORT
+          value: {{ .Values.tokenProxy.port | quote }}
+        {{- with .Values.route.host }}
+        # the vendor returns an OAuth login to the dashboard behind the Route
+        - name: OAUTH_CALLBACK_BASE
+          value: https://{{ . }}
+        {{- end }}
+        volumeMounts:
+        - name: scripts
+          mountPath: /opt/hermes-scripts
+          readOnly: true
+        - name: data
+          mountPath: /opt/data
+        - name: kube-api-access
+          mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+          readOnly: true
+        resources:
+          {{- toYaml .Values.mcpSync.resources | nindent 10 }}
+        securityContext:
+          {{- include "hermes.containerSecurityContext" . | nindent 10 }}
+      {{- end }}
+      volumes:
+      - name: scripts
+        configMap:
+          name: {{ $name }}-scripts
+      - name: tmp
+        emptyDir: {}
+      - name: kube-api-access
+        projected:
+          sources:
+          - serviceAccountToken:
+              expirationSeconds: 3600
+              path: token
+          - configMap:
+              name: kube-root-ca.crt
+              items:
+              - key: ca.crt
+                path: ca.crt
+          - downwardAPI:
+              items:
+              - path: namespace
+                fieldRef:
+                  fieldPath: metadata.namespace
+      {{- if .Values.gateway.upstream }}
+      # the agent's own credential for the gateway, renewed by the kubelet
+      - name: api-token
+        projected:
+          sources:
+          - serviceAccountToken:
+              {{- with $audience }}
+              audience: {{ . }}
+              {{- end }}
+              expirationSeconds: 3600
+              path: token
+      {{- end }}
+      {{- with .Values.extraVolumes }}
+      {{- toYaml . | nindent 6 }}
+      {{- end }}
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+      # volumeClaimTemplates are immutable: no version label here
+      labels:
+        {{- include "hermes.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/part-of: {{ .Release.Name | quote }}
+        app.kubernetes.io/component: storage
+    spec:
+      accessModes:
+      - {{ .Values.storage.accessMode }}
+      {{- with .Values.storage.className }}
+      storageClassName: {{ . }}
+      {{- end }}
+      resources:
+        requests:
+          storage: {{ .Values.storage.size }}

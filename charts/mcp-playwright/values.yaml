@@ -81,6 +81,13 @@ auth:
     limits:
       memory: 128Mi
 
+# where downloads, screenshots and traces are written; point it at an extra volume to
+# share files with an agent
+outputDir: /tmp/output
+# extra volumes of the pod and their mounts in the browser container
+extraVolumes: []
+extraVolumeMounts: []
+
 networkPolicy:
   enabled: true
   # Namespaces (label selectors) that may call the server besides its own, e.g. the gateway's

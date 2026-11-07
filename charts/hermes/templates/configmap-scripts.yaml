@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "hermes.name" . }}-scripts
+  namespace: {{ include "hermes.namespace" . }}
+  labels:
+    {{- include "hermes.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+data:
+  seed-config.py: |
+    {{- .Files.Get "files/seed-config.py" | nindent 4 }}
+  mcp-sync.py: |
+    {{- .Files.Get "files/mcp-sync.py" | nindent 4 }}
+  token-proxy.py: |
+    {{- .Files.Get "files/token-proxy.py" | nindent 4 }}
+  emails.txt: |
+    {{- with .Values.oauth.ownerEmail }}
+    {{ . }}
+    {{- end }}

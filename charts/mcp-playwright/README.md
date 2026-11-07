@@ -35,6 +35,8 @@ helm install web grncloud/mcp-playwright \
   --set 'networkPolicy.ingressNamespaces[0].matchLabels.kubernetes\.io/metadata\.name=my-gateway-namespace'
 ```
 
+Downloads, screenshots and traces go to `outputDir` (default `/tmp/output`, gone with the pod). To hand them to an agent, mount a shared volume with `extraVolumes` and `extraVolumeMounts` and point `outputDir` at it, for example a ReadWriteMany claim `downloads` at `/data/downloads` with `outputDir: /data/downloads`.
+
 ## How to login
 
 No human login: callers authenticate with a bearer token checked by `auth.enabled` and `auth.issuerUrl`.
