@@ -218,9 +218,8 @@ data:
        if [ "$now" != "$last" ]; then
          su -s /bin/sh www-data -c 'sh /opt/nextcloud-chart/setup.sh' && last=$now
        fi
-       {{- if .Values.sso.enabled }}
-       su -s /bin/sh www-data -c 'sh /opt/nextcloud-chart/sso.sh'
-       {{- end }}
+       # present while sso.enabled: switching it on later needs no restart
+       [ -f /opt/nextcloud-chart/sso.sh ] && su -s /bin/sh www-data -c 'sh /opt/nextcloud-chart/sso.sh'
      done) &
     {{- if include "wrapper.mailActive" . }}
     # every minute: a mailbox and a Mail account for each new user
