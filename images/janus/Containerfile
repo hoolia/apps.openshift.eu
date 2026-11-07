@@ -1,0 +1,38 @@
+FROM registry.access.redhat.com/ubi10/ubi@sha256:0e8ccad7d35f5fd756f4f2202f018b8d3c3e8bb9af8e627d874239381a00ab41 AS build
+RUN dnf -y upgrade \
+    && dnf -y --setopt=install_weak_deps=False install \
+      autoconf automake ca-certificates cmake curl diffutils findutils gcc gcc-c++ glib2-devel \
+      libtool make meson ninja-build openssl-devel pkgconf-pkg-config \
+      tar xz zlib-ng-compat-devel \
+    && dnf clean all
+WORKDIR /src
+COPY source-lock.txt ./
+RUN set -eu; \
+    while read -r name version sha256 url; do \
+      printf 'Source: %s %s\n' "$name" "$version"; \
+      mkdir -p "/src/$name"; \
+      curl --fail --location --show-error "$url" -o "/src/$name.tar.gz"; \
+      printf '%s  %s\n' "$sha256" "/src/$name.tar.gz" | sha256sum -c -; \
+      tar -xzf "/src/$name.tar.gz" --strip-components=1 -C "/src/$name"; \
+    done < /src/source-lock.txt
+COPY build.sh ./
+ENV PKG_CONFIG_PATH=/opt/janus/lib/pkgconfig \
+    LDFLAGS=-Wl,-rpath,/opt/janus/lib
+RUN /bin/sh /src/build.sh
+
+FROM registry.access.redhat.com/ubi10/ubi-minimal@sha256:c3fe95ec9f53a3888c47314eb4d08bde09ebde646a428137b445091afe1daf89
+RUN microdnf -y update \
+    && microdnf -y --setopt=install_weak_deps=0 install \
+      ca-certificates glib2 openssl-libs zlib-ng-compat \
+    && microdnf clean all \
+    && mkdir /etc/janus
+COPY --from=build /runtime/usr/local /usr/local
+COPY --from=build /runtime/opt/janus/lib /opt/janus/lib
+LABEL org.opencontainers.image.title="Janus" \
+      org.opencontainers.image.version="1.4.3" \
+      org.opencontainers.image.source="https://github.com/hoolia/apps.openshift.eu" \
+      org.opencontainers.image.licenses="GPL-3.0" \
+      eu.openshift.apps.janus.revision="1f0b75cac1c9ad819ee4c2a905a2c65b00b82cde"
+USER 1001:1001
+ENTRYPOINT ["/usr/local/bin/janus"]
+CMD ["--configs-folder=/etc/janus", "--config=/etc/janus/janus.jcfg"]
