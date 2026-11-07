@@ -53,7 +53,8 @@ secrets:
   # kubernetes: the chart keeps the OpenShift login cookie key in a Secret it generates
   # once. externalSecret: with login.provider oidc, an ExternalSecret writes the Secret
   # kagent-oidc (client-id, client-secret, cookie-secret) that
-  # upstream.oauth2-proxy.config.existingSecret names
+  # upstream.oauth2-proxy.config.existingSecret names; with login.provider openshift,
+  # one writes the login cookie key from items.cookieSecret
   type: kubernetes
   # login cookie key. Empty: generated once and kept on upgrade
   cookieSecret: ""
@@ -65,6 +66,8 @@ secrets:
     items:
       oidcClientSecret: ""
       oidcCookieSecret: ""
+      # login.provider openshift: cookie key of 16, 24 or 32 characters
+      cookieSecret: ""
 
 database:
   # CloudNativePG Cluster kagent-postgres in the release namespace; the controller reads
