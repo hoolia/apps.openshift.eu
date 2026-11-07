@@ -21,6 +21,7 @@ A key not listed here changes no behaviour.
 | `openhands.dev/oauth-client-auth-method` | annotation | RemoteMCPServer | MCP server chart | `openhands` | [Agent OAuth login](oauth.md) |
 | `mcp.openshift.eu/auth` (`oidc`) | annotation | RemoteMCPServer | platform, agent namespace | `openhands` | [MCP gateway annotations](mcp-gateway.md#an-agent-token-for-a-server-of-the-same-issuer) |
 | `mcp.openshift.eu/oidc-issuer` | annotation | RemoteMCPServer | platform, agent namespace | `openhands` | [MCP gateway annotations](mcp-gateway.md#an-agent-token-for-a-server-of-the-same-issuer) |
+| `keycloak.hoolia.eu/sso` | label | Deployment, StatefulSet | chart value or user | platform | [Single sign-on](single-sign-on.md) |
 | `appProtocol: agentgateway.dev/mcp` | Service port field | Service | MCP server chart | MCP gateway | [MCP gateway annotations](mcp-gateway.md) |
 | `agentgateway.dev/mcp-path` | annotation | Service | MCP server chart | MCP gateway | [MCP gateway annotations](mcp-gateway.md) |
 | `agentgateway.dev/mcp-target-name` | annotation | Service | MCP server chart | MCP gateway | [MCP gateway annotations](mcp-gateway.md) |

@@ -59,6 +59,11 @@ oc get route sam-openwebui -o jsonpath='https://{.spec.host}{"\n"}'
 - `oauthProxy.image` (default: `openshift/oauth-proxy:v4.4` from the cluster registry): OpenShift keeps that image stream tag current.
 - `networkPolicy.enabled` (default: true): Admits the login proxy from the router only.
 
+## How to login
+
+- **Single sign-on**: the OpenShift login of the cluster, through an OAuth proxy (`oauth.*`); Open WebUI trusts the e-mail address the proxy passes.
+- **Admin user**: the first login becomes administrator: `oauth.ownerEmail`, default `person.email`. There is no password.
+
 ## Delivery instructions
 
 - People log in through the cluster's OAuth server with their OpenShift account; no login client is needed. The owner's OpenShift user name must be an email address (`oc whoami` after a console login) and equal `oauth.ownerEmail`.

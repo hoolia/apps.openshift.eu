@@ -18,6 +18,10 @@ helm install google grncloud/mcp-bundle-google-workspace \
 - `secrets.type` (default: `kubernetes`): `kubernetes` writes the shared client Secret from `secrets.clientId` and `secrets.clientSecret` (empty: no Secret, and agents skip the servers until it exists); `externalSecret` reads them from `secrets.externalSecret.item` (username: client id, password: client secret) in `secrets.externalSecret.storeName`.
 - `gmail`, `googleDrive`, `googleDocs`, `googleSheets`, `googleCalendar` (default: `enabled: true`): The values of each server's chart, for example `googleDocs.write: true` for write scopes or `googleDrive.enabled: false` to leave a server out. Keep `oauthClient` as set: it points every server at the shared client.
 
+## How to login
+
+No human login: callers authenticate with Google OAuth per user, started from the agent; the OAuth client is in `oauthClient.*`.
+
 ## Delivery instructions
 
 Google offers its Workspace MCP servers to members of the Google Workspace Developer Preview Program. In a Google Cloud project of your organisation (https://developers.google.com/workspace/guides/configure-mcp-servers):

@@ -96,6 +96,10 @@ broker:
 
 For a team of a tenant, add `--set team=<team> --set tenant=<tenant>`.
 
+## How to login
+
+No human login: callers authenticate with their own SonarQube token (`credentials.mode: perCaller`) or the token broker (`broker.*`).
+
 ## Delivery instructions
 
 - Ready when the Deployment `<release>` (and `<release>-broker` in broker mode) is Available

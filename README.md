@@ -25,7 +25,7 @@ portable to an arbitrary Kubernetes cluster.
 - Every value has a default; a chart installs with no values given.
 - `secrets.type` selects `kubernetes` (default) or `externalSecret`. With `kubernetes`,
   a machine-to-machine secret left empty is generated once and kept on upgrade.
-- `README.md` has the sections Purpose, Install and Delivery instructions.
+- `README.md` has the sections Purpose, Install, How to login and Delivery instructions.
 - Every object carries the `app` and `app.kubernetes.io` labels.
 - `ci/check.sh` passes.
 

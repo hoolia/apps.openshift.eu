@@ -77,6 +77,13 @@ The default requests add up to about 0.5 CPU and 2.2Gi of memory.
 Install one release per project: the object names start with `mailu`, not with the
 release name.
 
+## How to login
+
+- **Single sign-on**: the chart has no single sign-on of its own. Webmail logs in through Nextcloud when the chart runs inside chart `nextcloud` with `mailRoute.sso.enabled`.
+- **Admin user**: `admin@<upstream.initialAccount.domain>` (value `upstream.initialAccount.username`) at `/admin`, password in Secret `mailu-secrets`, key `initial-account-password`:
+
+    oc -n <project> extract secret/mailu-secrets --keys=initial-account-password --to=-
+
 ## Delivery instructions
 
 The platform team does these steps for you. Ask for them in one request and name your
