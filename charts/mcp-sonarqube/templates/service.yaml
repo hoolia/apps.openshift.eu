@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ include "mcp-sonarqube.namespace" . }}
+  labels:
+    app: {{ .Release.Name }}
+    app.kubernetes.io/name: mcp-sonarqube
+    app.kubernetes.io/component: server
+    app.kubernetes.io/instance: {{ .Release.Name | quote }}
+    {{- include "mcp-sonarqube.commonLabels" . | nindent 4 }}
+    {{- include "mcp-sonarqube.catalogLabels" . | nindent 4 }}
+    {{- with .Values.service.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  annotations:
+    {{- with .Values.service.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    agentgateway.dev/mcp-path: {{ .Values.path | quote }}
+    agentgateway.dev/mcp-target-name: {{ .Values.mcp.targetName | quote }}
+    {{- if eq (include "mcp-sonarqube.broker" .) "true" }}
+    # the gateway asks the broker for each token caller's own SonarQube token
+    agentgateway.dev/mcp-credential-extauth: "{{ .Release.Name }}-broker:{{ .Values.broker.port }}"
+    {{- else if .Values.credentials.gatewayHeader }}
+    agentgateway.dev/mcp-credential-header: {{ .Values.credentials.gatewayHeader | quote }}
+    {{- end }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "mcp-sonarqube.selectorLabels" . | nindent 4 }}
+  ports:
+  - name: mcp
+    port: {{ .Values.port }}
+    targetPort: mcp
+    protocol: TCP
+    {{- with .Values.mcp.appProtocol }}
+    appProtocol: {{ . }}
+    {{- end }}
