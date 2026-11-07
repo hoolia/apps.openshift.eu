@@ -3,3 +3,12 @@ charts/*/charts/
 __pycache__/
 site/
 node_modules/
+# what `apm install` writes for a local agent session
+apm_modules/
+.apm-local/
+apm.lock.yaml
+.claude/
+.agents/
+.opencode/
+.mcp.json
+opencode.json

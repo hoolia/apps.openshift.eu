@@ -74,6 +74,8 @@ for f in images/mcp-onlyoffice-live/plugin/*; do
 done
 # every chart names its category and vendor for the chart website
 python3 ci/catalog.py --check || fail=1
+# skills and MCP servers hosted as APM packages, and the manifests that install them
+python3 ci/check_apm.py || fail=1
 if command -v gitleaks >/dev/null; then
   gitleaks detect --source . --no-git --redact >/dev/null || { echo "FAIL gitleaks"; fail=1; }
 else

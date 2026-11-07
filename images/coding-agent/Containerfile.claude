@@ -1,0 +1,27 @@
+# Claude Code coding agent; build context is the repository root (skills/, mcp/)
+FROM docker.io/library/node:22-bookworm@sha256:7702d8aa4d5910871692af4480eb3ba86f23047a6417a44d857d06c95d060d3f
+USER 0
+COPY images/coding-agent/install-tools.sh images/coding-agent/verify-tools.sh images/coding-agent/checks-*.txt /tmp/build/
+RUN sh /tmp/build/install-tools.sh
+RUN npm install -g --no-audit --no-fund @anthropic-ai/claude-code@2.1.310 @anthropic-ai/claude-agent-sdk@0.3.310 && \
+    npm cache clean --force && \
+    /opt/venv/bin/pip install --no-cache-dir claude-agent-sdk==0.2.173
+COPY skills /opt/apm/skills
+COPY mcp /opt/apm/mcp
+COPY images/coding-agent/apm.yml /home/agent/.apm/apm.yml
+# Claude Code refuses its Bash tool without SHELL
+ENV HOME=/home/agent SHELL=/bin/bash \
+    PATH=/usr/local/bin:/opt/venv/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+    DISABLE_AUTOUPDATER=1 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 \
+    NPM_CONFIG_UPDATE_NOTIFIER=false NPM_CONFIG_FUND=false
+# user-scope skills (~/.claude/skills) and MCP servers (~/.claude.json)
+RUN apm install -g --target claude --trust-transitive-mcp && \
+    chgrp -R 0 /home/agent && chmod -R g=u /home/agent
+USER 10001:0
+RUN sh /tmp/build/verify-tools.sh /tmp/build/checks-common.txt /tmp/build/checks-claude.txt
+USER 0
+RUN rm -rf /tmp/build
+USER 10001:0
+WORKDIR /home/agent
+ENTRYPOINT ["tini", "--", "/usr/local/bin/agent-uid-entrypoint"]
+CMD ["claude", "--version"]

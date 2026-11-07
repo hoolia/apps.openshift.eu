@@ -1,0 +1,22 @@
+# OpenCode coding agent; build context is the repository root (skills/, mcp/)
+FROM ghcr.io/anomalyco/opencode:2.1.1@sha256:4e5f11cde373ba76d868e9ba95ad3071dfac39b44f93a447104c2e6e98ffc06d
+USER 0
+COPY images/coding-agent/install-tools.sh images/coding-agent/verify-tools.sh images/coding-agent/checks-*.txt /tmp/build/
+RUN sh /tmp/build/install-tools.sh
+COPY skills /opt/apm/skills
+COPY mcp /opt/apm/mcp
+COPY images/coding-agent/apm.yml /home/agent/.apm/apm.yml
+ENV HOME=/home/agent SHELL=/bin/bash \
+    PATH=/usr/local/bin:/opt/venv/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+    NPM_CONFIG_UPDATE_NOTIFIER=false NPM_CONFIG_FUND=false
+# user-scope skills (~/.config/opencode/skills) and MCP servers (opencode.json)
+RUN apm install -g --target opencode --trust-transitive-mcp && \
+    chgrp -R 0 /home/agent && chmod -R g=u /home/agent
+USER 10001:0
+RUN sh /tmp/build/verify-tools.sh /tmp/build/checks-common.txt /tmp/build/checks-opencode.txt
+USER 0
+RUN rm -rf /tmp/build
+USER 10001:0
+WORKDIR /home/agent
+ENTRYPOINT ["tini", "--", "/usr/local/bin/agent-uid-entrypoint"]
+CMD ["opencode", "--version"]

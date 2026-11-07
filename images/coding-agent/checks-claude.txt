@@ -1,0 +1,7 @@
+claude --version
+node -e "require('/usr/local/lib/node_modules/@anthropic-ai/claude-agent-sdk')"
+python3 -c "import claude_agent_sdk"
+test -f "$HOME/.claude/skills/openshift-cli/SKILL.md"
+test -f "$HOME/.claude/skills/gitlab-cli/SKILL.md"
+test -f "$HOME/.claude/skills/helm-kustomize/SKILL.md"
+grep -q kubernetes-mcp-server "$HOME/.claude.json"
