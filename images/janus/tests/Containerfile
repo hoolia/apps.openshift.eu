@@ -1,0 +1,6 @@
+FROM registry.access.redhat.com/ubi10/ubi@sha256:0e8ccad7d35f5fd756f4f2202f018b8d3c3e8bb9af8e627d874239381a00ab41
+USER 0:0
+COPY --from=docker:29.9.2-cli@sha256:5e6baf67325a79f64ed3bed6863954d5e05d0f3d4e57cbdb14809346814bbfdb /usr/local/bin/docker /usr/local/bin/docker
+COPY --from=oven/bun:1.4.4@sha256:1d22548f177f4ff38e0c15baa3c2c46c6c2060ba2d1bc573bb4720b407548f1d /usr/local/bin/bun /usr/local/bin/bun
+RUN docker --version && bun --version
+ENTRYPOINT ["bun", "test", "--timeout", "60000"]

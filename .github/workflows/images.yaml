@@ -2,6 +2,7 @@ name: Images
 on:
   pull_request:
     paths:
+    - images/janus/**
     - images/mcp-onlyoffice-live/**
     - images/nextcloud-mcp-server/**
     - images/coding-agent/**
@@ -12,6 +13,7 @@ on:
     branches:
     - main
     paths:
+    - images/janus/**
     - images/mcp-onlyoffice-live/**
     - images/nextcloud-mcp-server/**
     - images/coding-agent/**
@@ -23,6 +25,87 @@ concurrency:
   group: images-${{ github.ref }}
   cancel-in-progress: false
 jobs:
+  janus:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: ghcr.io/${{ github.repository_owner }}/janus
+      CONTEXT: images/janus
+    steps:
+    - uses: actions/checkout@v4
+    - uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: "1.4.4"
+    - name: Version
+      id: v
+      run: echo "version=$(tr -d '[:space:]' < "$CONTEXT/VERSION")" >> "$GITHUB_OUTPUT"
+    - uses: docker/setup-buildx-action@v3
+    - name: Build the test image
+      uses: docker/build-push-action@v6
+      with:
+        context: ${{ env.CONTEXT }}
+        file: ${{ env.CONTEXT }}/Containerfile
+        platforms: linux/amd64
+        load: true
+        tags: ${{ env.IMAGE }}:${{ steps.v.outputs.version }}
+        provenance: false
+    - name: Test the container
+      env:
+        JANUS_IMAGE: ${{ env.IMAGE }}:${{ steps.v.outputs.version }}
+      run: bun test --timeout 60000 ./images/janus/tests/container.test.js
+    - name: Scan the image
+      run: |
+        docker run --rm \
+          -v /var/run/docker.sock:/var/run/docker.sock \
+          -v "$RUNNER_TEMP:/reports" \
+          aquasec/trivy:0.76.2@sha256:8f6bb947dbc528902e11f2f5be52f7b519f6a39d5d148f41166f2040499768fb image --image-src docker \
+          --scanners vuln --severity HIGH,CRITICAL --exit-code 1 \
+          --format json --output /reports/janus-trivy.json \
+          "$IMAGE:${{ steps.v.outputs.version }}"
+    - name: Preserve the vulnerability report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: janus-vulnerability-report
+        path: ${{ runner.temp }}/janus-trivy.json
+        if-no-files-found: error
+    - name: Log in to the registry
+      if: github.event_name == 'push'
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    - name: Check that the version is new
+      id: new
+      if: github.event_name == 'push'
+      run: |
+        if output=$(docker manifest inspect "$IMAGE:${{ steps.v.outputs.version }}" 2>&1); then
+          echo "push=false" >> "$GITHUB_OUTPUT"
+          echo "$IMAGE:${{ steps.v.outputs.version }} exists"
+        elif [[ "$output" == *"manifest unknown"* || "$output" == *"no such manifest"* ]]; then
+          echo "push=true" >> "$GITHUB_OUTPUT"
+        else
+          printf '%s\n' "$output" >&2
+          exit 1
+        fi
+    - name: Publish the tested image
+      if: steps.new.outputs.push == 'true'
+      run: docker push "$IMAGE:${{ steps.v.outputs.version }}"
+    - name: Capture the published digest
+      if: steps.new.outputs.push == 'true'
+      run: |
+        digest=$(docker buildx imagetools inspect "$IMAGE:${{ steps.v.outputs.version }}" --format '{{.Manifest.Digest}}')
+        printf '%s@%s\n' "$IMAGE" "$digest" | tee "$RUNNER_TEMP/janus-image.txt" >> "$GITHUB_STEP_SUMMARY"
+    - name: Preserve the published image reference
+      if: steps.new.outputs.push == 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: janus-image
+        path: ${{ runner.temp }}/janus-image.txt
+        if-no-files-found: error
   mcp-onlyoffice-live:
     runs-on: ubuntu-latest
     permissions:
