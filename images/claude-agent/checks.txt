@@ -1,0 +1,23 @@
+claude --version
+codex --version
+node -e "require('/usr/local/lib/node_modules/@anthropic-ai/claude-agent-sdk')"
+python3 -c "import claude_agent_sdk"
+pytest --version
+ruff --version
+mkdocs --version
+git --version
+jq --version
+tini --version
+oc version --client
+kubectl version --client
+helm version
+kustomize version
+yq --version
+glab version
+gh --version
+promtool --version
+kube-linter version
+hadolint --version
+shellcheck --version
+kubeconform -v
+gitleaks version
