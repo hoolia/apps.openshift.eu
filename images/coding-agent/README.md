@@ -29,27 +29,21 @@ The images run as any UID in group 0. The entrypoint adds that UID to `/etc/pass
 
 ## Build
 
-A BuildConfig per agent with Docker strategy, the context at the root of this repository
-at a pinned commit:
+The workflow `.github/workflows/images.yaml` (job `coding-agent`) builds both images from
+the repository root and pushes them to `ghcr.io/<owner>/coding-agent` on a push to `main`:
 
-```yaml
-source:
-  git:
-    uri: https://github.com/hoolia/apps.openshift.eu.git
-    ref: <commit>
-strategy:
-  type: Docker
-  dockerStrategy:
-    dockerfilePath: images/coding-agent/Containerfile.claude
-```
+| Image | Tag |
+|---|---|
+| Claude Code | `claude-<VERSION.claude>`, for example `claude-2.1.310-1` |
+| OpenCode | `opencode-<VERSION.opencode>`, for example `opencode-2.1.1-1` |
 
-Tag the image `<agent>-<agent version>-<revision>` (`claude-2.1.310-1`,
-`opencode-2.1.1-1`) and raise the revision for every change of the image, the skills or
-the MCP packages.
+A tag is never rebuilt: raise the `VERSION.<agent>` file with every change of the image,
+the skills or the MCP packages. A pull request builds both images without pushing; the
+checks of `verify-tools.sh` run inside the build.
 
 ## Use
 
 Point Claude Code at a model gateway with `ANTHROPIC_BASE_URL` and `ANTHROPIC_API_KEY`
 (plus `ANTHROPIC_CUSTOM_HEADERS` for a gateway that reads its key from another header),
 then run `claude -p` in a checkout; OpenCode reads its provider from `opencode.json`. In a
-GitLab CI job, set `image:` to the built tag.
+CI job, set `image:` to `ghcr.io/<owner>/coding-agent:<tag>`.
