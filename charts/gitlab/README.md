@@ -52,6 +52,13 @@ chart without access to the cluster, such as Argo CD, must set the bucket name a
 passwords. The root password is applied at the first start only. The other internal
 secrets are generated in the project by the operator and kept on every upgrade.
 
+## How to login
+
+- **Single sign-on**: the chart has no single sign-on yet. GitLab OmniAuth can be set through `gitlab.extraValues`.
+- **Admin user**: `root`, password in Secret `gitlab-credentials`, key `root-password`; GitLab reads it at the first start only:
+
+    oc -n <project> extract secret/gitlab-credentials --keys=root-password --to=-
+
 ## Delivery instructions
 
 - To take over a GitLab that runs already, install with the same object names (release

@@ -116,6 +116,10 @@ helm install office grncloud/mcp-officeagent
 
 One replica with the `Recreate` strategy: session documents live in the memory of one process and the claim is ReadWriteOnce.
 
+## How to login
+
+No human login: callers authenticate with a bearer token checked by `auth.enabled` and `auth.issuerUrl`.
+
 ## Delivery instructions
 
 1. Install the chart in the project of the agents. The defaults need no secret and no further value.

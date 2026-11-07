@@ -130,6 +130,13 @@ oc extract secret/team-session-api-key --keys=value --to=-
 - `env` (default: empty): Extra environment for `agent-canvas`.
 - `storage.size`, `storage.className`, `storage.accessMode` (default: `20Gi`, default class, `ReadWriteOnce`): Volume for the whole home directory: settings, conversations, `~/workspace`, CLI logins, Claude Code sessions, MCP OAuth tokens and caches.
 
+## How to login
+
+- **Single sign-on**: the OpenShift login of the cluster, through an OAuth proxy. `oauth.ownerEmail`, `oauth.allowedGroups` and `oauth.loginClusterRole` decide who gets in.
+- **Admin user**: none. API clients use the session API key in Secret `<release>-session-api-key`, key `value`:
+
+    oc -n <project> extract secret/<release>-session-api-key --keys=value --to=-
+
 ## Delivery instructions
 
 Open `https://<route.host>/canvas/` and log in with OpenShift; the backend is already connected. The first-run wizard is marked done in the page, so the model and MCP servers seeded from `llm.model` and `mcpServers` are what the UI starts with. In **Settings**, check the model and the MCP servers. The agent server runs in the pod, so the UI is a local backend: the workspace picker of a new conversation lists directories on the volume, not the repositories of a GitHub or GitLab account (upstream offers that list on its cloud backend only). Every repository in `~/repositories` (`git.repositoriesDir`) is listed there; `git.repositories` clones repositories into it at start, and a repository cloned into it from the agent's terminal is listed right away. Pick one, then **Local** to work in the checkout or **Worktree** to work on a new branch in a worktree of it. git sends the `git.host` token to `git.host` and each `git.providers` token to its host; `glab` uses the `git.host` token.

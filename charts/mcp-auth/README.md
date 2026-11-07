@@ -90,6 +90,10 @@ port:
 The chart's Service keeps `targetPort: mcp`: with `auth.enabled` the sidecar owns that
 container port and the server container declares none.
 
+## How to login
+
+No human login: callers authenticate with a bearer token; this library chart adds the `auth.*` token check to MCP charts.
+
 ## Delivery instructions
 
 1. Set `auth.enabled`, `auth.issuerUrl`, `auth.audiences` and, where only some callers may

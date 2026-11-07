@@ -31,6 +31,10 @@ The `nextcloud` chart of this repository installs it as a dependency and publish
 - `resources` (default: 50m/256Mi request, 1Gi limit): Requests and limits of the server.
 - `networkPolicy.ingressNamespaces` (default: empty): Namespace selectors that may call the server besides its own project, for example the router's or an MCP gateway's.
 
+## How to login
+
+No human login: callers authenticate with their own Nextcloud bearer token or app password, which the server passes to Nextcloud.
+
 ## Delivery instructions
 
 1. Install the chart in the project of Nextcloud, or point `nextcloud.url` at it.

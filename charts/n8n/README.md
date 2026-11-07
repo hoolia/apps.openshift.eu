@@ -50,6 +50,11 @@ worker and a small store for the queue.
 
 `helm uninstall` deletes the database and the data volume. Export your workflows first.
 
+## How to login
+
+- **Single sign-on**: the chart has no single sign-on yet.
+- **Admin user**: n8n has no default password. The first visitor of the site creates the owner account.
+
 ## Delivery instructions
 
 - A hostname outside the default application domain needs a DNS record pointing at the

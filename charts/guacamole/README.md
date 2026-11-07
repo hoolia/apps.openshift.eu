@@ -49,6 +49,13 @@ Objects are named `<release>-guacamole`. The administrator is `guacadmin`; its p
 - `secrets.adminPassword`, `secrets.vncPassword` (default: empty): Generated once when empty.
 - `secrets.type` (default: kubernetes): `externalSecret` reads the secrets from a secret store.
 
+## How to login
+
+- **Single sign-on**: OpenID Connect with `oidc.enabled`, `oidc.issuerUrl`, `oidc.clientId`, `oidc.authorizationEndpoint`, `oidc.jwksEndpoint`, `oidc.usernameClaim`, `oidc.groupsClaim` and `oidc.scope` (implicit flow, no client secret, needs `route.hostname`). `oidc.primary` makes it the only login; `admins` and `adminGroups` name the administrators.
+- **Admin user**: `guacadmin`, password in Secret `<release>-guacamole`, key `adminPassword`; the chart sets it again on every upgrade:
+
+    oc -n <project> extract secret/<release>-guacamole --keys=adminPassword --to=-
+
 ## Delivery instructions
 
 - A hostname outside the default application domain needs a DNS record pointing at the platform's ingress. Ask the platform team for the record; the certificate follows automatically once it resolves.

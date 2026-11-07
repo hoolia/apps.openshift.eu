@@ -53,6 +53,13 @@ Argo CD or `helm template`, generates a new value on every render: set the token
 The data volume holds every vault. Back it up, and keep the volume when you remove the
 release: `helm uninstall` deletes it.
 
+## How to login
+
+- **Single sign-on**: the chart has no single sign-on yet. Vaultwarden's own `SSO_*` settings can be set through `extraEnv`.
+- **Admin user**: the admin page `/admin` asks for the token in Secret `vaultwarden-credentials`, key `admin-token`; invite the first account from there:
+
+    oc -n <project> extract secret/vaultwarden-credentials --keys=admin-token --to=-
+
 ## Delivery instructions
 
 - A hostname outside the default application domain needs a DNS record pointing at the

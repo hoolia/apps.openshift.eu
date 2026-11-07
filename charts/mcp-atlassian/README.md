@@ -63,6 +63,10 @@ helm install atlassian apps/mcp-atlassian \
 
 For a team of a tenant, add `--set team=<team> --set tenant=<tenant>`.
 
+## How to login
+
+No human login: callers authenticate with a bearer token checked by `auth.enabled` and `auth.issuerUrl`; `credentials.mode` picks per-caller or shared Atlassian credentials.
+
 ## Delivery instructions
 
 - Ready when the Deployment `<release>` is Available and the Service `<release>` answers on

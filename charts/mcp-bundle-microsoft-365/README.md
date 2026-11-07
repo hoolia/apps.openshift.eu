@@ -20,6 +20,10 @@ helm install m365 grncloud/mcp-bundle-microsoft-365 \
 - `enabled` (default: true): Switch of the bundle inside `mcp-all`.
 - `microsoft365` (default: `enabled: true`): The values of `mcp-microsoft-365`; `route.host` and the Entra app registration in `secrets` are required.
 
+## How to login
+
+No human login: callers authenticate with Microsoft Entra OAuth per user (`oauthClient.*`, `microsoft.tenantId`); the Route serves only `/authorize`.
+
 ## Delivery instructions
 
 Register the Entra app and fill in its client as the Delivery instructions of `mcp-microsoft-365` describe (https://github.com/hoolia/apps.openshift.eu/tree/main/charts/mcp-microsoft-365). Then give the agent the bundle: for an `openhands` agent in this project set `mcp.bundles: [microsoft-365]`. The server appears switched off under **Settings > MCP**; each user opens it, authorizes it with their own Microsoft account and switches it on.

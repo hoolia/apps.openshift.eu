@@ -39,6 +39,10 @@ helm install grafana grncloud/mcp-server \
   --set envFromSecret=grafana-mcp
 ```
 
+## How to login
+
+No human login: callers authenticate with a bearer token checked by `auth.*`, or the OpenShift RBAC proxy `rbacProxy.*`.
+
 ## Delivery instructions
 
 - Check the pod is Ready: `oc get pods -l app.kubernetes.io/instance=grafana`.

@@ -111,8 +111,9 @@ Every object a chart renders from its own templates carries these labels in
 - A dependency is pinned to an exact version. Its packages and `Chart.lock` match
   `Chart.yaml`: `helm dependency build` succeeds on a clean clone.
 - A template indents with two spaces and uses `nindent` with `include`, not `template`.
-- `README.md` of a chart has exactly the sections Purpose, Install and Delivery
-  instructions.
+- `README.md` of a chart has the sections Purpose, Install, How to login and Delivery
+  instructions. How to login names the single sign-on values and the Secret and key of the
+  admin user.
 
 ### MCP catalog
 

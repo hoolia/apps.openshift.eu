@@ -29,6 +29,13 @@ generated at the first install and kept on every upgrade with `helm upgrade`. A 
 that renders the chart without access to the cluster, such as Argo CD or
 `helm template`, generates a new value on every render: set the password there.
 
+## How to login
+
+- **Single sign-on**: the chart has no single sign-on yet.
+- **Admin user**: `admin`, password in Secret `nexus-credentials`, key `admin-password`; Nexus reads it at the first start only:
+
+    oc -n <project> extract secret/nexus-credentials --keys=admin-password --to=-
+
 ## Delivery instructions
 
 - A hostname outside the default application domain needs a DNS record pointing at the
