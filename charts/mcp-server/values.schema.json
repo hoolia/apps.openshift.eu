@@ -332,6 +332,32 @@
     },
     "mcp-auth": {
       "type": "object"
+    },
+    "persistence": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "mountPath": {
+          "type": "string",
+          "pattern": "^/"
+        },
+        "size": {
+          "type": "string"
+        },
+        "accessMode": {
+          "type": "string",
+          "enum": [
+            "ReadWriteOnce",
+            "ReadWriteMany",
+            "ReadWriteOncePod"
+          ]
+        },
+        "className": {
+          "type": "string"
+        }
+      }
     }
   }
 }

@@ -11,6 +11,11 @@ metadata:
     app.kubernetes.io/component: server
 spec:
   replicas: 1
+  {{- if .Values.persistence.enabled }}
+  # a ReadWriteOnce volume: the old pod releases it before the new one starts
+  strategy:
+    type: Recreate
+  {{- end }}
   selector:
     matchLabels:
       {{- include "mcp-server.selectorLabels" . | nindent 6 }}
@@ -90,6 +95,10 @@ spec:
         volumeMounts:
         - name: tmp
           mountPath: /tmp
+        {{- if .Values.persistence.enabled }}
+        - name: data
+          mountPath: {{ .Values.persistence.mountPath }}
+        {{- end }}
       {{- if .Values.rbacProxy.enabled }}
       - name: kube-rbac-proxy
         image: {{ .Values.rbacProxy.image }}
@@ -134,6 +143,11 @@ spec:
       volumes:
       - name: tmp
         emptyDir: {}
+      {{- if .Values.persistence.enabled }}
+      - name: data
+        persistentVolumeClaim:
+          claimName: {{ .Release.Name }}-data
+      {{- end }}
       {{- with include "mcp-auth.volumes" (dict "root" . "name" .Release.Name) }}
       {{- . | nindent 6 }}
       {{- end }}
