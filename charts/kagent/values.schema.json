@@ -134,6 +134,9 @@
                 },
                 "oidcCookieSecret": {
                   "type": "string"
+                },
+                "cookieSecret": {
+                  "type": "string"
                 }
               }
             }
