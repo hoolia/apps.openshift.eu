@@ -4,6 +4,9 @@ on:
     paths:
     - images/mcp-onlyoffice-live/**
     - images/nextcloud-mcp-server/**
+    - images/coding-agent/**
+    - skills/**
+    - mcp/**
     - .github/workflows/images.yaml
   push:
     branches:
@@ -11,6 +14,9 @@ on:
     paths:
     - images/mcp-onlyoffice-live/**
     - images/nextcloud-mcp-server/**
+    - images/coding-agent/**
+    - skills/**
+    - mcp/**
     - .github/workflows/images.yaml
 # two pushes of one image at once would race on its tag
 concurrency:
@@ -113,3 +119,56 @@ jobs:
     - name: Digest
       if: steps.new.outputs.push == 'true'
       run: docker buildx imagetools inspect "$IMAGE:${{ steps.v.outputs.version }}" --format '{{json .Manifest.Digest}}'
+  # one image per agent; the build context is the repository root for skills/ and mcp/
+  coding-agent:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        agent: [claude, opencode]
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: ghcr.io/${{ github.repository_owner }}/coding-agent
+    steps:
+    - uses: actions/checkout@v4
+    - name: Check the APM packages
+      run: |
+        pip install --quiet pyyaml==6.0.3
+        python3 ci/check_apm.py
+    - name: Tag
+      id: v
+      run: echo "tag=${{ matrix.agent }}-$(tr -d '[:space:]' < images/coding-agent/VERSION.${{ matrix.agent }})" >> "$GITHUB_OUTPUT"
+    - uses: docker/setup-buildx-action@v3
+    - name: Log in to the registry
+      if: github.event_name == 'push'
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    # a released tag is never rebuilt: a change to the image raises its VERSION file
+    - name: Check that the tag is new
+      id: new
+      if: github.event_name == 'push'
+      run: |
+        if docker manifest inspect "$IMAGE:${{ steps.v.outputs.tag }}" >/dev/null 2>&1; then
+          echo "push=false" >> "$GITHUB_OUTPUT"; echo "$IMAGE:${{ steps.v.outputs.tag }} exists"
+        else
+          echo "push=true" >> "$GITHUB_OUTPUT"
+        fi
+    # the image's own checks (verify-tools.sh) run inside the build and fail it
+    - name: Build, and push a new tag from main
+      uses: docker/build-push-action@v6
+      with:
+        context: .
+        file: images/coding-agent/Containerfile.${{ matrix.agent }}
+        platforms: linux/amd64
+        push: ${{ steps.new.outputs.push == 'true' }}
+        tags: |
+          ${{ env.IMAGE }}:${{ steps.v.outputs.tag }}
+        provenance: false
+    - name: Digest
+      if: steps.new.outputs.push == 'true'
+      run: docker buildx imagetools inspect "$IMAGE:${{ steps.v.outputs.tag }}" --format '{{json .Manifest.Digest}}'
