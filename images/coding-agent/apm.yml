@@ -1,0 +1,11 @@
+# user-scope manifest of the coding-agent images (~/.apm/apm.yml); the Containerfiles
+# copy skills/ and mcp/ of this repository to /opt/apm
+name: coding-agent
+version: 1.0.0
+description: Skills and MCP servers built into the coding-agent images
+dependencies:
+  apm:
+  - /opt/apm/skills/openshift-cli
+  - /opt/apm/skills/gitlab-cli
+  - /opt/apm/skills/helm-kustomize
+  - /opt/apm/mcp/kubernetes

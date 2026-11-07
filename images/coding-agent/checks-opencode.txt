@@ -1,0 +1,5 @@
+opencode --version
+test -f "$HOME/.config/opencode/skills/openshift-cli/SKILL.md"
+test -f "$HOME/.config/opencode/skills/gitlab-cli/SKILL.md"
+test -f "$HOME/.config/opencode/skills/helm-kustomize/SKILL.md"
+grep -q kubernetes-mcp-server "$HOME/.config/opencode/opencode.json"
