@@ -1,0 +1,70 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "enabledManagers": ["helm-values", "helmv3", "github-actions", "custom.regex"],
+  "ignorePaths": ["**/charts/*/charts/**", "images/**", "docs/**"],
+  "labels": ["renovate"],
+  "schedule": ["before 6am"],
+  "timezone": "Europe/Amsterdam",
+  "platformAutomerge": false,
+  "automerge": false,
+  "prConcurrentLimit": 5,
+  "prHourlyLimit": 2,
+  "commitMessagePrefix": "HOSTING-2033:",
+  "customManagers": [
+    {
+      "description": "Upstream image of the openhands chart: tag and digest on their own lines",
+      "customType": "regex",
+      "managerFilePatterns": ["/^charts/openhands/values\\.yaml$/"],
+      "matchStrings": [
+        "\\n  repository: (?<depName>ghcr\\.io/openhands/agent-canvas)\\n(?:  #.*\\n)*  tag: (?<currentValue>\\S+)\\n(?:  #.*\\n)*  digest: (?<currentDigest>sha256:[0-9a-f]{64})\\n"
+      ],
+      "datasourceTemplate": "docker"
+    },
+    {
+      "description": "Renovate itself in its workflow",
+      "customType": "regex",
+      "managerFilePatterns": ["/^\\.github/workflows/renovate\\.yaml$/"],
+      "matchStrings": ["renovate-version: (?<currentValue>\\S+)"],
+      "depNameTemplate": "ghcr.io/renovatebot/renovate",
+      "datasourceTemplate": "docker"
+    }
+  ],
+  "postUpgradeTasks": {
+    "commands": [
+      "bash ci/renovate-release.sh '{{{packageFile}}}' '{{{depName}}}' '{{{currentVersion}}}' '{{{newVersion}}}' '{{{updateType}}}'"
+    ],
+    "fileFilters": ["charts/**", "release-notes/**"],
+    "executionMode": "update"
+  },
+  "packageRules": [
+    {
+      "description": "One pull request per chart and upstream, named after the chart",
+      "matchFileNames": ["charts/**"],
+      "additionalBranchPrefix": "{{parentDir}}-",
+      "commitMessageSuffix": "in {{parentDir}}"
+    },
+    {
+      "description": "A major upgrade (a database, a workflow action) waits for approval on the dashboard",
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true
+    },
+    {
+      "description": "The regex manager above owns the openhands image, digest included",
+      "matchManagers": ["helm-values"],
+      "matchFileNames": ["charts/openhands/values.yaml"],
+      "matchDepNames": ["ghcr.io/openhands/agent-canvas"],
+      "enabled": false
+    },
+    {
+      "description": "OpenHands releases every few days; its pull request comes first",
+      "matchDepNames": ["ghcr.io/openhands/agent-canvas"],
+      "prPriority": 10,
+      "schedule": ["at any time"]
+    },
+    {
+      "matchDepNames": ["ghcr.io/renovatebot/renovate"],
+      "schedule": ["before 6am on monday"]
+    }
+  ]
+}
