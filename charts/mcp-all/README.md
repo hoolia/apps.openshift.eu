@@ -28,6 +28,10 @@ helm install mcp grncloud/mcp-all -f mcp.yaml
 - `googleWorkspace` (default: `enabled: false`): The values of `mcp-bundle-google-workspace`; `secrets` holds the shared Google OAuth client, `<server>.enabled: false` leaves a server out.
 - `microsoft365` (default: `enabled: false`): The values of `mcp-bundle-microsoft-365`; the server's own values sit under `microsoft365.microsoft365` (`route.host`, `microsoft.tenantId`, `secrets`).
 
+## How to login
+
+No human login: callers authenticate with the sub-charts' own token checks (`googleWorkspace.*`, `microsoft365.*`).
+
 ## Delivery instructions
 
 Create the OAuth clients of the bundles you switch on as their charts describe (https://github.com/hoolia/apps.openshift.eu/tree/main/charts). Then give the agents what they need: for an `openhands` agent in this project set `mcp.bundles` (for example `[google-workspace]`) or `mcp.servers` (for example `[gmail]`). The servers appear switched off under **Settings > MCP**; each user opens one, authorizes it with their own account and switches it on.

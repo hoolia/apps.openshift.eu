@@ -98,6 +98,10 @@ helm install office-live grncloud/mcp-onlyoffice-live --set nextcloud.url=https:
 One replica with the `Recreate` strategy: the sessions are browser contexts in the memory of
 one process.
 
+## How to login
+
+No human login: callers authenticate with their own Nextcloud credentials (`credentials.mode: passthrough`) or a shared app password.
+
 ## Delivery instructions
 
 1. Make sure the Document Server carries the plugin: with the `nextcloud` chart it does

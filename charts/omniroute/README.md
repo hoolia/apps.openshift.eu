@@ -30,6 +30,13 @@ Secrets left empty are generated at the first install and kept on every upgrade 
 Argo CD or `helm template`, cannot read the existing Secret and generates new values on
 every render: set all four secrets there.
 
+## How to login
+
+- **Single sign-on**: the chart has no single sign-on yet.
+- **Admin user**: the dashboard asks for a password only, in Secret `omniroute-secret`, key `INITIAL_PASSWORD`:
+
+    oc -n <project> extract secret/omniroute-secret --keys=INITIAL_PASSWORD --to=-
+
 ## Delivery instructions
 
 - A hostname outside the default application domain needs a DNS record pointing at the

@@ -76,6 +76,11 @@ A Kubernetes ServiceAccount token carries no `groups`, so it never passes the lo
 
 Upstream's controller Roles `kagent-writer-role` and `kagent-getter-role` carry wildcard rules that a project admin cannot grant, so the chart renders them with explicit rules within a project admin's rights; the platform's kagent-operator grants the controller its full rules in every namespace of the tenant, the release namespace included.
 
+## How to login
+
+- **Single sign-on**: `login.provider: openshift` (default) logs in with the OpenShift account; `login.provider: oidc` logs in at an OpenID Connect provider with `login.oidc.clientId`, `login.oidc.keycloakClient.create` and `login.oidc.keycloakClient.realmRef`. `login.allowedGroups` limits who gets in.
+- **Admin user**: none. With `login.provider: openshift` every user acts as the one kagent user `admin@kagent.dev`.
+
 ## Delivery instructions
 
 - `openshift`: people log in through the cluster's OAuth server with their OpenShift account; no login client is needed. `oidc`: register a confidential client with redirect URI `https://<route.host>/oauth2/callback` whose tokens carry the groups that `upstream.oauth2-proxy.extraArgs.allowed-group` names.

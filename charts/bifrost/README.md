@@ -33,6 +33,13 @@ Secrets left empty are generated at the first install and kept on every upgrade 
 Argo CD or `helm template`, generates new values on every render: set both secrets
 there. A changed encryption key makes stored provider keys unreadable.
 
+## How to login
+
+- **Single sign-on**: the chart has no single sign-on yet. Put a login in front of the gateway on the platform side.
+- **Admin user**: the dashboard login is in Secret `bifrost-credentials`, keys `username` (default `admin`, value `secrets.adminUsername`) and `password`:
+
+    oc -n <project> extract secret/bifrost-credentials --keys=username,password --to=-
+
 ## Delivery instructions
 
 - A hostname outside the default application domain needs a DNS record pointing at the

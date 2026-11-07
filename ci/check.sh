@@ -56,7 +56,7 @@ for c in charts/*/; do
     grep -q "^$f:" "$c/Chart.yaml" || { echo "FAIL $n: Chart.yaml lacks $f"; fail=1; }
   done
   grep -q 'charts.openshift.io/name' "$c/Chart.yaml" || { echo "FAIL $n: Chart.yaml lacks charts.openshift.io/name"; fail=1; }
-  for s in '## Purpose' '## Install' '## Delivery instructions'; do
+  for s in '## Purpose' '## Install' '## How to login' '## Delivery instructions'; do
     grep -q "^$s" "$c/README.md" 2>/dev/null || { echo "FAIL $n: README lacks $s"; fail=1; }
   done
   [ -f "$c/values.schema.json" ] || { echo "FAIL $n: no values.schema.json"; fail=1; }

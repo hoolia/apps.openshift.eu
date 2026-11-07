@@ -50,6 +50,10 @@ helm install slack grncloud/mcp-slack --set secrets.botToken=<xoxb-token>
 
 The server reads the token once at start: after a new token, `oc rollout restart deployment/slack`.
 
+## How to login
+
+No human login: callers authenticate with a bearer token checked by `auth.enabled` and `auth.issuerUrl`; the Slack bot token is shared.
+
 ## Delivery instructions
 
 The server needs a Slack app installed in your workspace. At https://api.slack.com/apps, as a member who may install apps in the workspace:

@@ -38,6 +38,13 @@ curl -H "api-key: $QDRANT_API_KEY" "$QDRANT_URL/collections"
 
 A tool that renders the chart without access to the cluster, such as Argo CD or `helm template`, generates a new key on every render: set `secrets.apiKey` there, or use `secrets.type=externalSecret`.
 
+## How to login
+
+- **Single sign-on**: none; Qdrant has no web login and no Route.
+- **Admin user**: none. Clients send the API key in Secret `<release>-qdrant-api-key`, key `api-key`:
+
+    oc -n <project> extract secret/<release>-qdrant-api-key --keys=api-key --to=-
+
 ## Delivery instructions
 
 - Install one release per project that needs its own vectors; data is not shared between releases, so each team's agents share one memory.

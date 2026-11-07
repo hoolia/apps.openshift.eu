@@ -38,6 +38,11 @@ oc get route mkdocs -o jsonpath='https://{.spec.host}{"\n"}'
 
 A commit whose build fails is not built again; the site keeps serving the last good build. Push a fix to build again.
 
+## How to login
+
+- **Single sign-on**: `oauth.enabled` puts an OAuth2 proxy in front of the site, with `oauth.issuerUrl`, `oauth.clientId`, `oauth.allowedGroups` and the client secret `secrets.clientSecret`.
+- **Admin user**: none; the site has no accounts.
+
 ## Delivery instructions
 
 - A hostname outside the default application domain needs a DNS record pointing at the platform's ingress. Ask the platform team for the record; the certificate follows automatically once it resolves.

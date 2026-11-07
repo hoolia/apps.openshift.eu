@@ -40,6 +40,10 @@ helm install m365 grncloud/mcp-microsoft-365 \
 - `secrets.type` (default: `kubernetes`): `kubernetes` writes the Secret from `secrets.clientId` and `secrets.clientSecret`; `externalSecret` reads them from `secrets.externalSecret.item` (username: client id, password: client secret) in `secrets.externalSecret.storeName`.
 - `resources`: Requests and limits of the server.
 
+## How to login
+
+No human login: callers authenticate with Microsoft Entra OAuth per user (`oauthClient.*`, `microsoft.tenantId`); the Route serves only `/authorize`.
+
 ## Delivery instructions
 
 The server needs an app registration in your Microsoft Entra tenant; Microsoft sends the login code only to redirect URIs registered there. In the Microsoft Entra admin center (https://entra.microsoft.com), as a user who may register applications:

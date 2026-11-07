@@ -35,6 +35,10 @@ helm install web grncloud/mcp-playwright \
   --set 'networkPolicy.ingressNamespaces[0].matchLabels.kubernetes\.io/metadata\.name=my-gateway-namespace'
 ```
 
+## How to login
+
+No human login: callers authenticate with a bearer token checked by `auth.enabled` and `auth.issuerUrl`.
+
 ## Delivery instructions
 
 - Check the pod is Ready: `oc get pods -l app.kubernetes.io/instance=web`.

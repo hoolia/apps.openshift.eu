@@ -94,6 +94,13 @@ OpenCode runs under an exclusive lock on the volume. A new pod starts while the 
 
 OpenCode 2.x converts the session store `opencode.db` in place on its first start, and OpenCode 1.x cannot read it afterwards. Before OpenCode starts, under the same lock, the chart copies `opencode.db` (with its `-wal` and `-shm` files) to `~/.home/backup/opencode.db.<UTC timestamp>` once: when a copy is already there it makes none. To go back to 1.x, stop the agent, put the copy back in `~/.home/.local/share/opencode/`, and install a 0.2 release of the chart.
 
+## How to login
+
+- **Single sign-on**: the OpenShift login of the cluster, through an OAuth proxy. `oauth.ownerEmail` (default `person.email`), `oauth.allowedGroups` and `oauth.loginClusterRole` decide who gets in.
+- **Admin user**: OpenCode has one user, `opencode`, password in Secret `<person.name>-agent-server-password`, key `password`:
+
+    oc -n <project> extract secret/<person.name>-agent-server-password --keys=password --to=-
+
 ## Delivery instructions
 
 - kagent must run on the cluster: the chart renders a `kagent.dev/v1alpha2` `Agent`. To use the kagent UI, add kagent's namespace to `networkPolicy.a2aNamespaces`.

@@ -334,6 +334,13 @@ An instance that skips a release with a new major does not start: the image refu
 jump (`It is only possible to upgrade one major version at a time`) and leaves the data
 untouched. Install the skipped release first. A new install starts at the latest release.
 
+## How to login
+
+- **Single sign-on**: set label `keycloak.hoolia.eu/sso: "true"` in `nextcloud.deploymentLabels` and `sso.enabled: true`. The platform then creates KeycloakClient and Secret `public-nextcloud` in the project, in realm `public` at `login.openshift.eu`, for the host of the admitted Route `nextcloud`; Nextcloud shows the login button within a minute. The managed version (Template `nextcloud-managed` and Odoo orders) switches both on. See [Single sign-on](https://docs.openshift.eu/conventions/single-sign-on/). Without the platform, set `oidc.discoveryUri`, `oidc.clientId` and `secrets.oidcClientSecret` for any OpenID Connect provider.
+- **Admin user**: Secret `nextcloud-admin`, keys `username` (default `admin`, value `secrets.adminUsername`) and `password`:
+
+    oc -n <project> extract secret/nextcloud-admin --keys=username,password --to=-
+
 ## Delivery instructions
 
 - DNS records. A hostname under the platform's application domain needs nothing: the
