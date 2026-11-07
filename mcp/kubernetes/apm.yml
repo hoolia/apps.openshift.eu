@@ -1,0 +1,13 @@
+# APM package: the read-only Kubernetes MCP server; the command must be installed
+# (npm install -g kubernetes-mcp-server@0.0.69), the coding-agent images carry it
+name: kubernetes-mcp
+version: 0.1.0
+description: Read-only Kubernetes and OpenShift MCP server (kubernetes-mcp-server) on the current kubeconfig
+dependencies:
+  mcp:
+  - name: kubernetes
+    registry: false
+    transport: stdio
+    command: kubernetes-mcp-server
+    args:
+    - --read-only

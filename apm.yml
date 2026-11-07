@@ -1,0 +1,14 @@
+# The skills and MCP servers of this repository for a local agent session in this
+# clone: `apm install` writes them to .claude/ and .agents/ (git-ignored)
+name: apps-openshift-eu
+version: 1.0.0
+description: Skills and MCP servers hosted in this repository
+targets:
+- claude
+- opencode
+dependencies:
+  apm:
+  - ./skills/openshift-cli
+  - ./skills/gitlab-cli
+  - ./skills/helm-kustomize
+  - ./mcp/kubernetes

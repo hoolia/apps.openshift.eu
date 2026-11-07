@@ -555,6 +555,72 @@
         }
       }
     },
+    "vscode": {
+      "type": "object",
+      "properties": {
+        "extensions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "version",
+              "sha256"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9-]+\\.[A-Za-z0-9.-]+$"
+              },
+              "version": {
+                "type": "string",
+                "minLength": 1
+              },
+              "platform": {
+                "type": "string"
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            }
+          }
+        },
+        "chat": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "models": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "preferredModels": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "gatewayModels": {
+              "type": "boolean"
+            },
+            "interval": {
+              "type": "integer",
+              "minimum": 10
+            },
+            "resources": {
+              "type": "object"
+            }
+          }
+        },
+        "settings": {
+          "type": "object"
+        }
+      }
+    },
     "vaultSecrets": {
       "type": "array",
       "items": {

@@ -45,3 +45,24 @@ releases the chart. A major upgrade waits for approval on the Renovate dashboard
 The workflow needs the repository secrets `RENOVATE_APP_ID` and `RENOVATE_APP_PRIVATE_KEY`
 of a GitHub App with read and write access to contents, pull requests, issues and
 workflows.
+## Skills and MCP servers
+
+This repository also hosts agent skills and MCP servers as packages of
+[APM](https://github.com/microsoft/apm) (`pip install apm-cli==0.35.0`):
+
+| Directory | Package |
+|---|---|
+| `skills/<name>/SKILL.md` | one skill: `openshift-cli`, `gitlab-cli`, `helm-kustomize` |
+| `mcp/<server>/apm.yml` | one MCP server: `kubernetes` (read-only `kubernetes-mcp-server`) |
+| `apm.yml` | every package above, for an agent session in a clone of this repository |
+| `images/coding-agent/` | the Claude Code and OpenCode images, which carry these packages in the user's home |
+
+Install a package into your own environment, for Claude Code and OpenCode at user scope:
+
+    apm install -g --target claude,opencode hoolia/apps.openshift.eu/skills/gitlab-cli#<tag or commit>
+    apm install -g --target claude,opencode --trust-transitive-mcp hoolia/apps.openshift.eu/mcp/kubernetes#<tag or commit>
+
+In a clone of this repository, `apm install` writes all of them to `.claude/`, `.agents/`,
+`.mcp.json` and `opencode.json`, which git ignores. A skill has front matter with `name`
+equal to its directory and a `description` that starts with "Use when"; `ci/check.sh`
+checks both, and that `apm.yml` and `images/coding-agent/apm.yml` list every package.

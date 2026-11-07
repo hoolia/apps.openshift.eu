@@ -34,8 +34,12 @@ jobs:
       run: python3 -m unittest ci/test_openhands_mcp_sync.py
     - name: Test the Renovate release step
       run: python3 -m unittest ci/test_renovate_release.py
+    - name: Test openhands editor chat sync
+      run: python3 -m unittest ci/test_openhands_vscode_sync.py
     - name: Test opencode-agent UI proxy
       run: python3 -m unittest ci/test_opencode_agent_ui_proxy.py
+    - name: Test mcp-sonarqube token broker
+      run: python3 -m unittest charts/mcp-sonarqube/files/test_broker.py
     - name: Test openwebui chart
       run: ci/test-openwebui.sh
     - name: Test the GitLab API exporter
