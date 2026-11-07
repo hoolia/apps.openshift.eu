@@ -50,6 +50,16 @@
         "pattern": "^--"
       }
     },
+    "outputDir": {
+      "type": "string",
+      "pattern": "^/"
+    },
+    "extraVolumes": {
+      "type": "array"
+    },
+    "extraVolumeMounts": {
+      "type": "array"
+    },
     "mcp": {
       "type": "object",
       "additionalProperties": false,

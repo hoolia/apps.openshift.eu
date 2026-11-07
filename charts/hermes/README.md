@@ -1,0 +1,60 @@
+# hermes
+
+## Purpose
+
+Runs one Hermes Agent (Nous Research) for a person or a team, with its web dashboard behind an OpenShift login. The dashboard is the chat, the settings and the MCP server list; it listens on 127.0.0.1 only, so the OpenShift `oauth-proxy` in the same pod is the only way in.
+
+One pod holds:
+
+- `gateway`: the Hermes gateway (cron jobs, background agents), run without its s6 supervisor and restarted by the kubelet.
+- `dashboard`: the web dashboard on loopback.
+- `oauth-proxy`: the OpenShift login in front of the dashboard; the only port in a Service.
+- `token-proxy` (with `gateway.upstream`): on 127.0.0.1, adds the pod's ServiceAccount token (audience: the host of `gateway.upstream`) to every model and MCP call to the gateway, so `config.yaml` holds no key.
+- `mcp-sync` (with `mcp.enabled`): turns every kagent `RemoteMCPServer` the ServiceAccount may list into an entry of `mcp_servers` in `config.yaml`, every `mcp.interval` seconds.
+
+The Hermes home (`HERMES_HOME`, `/opt/data/home`) persists on the data volume: `config.yaml`, sessions, memories, skills the agent writes and MCP OAuth tokens. The pod runs as the image's own user (`image.uid`, 10000): Hermes refuses a home its user does not own. The init container `seed-config` creates the home with mode `0700`, merges the chart's keys into `config.yaml` (the model block, the skill directory, `config`) and keeps every other key, so settings made in the dashboard survive a restart. The agent containers get no ServiceAccount token; only `oauth-proxy` and `mcp-sync` do.
+
+With `gateway.upstream` the model is `provider: custom` at the token proxy, default model `llm.model`. Hermes needs a model with a context window of at least 64000 tokens.
+
+`mcp-sync` writes an entry per `RemoteMCPServer`: a server on `gateway.upstream` is called through the token proxy; a server annotated `openhands.dev/auth: oauth2` is one each user authorizes in the dashboard (**MCP > Authorize**), with `oauth.redirect_uri` `https://<route.host>/api/mcp/oauth/callback/<name>`, the pre-registered client of the Secret named by `openhands.dev/oauth-client` (keys `client_id`, `client_secret`, in the namespace of the `RemoteMCPServer`) and the scopes of `openhands.dev/oauth-scopes`; without a client annotation Hermes registers itself (dynamic client registration). The vendor must accept that callback as a redirect URI. A server that needs headers from a Secret and is not on the gateway is skipped. It changes and removes only the entries it wrote; an entry the user adds in the dashboard stays, and wins over a discovered server of the same name. A `RemoteMCPServer` labelled `<mcp.labelDomain>/addon: "true"` is used only when its bundle is in `mcp.bundles` or its server name is in `mcp.servers`. A server named in `mcp.exclude` (`<name>` or `<namespace>/<name>`) is never used.
+
+`skills.repositories` are cloned at every start into `/opt/data/skills-external`, which `config.yaml` lists in `skills.external_dirs`; every directory with a `SKILL.md` under `path` is a skill. A failed clone keeps the skills of the last start.
+
+## Install
+
+```bash
+helm repo add grncloud https://apps.openshift.eu
+helm install assistant grncloud/hermes \
+  --set route.host=hermes.apps.example.com \
+  --set oauth.ownerEmail=me@example.com \
+  --set gateway.upstream=https://api.example.com \
+  --set llm.model=my-model
+```
+
+- `team`, `tenant` (default: empty): with `team`, every object goes into `<tenant>-<team>`. Empty: the release namespace.
+- `image.repository`, `image.tag`, `image.digest` (default: `docker.io/nousresearch/hermes-agent`, `v0.23.0`, its digest): the upstream image.
+- `image.uid` (default: 10000): the image's user; the pod runs as it.
+- `route.host` (default: empty): hostname of the dashboard; also the base of the MCP OAuth callback. Empty: OpenShift assigns one and OAuth servers get no callback.
+- `route.annotations` (default: cert-manager `ClusterIssuer` `letsencrypt`): used when a host is set.
+- `oauth.ownerEmail` (default: empty): OpenShift user name of the only person admitted. Empty: `oauth.allowedGroups`; both empty: everyone who may edit the project.
+- `oauth.allowedGroups`, `oauth.loginClusterRole` (default: empty): groups admitted, through a ClusterRole with verb `login` on `services/proxy` or the chart's own Role.
+- `secrets.type` (default: `kubernetes`): `externalSecret` reads the cookie secret from `secrets.externalSecret.items.cookieSecret` of `secrets.externalSecret.storeName`.
+- `secrets.cookieSecret` (default: empty): oauth-proxy cookie secret; empty: generated once. Under Argo CD pass it, or it changes on every sync.
+- `gateway.upstream`, `gateway.audience` (default: empty): model and MCP gateway, audience of the token.
+- `llm.model`, `llm.contextLength` (default: empty, 0): default model and its context window.
+- `mcp.*`: discovery, see Purpose. `mcp.clusterRole` (default: `kagent-remotemcpserver-view`) is bound in the namespace so `mcp-sync` may list `RemoteMCPServers`.
+- `skills.repositories` (default: empty): `{name, url, ref, path}` per repository.
+- `config` (default: empty): keys merged into `config.yaml` at every start; they win over the dashboard.
+- `extraVolumes`, `extraVolumeMounts` (default: empty): extra volumes, mounted in `gateway` and `dashboard`.
+- `storage.size`, `storage.className`, `storage.accessMode` (default: `10Gi`, default class, `ReadWriteOnce`).
+- `resources`, `dashboard.resources`, `oauthProxy.resources`, `tokenProxy.resources`, `mcpSync.resources`: per container.
+
+## How to login
+
+Open `https://<route.host>/` and log in with OpenShift. The owner (`oauth.ownerEmail`) or a member of `oauth.allowedGroups` is admitted; everyone else gets 403. MCP servers that need your own account show under **MCP**: choose **Authorize** and log in at the vendor.
+
+## Delivery instructions
+
+- The address of the dashboard: `oc get route <release> -o jsonpath='https://{.spec.host}/{"\n"}'`.
+- `oc logs statefulset/<release> -c mcp-sync` lists every MCP server added, changed, removed or skipped, with the reason.
+- `oc exec statefulset/<release> -c gateway -- /opt/hermes/.venv/bin/hermes chat -q "hello"` asks the configured model one question from the pod.

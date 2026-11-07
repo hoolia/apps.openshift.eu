@@ -1,0 +1,17 @@
+# the login proxy only; the dashboard listens on loopback
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "hermes.name" . }}-ui
+  namespace: {{ include "hermes.namespace" . }}
+  labels:
+    {{- include "hermes.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "hermes.selectorLabels" . | nindent 4 }}
+  ports:
+  - name: http
+    port: {{ .Values.oauthProxy.port }}
+    targetPort: ui

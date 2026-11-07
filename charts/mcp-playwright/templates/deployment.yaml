@@ -43,7 +43,7 @@ spec:
         - --host={{ include "mcp-auth.serverHost" . }}
         # Callers arrive with the Service name or a gateway host as Host
         - --allowed-hosts=*
-        - --output-dir=/tmp/output
+        - --output-dir={{ .Values.outputDir }}
         {{- range .Values.extraArgs }}
         - {{ . }}
         {{- end }}
@@ -97,6 +97,9 @@ spec:
           mountPath: /tmp
         - name: shm
           mountPath: /dev/shm
+        {{- with .Values.extraVolumeMounts }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
       {{- if .Values.auth.enabled }}
       {{- include "mcp-auth.container" (dict "root" . "name" .Release.Name "port" .Values.port) | nindent 6 }}
       {{- end }}
@@ -111,3 +114,6 @@ spec:
         emptyDir:
           medium: Memory
           sizeLimit: 512Mi
+      {{- with .Values.extraVolumes }}
+      {{- toYaml . | nindent 6 }}
+      {{- end }}
