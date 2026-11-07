@@ -104,6 +104,16 @@ route:
 podLabels: {}
 podAnnotations: {}
 
+# a volume for the server's own state (OAuth logins, tokens, a SQLite database),
+# kept across restarts; the Deployment then uses strategy Recreate
+persistence:
+  enabled: false
+  mountPath: /data
+  size: 1Gi
+  accessMode: ReadWriteOnce
+  # empty: the default storage class
+  className: ""
+
 resources:
   requests:
     cpu: 10m

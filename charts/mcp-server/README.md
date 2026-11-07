@@ -39,6 +39,8 @@ helm install grafana grncloud/mcp-server \
   --set envFromSecret=grafana-mcp
 ```
 
+A server that keeps state of its own (OAuth logins of its users, tokens, a SQLite file) needs `persistence.enabled`: a claim `<release>-data` mounted at `persistence.mountPath` (default `/data`) that survives restarts and an uninstall. Point the server's data path at it, for example with `env`.
+
 ## How to login
 
 No human login: callers authenticate with a bearer token checked by `auth.*`, or the OpenShift RBAC proxy `rbacProxy.*`.

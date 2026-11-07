@@ -4,7 +4,7 @@ app: {{ .Release.Name }}
 app.kubernetes.io/name: mcp-server
 app.kubernetes.io/instance: {{ .Release.Name | quote }}
 app.kubernetes.io/part-of: {{ .Release.Name | quote }}
-app.kubernetes.io/version: {{ .Values.image.tag | default .Chart.AppVersion | quote }}
+app.kubernetes.io/version: {{ .Values.image.tag | default .Chart.AppVersion | splitList "@" | first | trunc 63 | quote }}
 {{- end -}}
 
 {{- define "mcp-server.selectorLabels" -}}
