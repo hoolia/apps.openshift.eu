@@ -27,6 +27,9 @@ metadata:
     app.kubernetes.io/component: server
     {{- include "vaultwarden.commonLabels" $ | nindent 4 }}
     app.openshift.io/runtime: rust
+    {{- with .Values.deploymentLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
   annotations:
     app.openshift.io/vcs-uri: https://github.com/dani-garcia/vaultwarden
 spec:
@@ -41,9 +44,14 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: vaultwarden
-      {{- if not .Values.route.hostname }}
+      {{- if or (not .Values.route.hostname) .Values.sso.enabled }}
       annotations:
+        {{- if not .Values.route.hostname }}
         checksum/scripts: {{ include (print $.Template.BasePath "/route-host.yaml") (merge (dict "checksum" true) .) | sha256sum }}
+        {{- end }}
+        {{- if .Values.sso.enabled }}
+        checksum/sso: {{ .Files.Get "files/sso.sh" | sha256sum }}
+        {{- end }}
       {{- end }}
     spec:
       {{- if .Values.route.hostname }}
@@ -58,9 +66,20 @@ spec:
       containers:
       - name: vaultwarden
         image: {{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}
+        {{- if or (not .Values.route.hostname) .Values.sso.enabled }}
+        command:
+        {{- if .Values.sso.enabled }}
+        # the login of the SSO Secret while it exists; a change restarts Vaultwarden
+        - /bin/sh
+        - /sso/sso.sh
+        {{- end }}
         {{- if not .Values.route.hostname }}
         # no hostname given: take the address from the Route
-        command: ["/bin/sh", "/scripts/start.sh"]
+        - /bin/sh
+        - /scripts/start.sh
+        {{- else }}
+        - /start.sh
+        {{- end }}
         {{- end }}
         ports:
         - name: http
@@ -113,6 +132,21 @@ spec:
               key: smtp-password
         {{- end }}
         {{- end }}
+        {{- if .Values.sso.enabled }}
+        - name: SSO_DIR
+          value: /etc/vaultwarden-sso
+        - name: KEY_ISSUER
+          value: {{ .Values.sso.keys.issuer }}
+        - name: KEY_CLIENT_ID
+          value: {{ .Values.sso.keys.clientId }}
+        - name: KEY_CLIENT_SECRET
+          value: {{ .Values.sso.keys.clientSecret }}
+        - name: INTERVAL
+          value: {{ .Values.sso.interval | quote }}
+        # an account of a user the issuer signs in, as for a password signup
+        - name: SSO_SIGNUPS_ALLOWED
+          value: {{ .Values.signups.allowed | quote }}
+        {{- end }}
         {{- with .Values.extraEnv }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -126,6 +160,14 @@ spec:
         {{- if not .Values.route.hostname }}
         - name: scripts
           mountPath: /scripts
+        {{- end }}
+        {{- if .Values.sso.enabled }}
+        - name: sso-script
+          mountPath: /sso
+          readOnly: true
+        - name: sso
+          mountPath: /etc/vaultwarden-sso
+          readOnly: true
         {{- end }}
         startupProbe:
           httpGet:
@@ -156,6 +198,16 @@ spec:
       - name: scripts
         configMap:
           name: vaultwarden-scripts
+      {{- end }}
+      {{- if .Values.sso.enabled }}
+      - name: sso-script
+        configMap:
+          name: vaultwarden-sso
+      # optional: the kubelet fills it once the Secret exists and empties it when it goes
+      - name: sso
+        secret:
+          secretName: {{ .Values.sso.secretName | default "public-vaultwarden" }}
+          optional: true
       {{- end }}
 ---
 apiVersion: v1

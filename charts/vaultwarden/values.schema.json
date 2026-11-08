@@ -32,6 +32,23 @@
         "username": {"type": "string", "title": "Mail user"}
       }
     },
+    "sso": {
+      "type": "object",
+      "properties": {
+        "enabled": {"type": "boolean", "title": "Single sign-on", "description": "Login at the OpenID Connect issuer of the Secret, while it exists"},
+        "secretName": {"type": "string", "title": "Secret of the OpenID Connect client", "description": "Leave empty for public-vaultwarden"},
+        "keys": {
+          "type": "object",
+          "properties": {
+            "issuer": {"type": "string", "minLength": 1},
+            "clientId": {"type": "string", "minLength": 1},
+            "clientSecret": {"type": "string", "minLength": 1}
+          }
+        },
+        "interval": {"type": "integer", "minimum": 5}
+      }
+    },
+    "deploymentLabels": {"type": "object"},
     "secrets": {
       "type": "object",
       "properties": {
