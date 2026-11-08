@@ -60,6 +60,7 @@ The Secret `public-assistant` holds `sso-issuer-url`, `sso-client-id` and `sso-c
 - `skills.repositories` (default: empty): `{name, url, ref, path}` per repository.
 - `config` (default: empty): keys merged into `config.yaml` at every start; they win over the dashboard.
 - `extraVolumes`, `extraVolumeMounts` (default: empty): extra volumes, mounted in `gateway` and `dashboard`.
+- `fileServer.enabled` (default: false): serves the extraVolume `fileServer.volume` read-only at `https://<route.host><fileServer.path>/` (default `/downloads`), with a directory listing, behind the same login as the dashboard. Container `file-server` listens on loopback port `fileServer.port` (8899).
 - `storage.size`, `storage.className`, `storage.accessMode` (default: `10Gi`, default class, `ReadWriteOnce`).
 - `resources`, `dashboard.resources`, `oauthProxy.resources`, `tokenProxy.resources`, `mcpSync.resources`: per container.
 

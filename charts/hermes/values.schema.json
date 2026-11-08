@@ -372,6 +372,27 @@
           }
         }
       }
+    },
+    "fileServer": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "volume": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string",
+          "pattern": "^/[A-Za-z0-9._/-]*[A-Za-z0-9._-]$"
+        },
+        "port": {
+          "type": "integer"
+        },
+        "resources": {
+          "type": "object"
+        }
+      }
     }
   }
 }

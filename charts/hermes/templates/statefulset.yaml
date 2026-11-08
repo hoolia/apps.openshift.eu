@@ -225,6 +225,33 @@ spec:
         securityContext:
           {{- include "hermes.containerSecurityContext" . | nindent 10 }}
       {{- end }}
+      {{- if .Values.fileServer.enabled }}
+      # the volume's files, read-only on loopback: oauth-proxy is the only way in
+      - name: file-server
+        image: {{ include "hermes.image" . }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command:
+        - /opt/hermes/.venv/bin/python
+        - -m
+        - http.server
+        - {{ .Values.fileServer.port | quote }}
+        - --bind
+        - 127.0.0.1
+        - --directory
+        - /srv/files
+        readinessProbe:
+          tcpSocket:
+            port: {{ .Values.fileServer.port }}
+          periodSeconds: 10
+        volumeMounts:
+        - name: {{ required "fileServer.volume names an extraVolume" .Values.fileServer.volume }}
+          mountPath: /srv/files{{ .Values.fileServer.path | trimSuffix "/" }}
+          readOnly: true
+        resources:
+          {{- toYaml .Values.fileServer.resources | nindent 10 }}
+        securityContext:
+          {{- include "hermes.containerSecurityContext" . | nindent 10 }}
+      {{- end }}
       - name: oauth-proxy
         image: {{ .Values.oauthProxy.image }}
         imagePullPolicy: IfNotPresent
@@ -234,6 +261,9 @@ spec:
         - --http-address=0.0.0.0:{{ .Values.oauthProxy.port }}
         - --https-address=
         - --upstream=http://127.0.0.1:{{ .Values.dashboard.port }}
+        {{- if .Values.fileServer.enabled }}
+        - --upstream=http://127.0.0.1:{{ .Values.fileServer.port }}{{ .Values.fileServer.path | trimSuffix "/" }}/
+        {{- end }}
         - --upstream-timeout={{ .Values.route.timeout }}
         # the dashboard accepts only its own loopback Host
         - --pass-host-header=false

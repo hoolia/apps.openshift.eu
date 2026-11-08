@@ -222,6 +222,21 @@ statefulSet:
 extraVolumes: []
 extraVolumeMounts: []
 
+# one extraVolume served read-only at https://<route.host><path>/, behind the dashboard login
+fileServer:
+  enabled: false
+  # name of an entry in extraVolumes
+  volume: ""
+  path: /downloads
+  # loopback port of the file server
+  port: 8899
+  resources:
+    requests:
+      cpu: 5m
+      memory: 32Mi
+    limits:
+      memory: 128Mi
+
 nodeSelector: {}
 affinity: {}
 
