@@ -1,7 +1,7 @@
 {{- $name := include "hermes.name" . }}
 {{- if and .Values.a2a.enabled .Values.a2a.kagent.enabled (.Capabilities.APIVersions.Has "kagent.dev/v1alpha2/Agent") }}
 # kagent runs a BYO agent as its own Deployment on port 8080; that pod relays to the
-# A2A Service of Hermes and adds the token of peer a2a.peer
+# A2A Service of Hermes; kagent forwards its caller's token
 apiVersion: kagent.dev/v1alpha2
 kind: Agent
 metadata:
@@ -24,21 +24,13 @@ spec:
       env:
       - name: UPSTREAM
         value: http://{{ $name }}-a2a.{{ include "hermes.namespace" . }}.svc:{{ .Values.a2a.port }}
-      - name: TOKEN_FILE
-        value: /etc/a2a/token
       volumes:
       - name: scripts
         configMap:
           name: {{ $name }}-scripts
-      - name: token
-        secret:
-          secretName: {{ $name }}-a2a
       volumeMounts:
       - name: scripts
         mountPath: /app
-        readOnly: true
-      - name: token
-        mountPath: /etc/a2a
         readOnly: true
       resources:
         {{- toYaml .Values.a2a.kagent.resources | nindent 8 }}

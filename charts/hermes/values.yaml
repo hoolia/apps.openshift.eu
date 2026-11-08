@@ -66,8 +66,6 @@ secrets:
   # oauth-proxy cookie secret. Empty: generated once. A value that is not 16, 24 or
   # 32 characters long is hashed to 32
   cookieSecret: ""
-  # bearer token of the A2A peer (a2a.peer). Empty: generated once; under Argo CD pass it
-  a2aToken: ""
   externalSecret:
     storeKind: ClusterSecretStore
     storeName: ""
@@ -75,24 +73,39 @@ secrets:
     # vault item of the cookie secret (its password). Empty: generated in the cluster
     items:
       cookieSecret: ""
-      # vault item of the A2A token (its password). Empty: generated in the cluster
-      a2aToken: ""
 
-# Agent-to-Agent (A2A v1.0) server of the gateway on Service <release>-a2a, for agents of
-# the tenant. Callers send the token of Secret <release>-a2a (key token) as bearer token
+# Agent-to-Agent (A2A v1.0) on Service <release>-a2a, for agents of the tenant. Callers
+# send their own bearer JWT; no credential is stored
 a2a:
   enabled: false
-  port: 9900
+  # port of the a2a-auth sidecar and the Service
+  port: 8090
+  # loopback port of the gateway's A2A server
+  gatewayPort: 9900
   # name on the agent card; empty: <release>.<namespace>
   agentName: ""
   # description on the agent card and in kagent; empty: "Hermes agent"
   description: ""
-  # identity of the token holder in the audit log and the only trusted peer
-  peer: kagent
+  # admit bearer JWTs of the tenant: ServiceAccount tokens from a namespace <tenant> or
+  # <tenant>-*, OIDC tokens whose groups claim holds <tenant> or <tenant>-*
+  tenantAuth:
+    # empty: the release namespace up to its first "-"
+    tenant: ""
+    # the cluster's ServiceAccount token issuer; empty: none
+    kubernetesIssuer: https://kubernetes.default.svc
+    # OIDC issuers, for example https://login.example/realms/<realm>
+    oidcIssuers: []
+  # the a2a-auth sidecar
+  resources:
+    requests:
+      cpu: 5m
+      memory: 48Mi
+    limits:
+      memory: 128Mi
   # register the agent in kagent (BYO Agent named like the release) when kagent is installed
   kagent:
     enabled: true
-    # the relay pod kagent runs in front of the A2A Service; it adds the token
+    # the relay pod kagent runs in front of the A2A Service
     resources:
       requests:
         cpu: 5m

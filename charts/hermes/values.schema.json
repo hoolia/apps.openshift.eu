@@ -140,16 +140,10 @@
               "properties": {
                 "cookieSecret": {
                   "type": "string"
-                },
-                "a2aToken": {
-                  "type": "string"
                 }
               }
             }
           }
-        },
-        "a2aToken": {
-          "type": "string"
         }
       }
     },
@@ -343,10 +337,6 @@
         "description": {
           "type": "string"
         },
-        "peer": {
-          "type": "string",
-          "pattern": "^[A-Za-z0-9._-]+$"
-        },
         "kagent": {
           "type": "object",
           "properties": {
@@ -355,6 +345,29 @@
             },
             "resources": {
               "type": "object"
+            }
+          }
+        },
+        "gatewayPort": {
+          "type": "integer"
+        },
+        "resources": {
+          "type": "object"
+        },
+        "tenantAuth": {
+          "type": "object",
+          "properties": {
+            "tenant": {
+              "type": "string"
+            },
+            "kubernetesIssuer": {
+              "type": "string"
+            },
+            "oidcIssuers": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
             }
           }
         }
