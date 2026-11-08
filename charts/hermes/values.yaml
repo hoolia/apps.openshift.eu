@@ -27,11 +27,12 @@ route:
 
 sso:
   # Hermes' own OpenID Connect login (dashboard auth provider self-hosted), after the
-  # OpenShift login. Needs route.host: the chat accepts the browser only from its public
-  # address, and Hermes serves that address only behind a login of its own
-  enabled: false
+  # OpenShift login, while the Secret secretName exists and route.host is set: the chat
+  # accepts the browser only from its public address, and Hermes serves that address only
+  # behind a login of its own. Without the Secret it does nothing
+  enabled: true
   # Secret in the release namespace with the issuer, client ID and client secret of the
-  # client, redirect URI https://<route.host>/auth/callback. Empty: <release>-sso
+  # client, redirect URI https://<route.host>/auth/callback. Empty: public-<release>
   secretName: ""
   # keys of that Secret; a missing clientSecret key makes a public client (PKCE only)
   keys:
@@ -39,6 +40,9 @@ sso:
     clientId: sso-client-id
     clientSecret: sso-client-secret
   scopes: openid profile email
+  # seconds between two reads of the Secret; a change restarts the dashboard container's
+  # dashboard process
+  interval: 30
 
 oauth:
   # OpenShift user name (an email) of the only person admitted. Empty: allowedGroups

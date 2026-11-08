@@ -11,6 +11,8 @@ data:
     {{- .Files.Get "files/seed-config.py" | nindent 4 }}
   mcp-sync.py: |
     {{- .Files.Get "files/mcp-sync.py" | nindent 4 }}
+  dashboard.py: |
+    {{- .Files.Get "files/dashboard.py" | nindent 4 }}
   token-proxy.py: |
     {{- .Files.Get "files/token-proxy.py" | nindent 4 }}
   emails.txt: |

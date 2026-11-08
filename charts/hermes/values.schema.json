@@ -36,7 +36,8 @@
             "clientSecret": {"type": "string", "minLength": 1}
           }
         },
-        "scopes": {"type": "string", "minLength": 1}
+        "scopes": {"type": "string", "minLength": 1},
+        "interval": {"type": "integer", "minimum": 5}
       }
     },
     "oauth": {
