@@ -148,3 +148,16 @@ the dashboard container, because the dashboard may restart the gateway in its ow
 {{- end -}}
 {{- join "\n" $lines -}}
 {{- end -}}
+
+{{/* skills.repositories for seed-config: secretName becomes the directory it is mounted at */}}
+{{- define "hermes.skillRepositories" -}}
+{{- $out := list -}}
+{{- range .Values.skills.repositories -}}
+{{- $r := omit . "secretName" -}}
+{{- if .secretName -}}
+{{- $_ := set $r "authDir" (printf "/etc/hermes-skill-repos/%s" .name) -}}
+{{- end -}}
+{{- $out = append $out $r -}}
+{{- end -}}
+{{- toJson $out -}}
+{{- end -}}

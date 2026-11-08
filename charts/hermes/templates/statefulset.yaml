@@ -3,6 +3,12 @@
 {{- $audience := include "hermes.audience" . }}
 {{- $home := "/opt/data/home" }}
 {{- $common := list (dict "name" "HOME" "value" $home) (dict "name" "HERMES_HOME" "value" $home) }}
+{{- $skillAuth := list }}
+{{- range .Values.skills.repositories }}
+{{- if .secretName }}
+{{- $skillAuth = append $skillAuth . }}
+{{- end }}
+{{- end }}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -68,7 +74,13 @@ spec:
         - name: CHART_CONFIG
           value: {{ include "hermes.config" . | quote }}
         - name: SKILL_REPOSITORIES
-          value: {{ toJson .Values.skills.repositories | quote }}
+          value: {{ include "hermes.skillRepositories" . | quote }}
+        {{- if $skillAuth }}
+        - name: KNOWN_HOSTS
+          value: {{ .Values.skills.knownHosts | quote }}
+        - name: AUTH_TMP
+          value: /run/skills-auth
+        {{- end }}
         volumeMounts:
         - name: scripts
           mountPath: /opt/hermes-scripts
@@ -77,6 +89,16 @@ spec:
           mountPath: /opt/data
         - name: tmp
           mountPath: /tmp
+        {{- if $skillAuth }}
+        # the repositories' credentials: this init step only, never the agent
+        - name: skills-auth-tmp
+          mountPath: /run/skills-auth
+        {{- range $skillAuth }}
+        - name: skills-auth-{{ .name }}
+          mountPath: /etc/hermes-skill-repos/{{ .name }}
+          readOnly: true
+        {{- end }}
+        {{- end }}
         resources:
           requests:
             cpu: 10m
@@ -110,6 +132,14 @@ spec:
         - name: HERMES_ENVIRONMENT_HINT
           value: {{ include "hermes.environmentHint" . | quote }}
         {{- include "hermes.a2aEnv" . | nindent 8 }}
+        {{- with .Values.approvalSigning.secretName }}
+        # the gateway only: the dashboard, sidecars and init step never see it
+        - name: APPROVAL_SIGNING_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ . }}
+              key: {{ $.Values.approvalSigning.key }}
+        {{- end }}
         volumeMounts:
         - name: data
           mountPath: /opt/data
@@ -414,6 +444,20 @@ spec:
           name: {{ $name }}-scripts
       - name: tmp
         emptyDir: {}
+      {{- if $skillAuth }}
+      - name: skills-auth-tmp
+        emptyDir:
+          medium: Memory
+          sizeLimit: 1Mi
+      {{- range $skillAuth }}
+      - name: skills-auth-{{ .name }}
+        secret:
+          secretName: {{ .secretName }}
+          defaultMode: 0400
+          # a missing Secret fails that clone; the skills already there stay
+          optional: true
+      {{- end }}
+      {{- end }}
       {{- if .Values.sso.enabled }}
       # optional: the kubelet fills it once the Secret exists and empties it when it goes
       - name: sso
