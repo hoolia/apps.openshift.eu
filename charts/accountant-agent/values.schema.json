@@ -1,0 +1,150 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "definitions": {
+    "resources": {
+      "type": "object"
+    },
+    "role": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "port": {"type": "integer", "minimum": 1024, "maximum": 65535},
+        "description": {"type": "string", "minLength": 1},
+        "schedule": {"type": "string"},
+        "task": {"type": "string"},
+        "tools": {"type": "array", "items": {"type": "string"}},
+        "instructions": {"type": "string"}
+      },
+      "required": ["port"]
+    }
+  },
+  "properties": {
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "repository": {"type": "string", "minLength": 1},
+        "tag": {"type": "string", "minLength": 1, "not": {"const": "latest"}},
+        "digest": {"type": "string", "pattern": "^(sha256:[0-9a-f]{64})?$"},
+        "pullPolicy": {"type": "string", "enum": ["Always", "IfNotPresent", "Never"]}
+      }
+    },
+    "agentName": {"type": "string"},
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "baseUrl": {"type": "string", "pattern": "^(https?://.+)?$"},
+        "name": {"type": "string"},
+        "tokenAudience": {"type": "string"},
+        "apiKeySecret": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "name": {"type": "string"},
+            "key": {"type": "string", "minLength": 1}
+          }
+        },
+        "temperature": {"type": "number", "minimum": 0, "maximum": 2},
+        "maxToolRounds": {"type": "integer", "minimum": 1},
+        "timeout": {"type": "number", "minimum": 1}
+      }
+    },
+    "mcpServers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {"type": "string", "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"},
+          "url": {"type": "string", "pattern": "^https?://.+"},
+          "tokenAudience": {"type": "string"}
+        },
+        "required": ["name", "url"]
+      }
+    },
+    "toolCacheSeconds": {"type": "integer", "minimum": 0},
+    "approval": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "approveCommand": {"type": "string", "pattern": "^\\S+$"},
+        "rejectCommand": {"type": "string", "pattern": "^\\S+$"}
+      }
+    },
+    "roles": {
+      "type": "object",
+      "propertyNames": {"pattern": "^[a-z0-9]([-a-z0-9]{0,13}[a-z0-9])?$"},
+      "additionalProperties": {"$ref": "#/definitions/role"}
+    },
+    "cronJob": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "timeZone": {"type": "string"},
+        "resources": {"$ref": "#/definitions/resources"}
+      }
+    },
+    "kagent": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "resources": {"$ref": "#/definitions/resources"}
+      }
+    },
+    "taskStore": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {"type": "string", "enum": ["database", "memory"]}
+      }
+    },
+    "ledger": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "urlSecret": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "name": {"type": "string"},
+            "key": {"type": "string", "minLength": 1}
+          }
+        },
+        "database": {"type": "string", "pattern": "^[a-z_][a-z0-9_]*$"},
+        "owner": {"type": "string", "pattern": "^[a-z_][a-z0-9_]*$"},
+        "retentionYears": {"type": "integer", "minimum": 7},
+        "instances": {"type": "integer", "minimum": 1},
+        "imageName": {"type": "string"},
+        "storage": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "size": {"type": "string", "minLength": 1},
+            "storageClass": {"type": "string"}
+          }
+        },
+        "resources": {"$ref": "#/definitions/resources"},
+        "operatorNamespaceSelector": {"type": "object"}
+      }
+    },
+    "networkPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "namespaceSelector": {"type": "object"}
+      }
+    },
+    "resources": {"$ref": "#/definitions/resources"},
+    "logLevel": {"type": "string", "enum": ["DEBUG", "INFO", "WARNING", "ERROR"]},
+    "nodeSelector": {"type": "object"},
+    "tolerations": {"type": "array"},
+    "affinity": {"type": "object"}
+  }
+}

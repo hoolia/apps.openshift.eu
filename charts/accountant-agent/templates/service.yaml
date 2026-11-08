@@ -1,0 +1,22 @@
+# one port per role: A2A JSON-RPC and the agent card of that role
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Release.Name }}
+    app.kubernetes.io/name: accountant-agent
+    app.kubernetes.io/component: server
+    {{- include "accountant-agent.commonLabels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "accountant-agent.selectorLabels" . | nindent 4 }}
+  ports:
+  {{- range include "accountant-agent.roles" . | fromJsonArray }}
+  - name: {{ .name | trunc 15 }}
+    port: {{ .port }}
+    targetPort: {{ .port }}
+    protocol: TCP
+  {{- end }}

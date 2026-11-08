@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Release.Name }}
+    app.kubernetes.io/name: accountant-agent
+    app.kubernetes.io/component: server
+    {{- include "accountant-agent.commonLabels" . | nindent 4 }}
+data:
+  config.json: |
+    {{- include "accountant-agent.config" . | nindent 4 }}

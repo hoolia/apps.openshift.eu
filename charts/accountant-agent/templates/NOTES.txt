@@ -1,0 +1,14 @@
+Accountant agent {{ .Release.Name }} in {{ .Release.Namespace }}.
+
+Roles (A2A JSON-RPC, agent card at /.well-known/agent.json):
+{{- range include "accountant-agent.roles" . | fromJsonArray }}
+- {{ .name }}: http://{{ $.Release.Name }}.{{ $.Release.Namespace }}.svc:{{ .port }}/{{ if and $.Values.cronJob.enabled .schedule }}, CronJob {{ $.Release.Name }}-{{ .name }} "{{ .schedule }}"{{ end }}
+{{- end }}
+{{- if not .Values.model.baseUrl }}
+
+model.baseUrl is empty: the agent stays not ready and fails every task.
+{{- end }}
+{{- with include "accountant-agent.urlSecret" . }}
+
+Database URL for the MCP server that writes ledger and audit: Secret {{ . }}, key {{ $.Values.ledger.urlSecret.key }}.
+{{- end }}

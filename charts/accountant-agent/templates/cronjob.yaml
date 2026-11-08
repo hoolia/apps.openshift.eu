@@ -1,0 +1,62 @@
+{{- if .Values.cronJob.enabled }}
+{{- range include "accountant-agent.roles" . | fromJsonArray }}
+{{- if .schedule }}
+---
+# posts the role's task to the agent and returns; the task runs on in the agent
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ $.Release.Name }}-{{ .name }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    app: {{ $.Release.Name }}
+    app.kubernetes.io/name: accountant-agent
+    app.kubernetes.io/component: schedule
+    {{- include "accountant-agent.commonLabels" $ | nindent 4 }}
+spec:
+  schedule: {{ .schedule | quote }}
+  {{- with $.Values.cronJob.timeZone }}
+  timeZone: {{ . | quote }}
+  {{- end }}
+  concurrencyPolicy: Forbid
+  # a run missed by more than an hour is skipped, not caught up later
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 600
+      template:
+        metadata:
+          labels:
+            app: {{ $.Release.Name }}
+            app.kubernetes.io/name: accountant-agent
+            app.kubernetes.io/component: schedule
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+          - name: trigger
+            image: {{ include "accountant-agent.image" $ }}
+            imagePullPolicy: {{ $.Values.image.pullPolicy }}
+            command:
+            - python3
+            - -m
+            - accountant_agent.trigger
+            - http://{{ $.Release.Name }}.{{ $.Release.Namespace }}.svc:{{ .port }}/
+            - {{ .task | quote }}
+            env:
+            - name: HOME
+              value: /tmp
+            resources:
+              {{- toYaml $.Values.cronJob.resources | nindent 14 }}
+            securityContext:
+              {{- include "accountant-agent.containerSecurityContext" $ | nindent 14 }}
+{{- end }}
+{{- end }}
+{{- end }}

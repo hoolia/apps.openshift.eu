@@ -1,0 +1,25 @@
+apiVersion: v2
+name: accountant-agent
+description: A2A accounting agent with a daily bookkeeper and a weekly cfo role, its tools from MCP servers, approvals as A2A input-required, and a CloudNativePG ledger with audit trail
+type: application
+version: 0.1.0
+appVersion: 0.1.0
+home: https://apps.openshift.eu
+icon: https://raw.githubusercontent.com/a2aproject/A2A/main/docs/assets/a2a-logo-black.svg
+keywords:
+- ai
+- agent
+- a2a
+- kagent
+- accounting
+- bookkeeping
+sources:
+- https://github.com/hoolia/apps.openshift.eu
+maintainers:
+- name: GRN.CLOUD B.V.
+  url: https://apps.openshift.eu
+annotations:
+  charts.openshift.io/name: Accountant Agent
+  charts.openshift.io/provider: GRN.CLOUD B.V.
+  apps.openshift.eu/category: ai-agent
+  apps.openshift.eu/vendor: GRN.CLOUD B.V.

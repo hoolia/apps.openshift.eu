@@ -1,0 +1,138 @@
+{{- $roles := include "accountant-agent.roles" . | fromJsonArray }}
+{{- $urlSecret := include "accountant-agent.urlSecret" . }}
+{{- if and (eq .Values.taskStore.type "database") (not $urlSecret) }}{{ fail "taskStore.type database needs ledger.enabled or ledger.urlSecret.name" }}{{ end }}
+{{- $tokens := or (include "accountant-agent.modelToken" .) (gt (len (default list (include "accountant-agent.mcpAudiences" . | fromJsonArray))) 0) }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Release.Name }}
+    app.kubernetes.io/name: accountant-agent
+    app.kubernetes.io/component: server
+    app.openshift.io/runtime: python
+    {{- include "accountant-agent.commonLabels" . | nindent 4 }}
+  {{- if .Values.ledger.enabled }}
+  annotations:
+    app.openshift.io/connects-to: {{ list (dict "apiVersion" "postgresql.cnpg.io/v1" "kind" "Cluster" "name" (include "accountant-agent.ledgerName" .)) | toJson | quote }}
+  {{- end }}
+spec:
+  # one pod serves every role; a task waiting for approval is in the task store
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "accountant-agent.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "accountant-agent.selectorLabels" . | nindent 8 }}
+      annotations:
+        checksum/config: {{ include "accountant-agent.config" . | sha256sum }}
+    spec:
+      serviceAccountName: {{ .Release.Name }}
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: agent
+        image: {{ include "accountant-agent.image" . }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command: ["python3", "-m", "accountant_agent.server"]
+        env:
+        - name: ACCOUNTANT_CONFIG
+          value: /etc/accountant-agent/config.json
+        - name: LOG_LEVEL
+          value: {{ .Values.logLevel | quote }}
+        - name: HOME
+          value: /tmp
+        {{- if eq .Values.taskStore.type "database" }}
+        - name: TASK_STORE_URL
+          valueFrom:
+            secretKeyRef:
+              name: {{ $urlSecret }}
+              key: {{ .Values.ledger.urlSecret.key }}
+        {{- end }}
+        {{- with .Values.model.apiKeySecret }}
+        {{- if .name }}
+        - name: MODEL_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ .name }}
+              key: {{ .key }}
+        {{- end }}
+        {{- end }}
+        ports:
+        {{- range $roles }}
+        - name: {{ .name | trunc 15 }}
+          containerPort: {{ .port }}
+          protocol: TCP
+        {{- end }}
+        # not ready without a model URL or while the task store database does not answer
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: {{ (first $roles).port }}
+          initialDelaySeconds: 3
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: {{ (first $roles).port }}
+          initialDelaySeconds: 10
+          periodSeconds: 20
+          failureThreshold: 6
+        volumeMounts:
+        - name: config
+          mountPath: /etc/accountant-agent
+          readOnly: true
+        {{- if $tokens }}
+        - name: tokens
+          mountPath: /var/run/secrets/tokens
+          readOnly: true
+        {{- end }}
+        - name: tmp
+          mountPath: /tmp
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
+        securityContext:
+          {{- include "accountant-agent.containerSecurityContext" . | nindent 10 }}
+      volumes:
+      - name: config
+        configMap:
+          name: {{ .Release.Name }}
+      - name: tmp
+        emptyDir:
+          sizeLimit: 64Mi
+      {{- if $tokens }}
+      # the agent's own credentials, renewed by the kubelet; read on every call
+      - name: tokens
+        projected:
+          sources:
+          {{- with include "accountant-agent.modelToken" . }}
+          - serviceAccountToken:
+              audience: {{ include "accountant-agent.modelAudience" $ }}
+              expirationSeconds: 3600
+              path: model/token
+          {{- end }}
+          {{- range include "accountant-agent.mcpAudiences" . | fromJsonArray }}
+          - serviceAccountToken:
+              audience: {{ .audience }}
+              expirationSeconds: 3600
+              path: mcp-{{ .name }}/token
+          {{- end }}
+      {{- end }}

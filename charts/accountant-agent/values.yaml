@@ -1,0 +1,150 @@
+# image of the agent; the kagent relay pods and the CronJobs run the same image
+image:
+  repository: ghcr.io/hoolia/accountant-agent
+  tag: 0.1.0
+  # sha256 digest; set: the image is pulled by digest
+  digest: ""
+  pullPolicy: IfNotPresent
+
+# prefix of the agent card names, <agentName>-<role>; empty: the release name
+agentName: ""
+
+# the model: an OpenAI-compatible chat completions endpoint, such as an LLM gateway
+model:
+  # base URL up to and including /v1. Empty: the agent is not ready and fails every task
+  baseUrl: ""
+  # model name sent in each request; empty: the gateway's default
+  name: ""
+  # audience of the projected ServiceAccount token sent as bearer; empty: the host of baseUrl
+  tokenAudience: ""
+  # Secret with an API key, sent instead of the ServiceAccount token; empty name: the token
+  apiKeySecret:
+    name: ""
+    key: api-key
+  temperature: 0
+  # model calls of one task before it fails
+  maxToolRounds: 20
+  # seconds one model call may take
+  timeout: 300
+
+# MCP servers whose tools the agent offers to the model as <name>__<tool>; kagent 0.x
+# gives a BYO agent no MCP binding. Each: name, url (Streamable HTTP) and tokenAudience
+# (set: a projected ServiceAccount token with that audience is the bearer token)
+mcpServers: []
+
+# seconds a listed tool set is reused before the servers are asked again
+toolCacheSeconds: 300
+
+# the words of the human's answer to a draft: "<approveCommand> <id>" or
+# "<rejectCommand> <id> <reason>"; the MCP server that commits a draft checks the approval
+approval:
+  approveCommand: boek
+  rejectCommand: afkeuren
+
+# roles, each on its own port with its own agent card, kagent Agent and CronJob
+roles:
+  bookkeeper:
+    enabled: true
+    port: 8081
+    description: Daily bookkeeping. Collects new purchase invoices and bank lines, drafts bookings and asks approval before anything is booked.
+    # cron schedule of the CronJob that posts the task; empty: no CronJob
+    schedule: "0 6 * * *"
+    # text of the task the CronJob posts
+    task: Run the daily bookkeeping for every administration you have access to.
+    # fnmatch patterns of the tool names this role may call; empty: every tool
+    tools: []
+    instructions: |
+      You are the bookkeeper of the administrations you have access to through your tools.
+      Every run: collect new purchase invoices, receipts and bank lines, match each one to
+      a supplier, account and VAT code, and draft the booking with a clear description.
+      Ask approval for every draft. Report what you drafted, what you could not match and why.
+      Write amounts with two decimals and their currency. Never guess an account: ask.
+  cfo:
+    enabled: true
+    port: 8082
+    description: Weekly financial overview. Reports cash, receivables, payables, VAT position and anomalies; read-only.
+    schedule: "0 7 * * 1"
+    task: Write the weekly financial overview of last week for every administration you have access to.
+    tools: []
+    instructions: |
+      You are the CFO assistant. You read the administrations through your tools and change
+      nothing. Every week: report the cash position, open receivables and payables by age,
+      the VAT position of the current period, and every anomaly (unusual amounts, missing
+      documents, overdue items). Start with the three facts that need action.
+
+# CronJobs that post the task of each role with a schedule
+cronJob:
+  enabled: true
+  # IANA time zone of the schedules; empty: the time zone of the cluster
+  timeZone: ""
+  resources:
+    requests:
+      cpu: 10m
+      memory: 64Mi
+    limits:
+      memory: 128Mi
+
+# kagent BYO Agent <release>-<role> per role, when the kagent.dev/v1alpha2 API exists.
+# kagent runs a relay pod per Agent on port 8080 in front of the role's port
+kagent:
+  enabled: true
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      memory: 64Mi
+
+# where A2A tasks are kept. database: table a2a_tasks in the database of ledger.urlSecret,
+# so a task waiting for approval survives a restart. memory: lost on restart
+taskStore:
+  type: database
+
+# the ledger: a CloudNativePG Cluster <release>-ledger with tables ledger, audit and
+# documents. The MCP server that writes bookings writes ledger and audit; it reads the
+# database URL from ledger.urlSecret. Needs the CloudNativePG operator
+ledger:
+  enabled: true
+  # Secret with the database URL. Empty name: <release>-ledger-app, made by CloudNativePG
+  urlSecret:
+    name: ""
+    key: uri
+  # database and its owning role, the user in the URL
+  database: ledger
+  owner: ledger
+  # years a ledger row, audit row or document is kept before it may be deleted
+  retentionYears: 7
+  instances: 1
+  # PostgreSQL image; empty: the operator's default
+  imageName: ""
+  storage:
+    size: 5Gi
+    # empty: the cluster's default StorageClass
+    storageClass: ""
+  resources: {}
+  # namespaces of the CloudNativePG operator, which reads the instance status
+  operatorNamespaceSelector:
+    matchLabels:
+      kubernetes.io/metadata.name: openshift-operators
+
+# NetworkPolicies: the agent ports and the database take connections from pods of the
+# release namespace only
+networkPolicy:
+  enabled: true
+  # namespaces also admitted to the agent ports; empty: none
+  namespaceSelector: {}
+
+# the agent container
+resources:
+  requests:
+    cpu: 50m
+    memory: 192Mi
+  limits:
+    memory: 512Mi
+
+# log level of the agent: DEBUG, INFO, WARNING
+logLevel: INFO
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

@@ -1,0 +1,15 @@
+FROM registry.access.redhat.com/ubi9/python-312-minimal:9.8@sha256:d0ac54e77cd0be473b22fb274493526027f2746ec503b4a97ca08257813f0d4b
+WORKDIR /opt/app-root/src
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+COPY accountant_agent/ ./accountant_agent/
+RUN python3 -m compileall -q accountant_agent
+LABEL org.opencontainers.image.title="accountant-agent" \
+      org.opencontainers.image.version="0.1.0" \
+      org.opencontainers.image.source="https://github.com/hoolia/apps.openshift.eu" \
+      org.opencontainers.image.licenses="Apache-2.0"
+ENV PYTHONUNBUFFERED=1
+USER 1001
+EXPOSE 8081 8082
+# python -m accountant_agent.trigger posts a task; accountant_agent.relay fronts a role for kagent
+CMD ["python3", "-m", "accountant_agent.server"]

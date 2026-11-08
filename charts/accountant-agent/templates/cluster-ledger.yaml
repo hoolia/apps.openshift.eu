@@ -1,0 +1,57 @@
+{{- if .Values.ledger.enabled }}
+{{- $l := .Values.ledger }}
+{{- if not (regexMatch "^[a-z_][a-z0-9_]*$" $l.owner) }}{{ fail "ledger.owner must be a plain lowercase SQL name" }}{{ end }}
+{{- $name := include "accountant-agent.ledgerName" . }}
+# schema of the ledger, run once when the cluster is created; a later change of this
+# ConfigMap changes no existing database
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name }}-schema
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ $name }}
+    app.kubernetes.io/name: postgresql
+    app.kubernetes.io/component: database
+    {{- include "accountant-agent.commonLabels" . | nindent 4 }}
+data:
+  schema.sql: |
+    {{- .Files.Get "files/ledger-schema.sql" | replace "RETENTION_YEARS" (toString (int $l.retentionYears)) | replace "OWNER_ROLE" $l.owner | nindent 4 }}
+---
+# ledger, audit trail and documents; the agent's task store in table a2a_tasks. The
+# application user's URL is key uri of Secret <name>-app
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ $name }}
+    app.kubernetes.io/name: postgresql
+    app.kubernetes.io/component: database
+    {{- include "accountant-agent.commonLabels" . | nindent 4 }}
+spec:
+  instances: {{ $l.instances }}
+  {{- with $l.imageName }}
+  imageName: {{ . }}
+  {{- end }}
+  # a single instance with a PDB would block every node drain
+  enablePDB: {{ gt (int $l.instances) 1 }}
+  bootstrap:
+    initdb:
+      database: {{ $l.database }}
+      owner: {{ $l.owner }}
+      postInitApplicationSQLRefs:
+        configMapRefs:
+        - name: {{ $name }}-schema
+          key: schema.sql
+  storage:
+    size: {{ $l.storage.size }}
+    {{- with $l.storage.storageClass }}
+    storageClass: {{ . }}
+    {{- end }}
+  {{- with $l.resources }}
+  resources:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}

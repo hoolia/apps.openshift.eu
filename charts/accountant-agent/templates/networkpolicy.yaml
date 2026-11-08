@@ -1,0 +1,64 @@
+{{- if .Values.networkPolicy.enabled }}
+# the agent ports take the kagent relay pods, the CronJobs and other pods of the namespace
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Release.Name }}
+    app.kubernetes.io/name: accountant-agent
+    app.kubernetes.io/component: network
+    {{- include "accountant-agent.commonLabels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "accountant-agent.selectorLabels" . | nindent 6 }}
+  policyTypes:
+  - Ingress
+  ingress:
+  - ports:
+    {{- range include "accountant-agent.roles" . | fromJsonArray }}
+    - protocol: TCP
+      port: {{ .port }}
+    {{- end }}
+    from:
+    - podSelector: {}
+    {{- with .Values.networkPolicy.namespaceSelector }}
+    - namespaceSelector:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+{{- if .Values.ledger.enabled }}
+{{- $name := include "accountant-agent.ledgerName" . }}
+---
+# the database takes clients of the namespace, its own replicas, and the operator
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ $name }}
+    app.kubernetes.io/name: postgresql
+    app.kubernetes.io/component: network
+    {{- include "accountant-agent.commonLabels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      cnpg.io/cluster: {{ $name }}
+  policyTypes:
+  - Ingress
+  ingress:
+  - ports:
+    - protocol: TCP
+      port: 5432
+    from:
+    - podSelector: {}
+  - ports:
+    - protocol: TCP
+      port: 8000
+    from:
+    - namespaceSelector:
+        {{- toYaml .Values.ledger.operatorNamespaceSelector | nindent 8 }}
+{{- end }}
+{{- end }}
