@@ -132,6 +132,7 @@ spec:
         - name: HERMES_ENVIRONMENT_HINT
           value: {{ include "hermes.environmentHint" . | quote }}
         {{- include "hermes.a2aEnv" . | nindent 8 }}
+        {{- with include "hermes.telegramEnv" . }}{{ . | nindent 8 }}{{ end }}
         {{- with include "hermes.approvalSecret" . }}
         # the gateway only: the dashboard, sidecars and init step never see it
         - name: APPROVAL_SIGNING_KEY
@@ -182,6 +183,7 @@ spec:
         - name: HERMES_ENVIRONMENT_HINT
           value: {{ include "hermes.environmentHint" . | quote }}
         {{- include "hermes.a2aEnv" . | nindent 8 }}
+        {{- with include "hermes.telegramEnv" . }}{{ . | nindent 8 }}{{ end }}
         {{- if .Values.sso.enabled }}
         - name: SSO_DIR
           value: /etc/hermes-sso
