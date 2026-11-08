@@ -6,7 +6,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 0.23.1
-    created: "2026-11-08T10:35:41.552436363Z"
+    created: "2026-11-08T10:39:42.2574667Z"
     description: Jira and Confluence MCP server (sooperset/mcp-atlassian) for a tenant
       or one of its teams, with each caller's own Atlassian account or a shared one
     digest: c051da968c00bde76cd4e8e9c795029b57db3cdd960c35e786df16a994fd8fc3
@@ -36,7 +36,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 1.5.16
-    created: "2026-11-08T10:34:29.998294429Z"
+    created: "2026-11-08T10:38:25.059284201Z"
     dependencies:
     - alias: upstream
       name: bifrost
@@ -67,7 +67,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 1.5.8
-    created: "2026-11-08T10:36:49.348962346Z"
+    created: "2026-11-08T10:41:02.900658233Z"
     dependencies:
     - alias: upstream
       name: bifrost
@@ -98,7 +98,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 1.5.8
-    created: "2026-11-08T10:36:58.832464311Z"
+    created: "2026-11-08T10:41:12.975400714Z"
     dependencies:
     - alias: upstream
       name: bifrost
@@ -129,7 +129,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 1.5.8
-    created: "2026-11-08T10:37:11.391666846Z"
+    created: "2026-11-08T10:41:25.273971718Z"
     dependencies:
     - alias: upstream
       name: bifrost
@@ -160,7 +160,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 1.5.8
-    created: "2026-11-08T10:37:19.471298692Z"
+    created: "2026-11-08T10:41:33.51728566Z"
     dependencies:
     - alias: upstream
       name: bifrost
@@ -191,7 +191,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 1.5.8
-    created: "2026-11-08T10:37:29.038781809Z"
+    created: "2026-11-08T10:41:42.738293775Z"
     dependencies:
     - alias: upstream
       name: bifrost
@@ -225,7 +225,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 19.3.1
-    created: "2026-11-08T10:34:35.027228101Z"
+    created: "2026-11-08T10:38:30.081590231Z"
     description: GitLab instance for source code, merge requests and pipelines, run
       by the GitLab operator
     digest: 6ad7a6939640c2927f6f07e16b503fc49ea8d12ec2b661c0b6c5818b24327f21
@@ -253,7 +253,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 19.3.1
-    created: "2026-11-08T10:36:06.978562328Z"
+    created: "2026-11-08T10:40:13.99251284Z"
     description: GitLab instance for source code, merge requests and pipelines, run
       by the GitLab operator
     digest: 05de55a2823c0895ea57f4a3ef552d6fa83f07e3cb5e472ac521605743185ae9
@@ -281,7 +281,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 19.3.1
-    created: "2026-11-08T10:36:48.508721064Z"
+    created: "2026-11-08T10:41:02.032835909Z"
     description: GitLab instance for source code, merge requests and pipelines, run
       by the GitLab operator
     digest: 16279fdb51fd4e0db32cf59c8ad19e01c7481ab8e003bf77ac2423cc018694b9
@@ -309,7 +309,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 19.3.1
-    created: "2026-11-08T10:36:57.99639792Z"
+    created: "2026-11-08T10:41:12.081681683Z"
     description: GitLab instance for source code, merge requests and pipelines, run
       by the GitLab operator
     digest: 880434519810b4638f7d79aabe1c47d035ae72d361e046025181f2ea5119dc9c
@@ -337,7 +337,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 19.3.1
-    created: "2026-11-08T10:37:18.620325405Z"
+    created: "2026-11-08T10:41:32.587902011Z"
     description: GitLab instance for source code, merge requests and pipelines, run
       by the GitLab operator
     digest: e154c53eb21905046cc42f4799c490808b1de1d9cd27790c6eabdaa061f83cf9
@@ -365,7 +365,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 19.3.1
-    created: "2026-11-08T10:37:21.279150392Z"
+    created: "2026-11-08T10:41:35.283547225Z"
     description: GitLab instance for source code, merge requests and pipelines, run
       by the GitLab operator
     digest: 0f2cefada68b95d0b442f7447dd119930b1b5ef4e21d6c55c345482c5276d9fc
@@ -396,7 +396,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 1.6.0
-    created: "2026-11-08T10:35:24.289846185Z"
+    created: "2026-11-08T10:39:23.849649332Z"
     description: Apache Guacamole remote desktop gateway with a PostgreSQL database,
       optional single sign-on, session recording to object storage and a locked-down
       kiosk browser desktop
@@ -426,7 +426,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 1.6.0
-    created: "2026-11-08T10:35:44.075875348Z"
+    created: "2026-11-08T10:39:44.808801315Z"
     description: Apache Guacamole remote desktop gateway with a PostgreSQL database,
       optional single sign-on, session recording to object storage and a locked-down
       kiosk browser desktop
@@ -456,7 +456,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 1.6.0
-    created: "2026-11-08T10:36:41.086866719Z"
+    created: "2026-11-08T10:40:54.531402831Z"
     description: Apache Guacamole remote desktop gateway with a PostgreSQL database,
       optional single sign-on, session recording to object storage and a locked-down
       kiosk browser desktop
@@ -489,7 +489,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 0.23.0
-    created: "2026-11-08T10:34:21.912872827Z"
+    created: "2026-11-08T10:38:16.303603616Z"
     description: Hermes Agent with its web dashboard behind an OpenShift login, the
       cluster's model gateway and the project's MCP servers
     digest: 9eb6ee325b0572ba26719597f9f0f680381d77f4ec013e955ecd5a1ee7c6ba2c
@@ -518,7 +518,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 0.23.0
-    created: "2026-11-08T10:34:22.629906313Z"
+    created: "2026-11-08T10:38:17.052864547Z"
     description: Hermes Agent with its web dashboard behind an OpenShift login, the
       cluster's model gateway and the project's MCP servers
     digest: 34c4a7a8d4d4b27eff6145dbc3f22620daf18c3c9e60f47b22489328ab8cc3ee
@@ -547,7 +547,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 0.23.0
-    created: "2026-11-08T10:34:24.275346965Z"
+    created: "2026-11-08T10:38:18.760116733Z"
     description: Hermes Agent with its web dashboard behind an OpenShift login, the
       cluster's model gateway and the project's MCP servers
     digest: 8ed7f4da60181240248176f4c75fb2db6dcc59c0a5a9ad1f3b5469842f6dc27d
@@ -576,7 +576,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 0.23.0
-    created: "2026-11-08T10:34:27.650768417Z"
+    created: "2026-11-08T10:38:22.476632743Z"
     description: Hermes Agent with its web dashboard behind an OpenShift login, the
       cluster's model gateway and the project's MCP servers
     digest: 2ebec030ca67a29cc9d62b3e957e977437697093b59fb589a22871b96a871dcf
@@ -606,7 +606,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 0.10.4
-    created: "2026-11-08T10:34:25.080529601Z"
+    created: "2026-11-08T10:38:19.603368948Z"
     dependencies:
     - alias: upstream
       name: kagent
@@ -641,7 +641,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 0.10.4
-    created: "2026-11-08T10:34:29.159425692Z"
+    created: "2026-11-08T10:38:24.297542772Z"
     dependencies:
     - alias: upstream
       name: kagent
@@ -676,7 +676,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 0.10.4
-    created: "2026-11-08T10:34:39.451229669Z"
+    created: "2026-11-08T10:38:34.382514988Z"
     dependencies:
     - alias: upstream
       name: kagent
@@ -709,7 +709,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 0.10.4
-    created: "2026-11-08T10:35:47.611507889Z"
+    created: "2026-11-08T10:39:48.446034738Z"
     dependencies:
     - alias: upstream
       name: kagent
@@ -742,7 +742,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 0.10.4
-    created: "2026-11-08T10:35:56.376516031Z"
+    created: "2026-11-08T10:39:58.482523216Z"
     dependencies:
     - alias: upstream
       name: kagent
@@ -775,7 +775,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 0.10.4
-    created: "2026-11-08T10:36:03.524279763Z"
+    created: "2026-11-08T10:40:08.854518749Z"
     dependencies:
     - alias: upstream
       name: kagent
@@ -808,7 +808,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 0.9.6
-    created: "2026-11-08T10:36:06.166581745Z"
+    created: "2026-11-08T10:40:12.860677122Z"
     dependencies:
     - alias: upstream
       name: kagent
@@ -841,7 +841,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 0.9.6
-    created: "2026-11-08T10:36:08.710514128Z"
+    created: "2026-11-08T10:40:16.339359066Z"
     dependencies:
     - alias: upstream
       name: kagent
@@ -874,7 +874,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 0.9.6
-    created: "2026-11-08T10:36:10.380837159Z"
+    created: "2026-11-08T10:40:18.658571977Z"
     dependencies:
     - alias: upstream
       name: kagent
@@ -910,7 +910,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 2024.06.46
-    created: "2026-11-08T10:34:47.504756482Z"
+    created: "2026-11-08T10:38:43.018101393Z"
     dependencies:
     - alias: upstream
       name: mailu
@@ -944,7 +944,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 2024.06.46
-    created: "2026-11-08T10:34:49.216661734Z"
+    created: "2026-11-08T10:38:45.72575134Z"
     dependencies:
     - alias: upstream
       name: mailu
@@ -978,7 +978,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 2024.06.46
-    created: "2026-11-08T10:34:51.761882817Z"
+    created: "2026-11-08T10:38:49.283129384Z"
     dependencies:
     - alias: upstream
       name: mailu
@@ -1012,7 +1012,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 2024.06.46
-    created: "2026-11-08T10:35:08.496363193Z"
+    created: "2026-11-08T10:39:08.147893769Z"
     dependencies:
     - alias: upstream
       name: mailu
@@ -1046,7 +1046,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 2024.06.46
-    created: "2026-11-08T10:35:19.286924884Z"
+    created: "2026-11-08T10:39:18.423018827Z"
     dependencies:
     - alias: upstream
       name: mailu
@@ -1078,7 +1078,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 2024.06.46
-    created: "2026-11-08T10:35:40.78907735Z"
+    created: "2026-11-08T10:39:41.394125447Z"
     dependencies:
     - alias: upstream
       name: mailu
@@ -1110,7 +1110,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 2024.06.46
-    created: "2026-11-08T10:36:50.323988019Z"
+    created: "2026-11-08T10:41:03.843013126Z"
     dependencies:
     - alias: upstream
       name: mailu
@@ -1142,7 +1142,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 2024.06.46
-    created: "2026-11-08T10:36:59.756147684Z"
+    created: "2026-11-08T10:41:13.879916016Z"
     dependencies:
     - alias: upstream
       name: mailu
@@ -1174,7 +1174,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 2024.06.46
-    created: "2026-11-08T10:37:05.143010007Z"
+    created: "2026-11-08T10:41:19.632087386Z"
     dependencies:
     - alias: upstream
       name: mailu
@@ -1206,7 +1206,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 2024.06.46
-    created: "2026-11-08T10:37:07.202303584Z"
+    created: "2026-11-08T10:41:21.582209537Z"
     dependencies:
     - alias: upstream
       name: mailu
@@ -1238,7 +1238,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 2024.06.46
-    created: "2026-11-08T10:37:09.174243053Z"
+    created: "2026-11-08T10:41:23.510607321Z"
     dependencies:
     - alias: upstream
       name: mailu
@@ -1270,7 +1270,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 2024.06.46
-    created: "2026-11-08T10:37:17.719323062Z"
+    created: "2026-11-08T10:41:31.748083507Z"
     dependencies:
     - alias: upstream
       name: mailu
@@ -1302,7 +1302,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 2024.06.46
-    created: "2026-11-08T10:37:32.975248998Z"
+    created: "2026-11-08T10:41:46.781610887Z"
     dependencies:
     - alias: upstream
       name: mailu
@@ -1338,7 +1338,7 @@ entries:
       mcp.openshift.eu/bundle: all
     apiVersion: v2
     appVersion: 0.1.0
-    created: "2026-11-08T10:34:40.981642935Z"
+    created: "2026-11-08T10:38:36.100325402Z"
     dependencies:
     - alias: googleWorkspace
       condition: googleWorkspace.enabled
@@ -1379,7 +1379,7 @@ entries:
       mcp.openshift.eu/bundle: all
     apiVersion: v2
     appVersion: 0.1.0
-    created: "2026-11-08T10:35:35.721502722Z"
+    created: "2026-11-08T10:39:35.327263317Z"
     dependencies:
     - alias: googleWorkspace
       condition: googleWorkspace.enabled
@@ -1422,7 +1422,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 0.23.1
-    created: "2026-11-08T10:34:43.48989548Z"
+    created: "2026-11-08T10:38:38.511489043Z"
     dependencies:
     - name: mcp-auth
       repository: file://../mcp-auth
@@ -1456,7 +1456,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 0.23.1
-    created: "2026-11-08T10:35:00.418879173Z"
+    created: "2026-11-08T10:38:58.448978196Z"
     dependencies:
     - name: mcp-auth
       repository: file://../mcp-auth
@@ -1490,7 +1490,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 0.23.1
-    created: "2026-11-08T10:35:17.288331567Z"
+    created: "2026-11-08T10:39:16.656677332Z"
     dependencies:
     - name: mcp-auth
       repository: file://../mcp-auth
@@ -1526,7 +1526,7 @@ entries:
       mcp.openshift.eu/category: productivity
     apiVersion: v2
     appVersion: v1
-    created: "2026-11-08T10:35:34.579484004Z"
+    created: "2026-11-08T10:39:34.519073161Z"
     dependencies:
     - alias: gmail
       condition: gmail.enabled
@@ -1593,7 +1593,7 @@ entries:
       mcp.openshift.eu/category: productivity
     apiVersion: v2
     appVersion: 0.172.0
-    created: "2026-11-08T10:34:41.908341615Z"
+    created: "2026-11-08T10:38:36.899164752Z"
     dependencies:
     - alias: microsoft365
       condition: microsoft365.enabled
@@ -1637,7 +1637,7 @@ entries:
       mcp.openshift.eu/category: productivity
     apiVersion: v2
     appVersion: 0.172.0
-    created: "2026-11-08T10:35:33.687497571Z"
+    created: "2026-11-08T10:39:33.734358562Z"
     dependencies:
     - alias: microsoft365
       condition: microsoft365.enabled
@@ -1683,7 +1683,7 @@ entries:
       mcp.openshift.eu/server: gmail
     apiVersion: v2
     appVersion: v1
-    created: "2026-11-08T10:35:32.890238219Z"
+    created: "2026-11-08T10:39:32.955493433Z"
     description: Google's hosted Gmail MCP server for the agents of a project; every
       user logs in with OAuth, read-only by default
     digest: d677e95a1a9b5c10078eb2b26a05a9d151b7fea3bc933114fadebc94704ccbcb
@@ -1720,7 +1720,7 @@ entries:
       mcp.openshift.eu/server: google-calendar
     apiVersion: v2
     appVersion: v1
-    created: "2026-11-08T10:35:32.069824499Z"
+    created: "2026-11-08T10:39:31.796663683Z"
     description: Google's hosted Google Calendar MCP server for the agents of a project;
       every user logs in with OAuth, read-only by default
     digest: cf5398924fa9627e0446351e4065cf3e8298b36a6ce30454a2dfda3f7cb301c1
@@ -1757,7 +1757,7 @@ entries:
       mcp.openshift.eu/server: google-docs
     apiVersion: v2
     appVersion: v1
-    created: "2026-11-08T10:35:31.281680651Z"
+    created: "2026-11-08T10:39:30.970771585Z"
     description: Google's hosted Google Docs MCP server for the agents of a project;
       every user logs in with OAuth, read-only by default
     digest: 3c9a0b3f551e07777a757ce735bacdc6a4744ca25e613bff0a885903d6546b32
@@ -1794,7 +1794,7 @@ entries:
       mcp.openshift.eu/server: google-drive
     apiVersion: v2
     appVersion: v1
-    created: "2026-11-08T10:35:30.448298841Z"
+    created: "2026-11-08T10:39:30.144847395Z"
     description: Google's hosted Google Drive MCP server for the agents of a project;
       every user logs in with OAuth, read-only by default
     digest: d8786c601adee5c01e9d0770ae02c04d92dedab196205d47ff167f083a3b5f75
@@ -1831,7 +1831,7 @@ entries:
       mcp.openshift.eu/server: google-sheets
     apiVersion: v2
     appVersion: v1
-    created: "2026-11-08T10:35:29.638236604Z"
+    created: "2026-11-08T10:39:29.182618806Z"
     description: Google's hosted Google Sheets MCP server for the agents of a project;
       every user logs in with OAuth, read-only by default
     digest: b82896a24a7230a59e1aebd868d387bced6dbb9504c25134095f08539d35fe64
@@ -1869,7 +1869,7 @@ entries:
       mcp.openshift.eu/server: microsoft-365
     apiVersion: v2
     appVersion: 0.172.0
-    created: "2026-11-08T10:34:42.7070436Z"
+    created: "2026-11-08T10:38:37.66137198Z"
     description: Microsoft 365 MCP server (Softeria ms-365-mcp-server) for the agents
       of a project; mail, calendar, OneDrive, Teams and SharePoint with each user's
       own Microsoft login, read-only by default
@@ -1908,7 +1908,7 @@ entries:
       mcp.openshift.eu/server: microsoft-365
     apiVersion: v2
     appVersion: 0.172.0
-    created: "2026-11-08T10:35:28.629578689Z"
+    created: "2026-11-08T10:39:28.401780603Z"
     description: Microsoft 365 MCP server (Softeria ms-365-mcp-server) for the agents
       of a project; mail, calendar, OneDrive, Teams and SharePoint with each user's
       own Microsoft login, read-only by default
@@ -1948,7 +1948,7 @@ entries:
       mcp.openshift.eu/server: nextcloud
     apiVersion: v2
     appVersion: 0.201.2
-    created: "2026-11-08T10:35:16.140560449Z"
+    created: "2026-11-08T10:39:15.89343656Z"
     description: Nextcloud MCP server (cbcoutinho nextcloud-mcp-server) for the agents
       of a project; files, notes, calendar, contacts, deck, tables and talk of one
       Nextcloud, as the calling account, with the caller's own bearer token passed
@@ -1986,7 +1986,7 @@ entries:
       mcp.openshift.eu/server: officeagent
     apiVersion: v2
     appVersion: 1.2.0
-    created: "2026-11-08T10:34:45.781927838Z"
+    created: "2026-11-08T10:38:41.065171018Z"
     dependencies:
     - name: mcp-auth
       repository: file://../mcp-auth
@@ -2029,7 +2029,7 @@ entries:
       mcp.openshift.eu/server: officeagent
     apiVersion: v2
     appVersion: 1.2.0
-    created: "2026-11-08T10:35:15.424294393Z"
+    created: "2026-11-08T10:39:15.088037004Z"
     dependencies:
     - name: mcp-auth
       repository: file://../mcp-auth
@@ -2072,7 +2072,7 @@ entries:
       mcp.openshift.eu/server: officeagent
     apiVersion: v2
     appVersion: 1.2.0
-    created: "2026-11-08T10:35:20.979318029Z"
+    created: "2026-11-08T10:39:20.336728492Z"
     description: Office documents MCP server (ilia-sokolov OfficeAgent.NET) for the
       agents of a project; creates, reads and edits Word, PowerPoint and Excel files
       with tables, images, shapes, charts, comments and tracked changes, headless
@@ -2111,7 +2111,7 @@ entries:
       mcp.openshift.eu/server: officeagent
     apiVersion: v2
     appVersion: 1.2.0
-    created: "2026-11-08T10:35:23.498541533Z"
+    created: "2026-11-08T10:39:23.012274351Z"
     description: Office documents MCP server (ilia-sokolov OfficeAgent.NET) for the
       agents of a project; creates, reads and edits Word, PowerPoint and Excel files
       with tables, images, shapes, charts, comments and tracked changes, headless
@@ -2150,7 +2150,7 @@ entries:
       mcp.openshift.eu/server: officeagent
     apiVersion: v2
     appVersion: 1.2.0
-    created: "2026-11-08T10:35:25.085502381Z"
+    created: "2026-11-08T10:39:24.62019237Z"
     description: Office documents MCP server (ilia-sokolov OfficeAgent.NET) for the
       agents of a project; creates, reads and edits Word, PowerPoint and Excel files
       with tables, images, shapes, charts, comments and tracked changes, headless
@@ -2191,7 +2191,7 @@ entries:
       mcp.openshift.eu/server: office-live
     apiVersion: v2
     appVersion: 0.2.0
-    created: "2026-11-08T10:34:38.657578906Z"
+    created: "2026-11-08T10:38:33.593883721Z"
     description: Live office editing MCP server for the agents of a project; an agent
       opens a Nextcloud document in ONLYOFFICE as itself and reads, writes, replaces,
       comments and tracks changes while people watch its cursor and edits in the same
@@ -2231,7 +2231,7 @@ entries:
       mcp.openshift.eu/server: office-live
     apiVersion: v2
     appVersion: 0.1.2
-    created: "2026-11-08T10:35:22.662690658Z"
+    created: "2026-11-08T10:39:22.235606262Z"
     description: Live office editing MCP server for the agents of a project; an agent
       opens a Nextcloud document in ONLYOFFICE as itself and reads, writes, replaces,
       comments and tracks changes while people watch its cursor and edits in the same
@@ -2269,7 +2269,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: v0.0.83
-    created: "2026-11-08T10:34:26.887527735Z"
+    created: "2026-11-08T10:38:21.059697125Z"
     dependencies:
     - name: mcp-auth
       repository: file://../mcp-auth
@@ -2303,7 +2303,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: v0.0.83
-    created: "2026-11-08T10:34:44.980246756Z"
+    created: "2026-11-08T10:38:40.247787988Z"
     dependencies:
     - name: mcp-auth
       repository: file://../mcp-auth
@@ -2337,7 +2337,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: v0.0.83
-    created: "2026-11-08T10:35:14.692978605Z"
+    created: "2026-11-08T10:39:14.215225257Z"
     dependencies:
     - name: mcp-auth
       repository: file://../mcp-auth
@@ -2372,7 +2372,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 0.1.0
-    created: "2026-11-08T10:34:25.869336309Z"
+    created: "2026-11-08T10:38:20.321528725Z"
     dependencies:
     - name: mcp-auth
       repository: file://../mcp-auth
@@ -2403,7 +2403,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 0.1.0
-    created: "2026-11-08T10:35:13.844812937Z"
+    created: "2026-11-08T10:39:13.340951161Z"
     dependencies:
     - name: mcp-auth
       repository: file://../mcp-auth
@@ -2432,7 +2432,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 0.1.0
-    created: "2026-11-08T10:36:32.935367578Z"
+    created: "2026-11-08T10:40:45.501469105Z"
     description: Any streamable HTTP MCP server image for one team, with its credential
       from a Secret, discovered by an MCP gateway
     digest: af2e36dddf1f5faa976dec602f14aa93ff90e3cfb48d19ba0320d06bafe493b1
@@ -2456,7 +2456,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 0.1.0
-    created: "2026-11-08T10:36:34.539930862Z"
+    created: "2026-11-08T10:40:47.400780084Z"
     description: Any streamable HTTP MCP server image for one team, with its credential
       from a Secret, discovered by an MCP gateway
     digest: 0a38a0c20caf57a3d34f1efce4079404fedf751f7af4c0d6465f6aee21271049
@@ -2485,7 +2485,7 @@ entries:
       mcp.openshift.eu/server: slack
     apiVersion: v2
     appVersion: 1.3.0
-    created: "2026-11-08T10:34:44.230668689Z"
+    created: "2026-11-08T10:38:39.406942843Z"
     dependencies:
     - name: mcp-auth
       repository: file://../mcp-auth
@@ -2523,7 +2523,7 @@ entries:
       mcp.openshift.eu/server: slack
     apiVersion: v2
     appVersion: 1.3.0
-    created: "2026-11-08T10:35:13.089982593Z"
+    created: "2026-11-08T10:39:12.562798475Z"
     dependencies:
     - name: mcp-auth
       repository: file://../mcp-auth
@@ -2561,7 +2561,7 @@ entries:
       mcp.openshift.eu/server: slack
     apiVersion: v2
     appVersion: 1.3.0
-    created: "2026-11-08T10:35:27.793370274Z"
+    created: "2026-11-08T10:39:27.372598505Z"
     description: Slack MCP server (korotovsky slack-mcp-server) for the agents of
       a project; channels, threads and users of one Slack workspace as the workspace's
       bot, read-only by default
@@ -2595,7 +2595,7 @@ entries:
       mcp.openshift.eu/server: sonarqube
     apiVersion: v2
     appVersion: 1.30.0.4763
-    created: "2026-11-08T10:34:32.345751228Z"
+    created: "2026-11-08T10:38:27.553846912Z"
     description: SonarQube MCP server (SonarSource sonarqube-mcp-server) for a tenant
       or one of its teams, with each caller's own SonarQube user token or one minted
       per agent by a token broker
@@ -2624,7 +2624,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: "1.6"
-    created: "2026-11-08T10:35:43.275554352Z"
+    created: "2026-11-08T10:39:43.933768869Z"
     description: Documentation site built from a Git repository with MkDocs, optionally
       behind a single sign-on login
     digest: 466e880340ecc8a9188f273c67f817256c0c1976a2833e8164ee114292fe7fe6
@@ -2650,7 +2650,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: "1.6"
-    created: "2026-11-08T10:36:47.581869591Z"
+    created: "2026-11-08T10:41:01.114176482Z"
     description: Documentation site built from a Git repository with MkDocs, optionally
       behind a single sign-on login
     digest: d072a521c5a72486041c56e4797c1a667d94b0ef7b6d0346d6294c3f0d3cde4c
@@ -2676,7 +2676,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: "1.6"
-    created: "2026-11-08T10:36:57.226532367Z"
+    created: "2026-11-08T10:41:11.241521362Z"
     description: Documentation site built from a Git repository with MkDocs, optionally
       behind a single sign-on login
     digest: 22ad8bd12497ae1870538f6efec58037b4fafd41a837f82b78a6ec3a8ecc4373
@@ -2702,7 +2702,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: "1.6"
-    created: "2026-11-08T10:37:00.594896987Z"
+    created: "2026-11-08T10:41:14.697301476Z"
     description: Documentation site built from a Git repository with MkDocs, optionally
       behind a single sign-on login
     digest: 1394f38203aa22c306e3c3947c775d71e12f8eb943848249feff4b4cb38789bb
@@ -2728,7 +2728,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: "1.6"
-    created: "2026-11-08T10:37:01.515351731Z"
+    created: "2026-11-08T10:41:15.554775416Z"
     description: Documentation site built from a Git repository with MkDocs, optionally
       behind a single sign-on login
     digest: 25b9d024dc0d6a550f0435be83d47945dcfadc37750473013c3253e11c13ffb1
@@ -2754,7 +2754,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: "1.6"
-    created: "2026-11-08T10:37:02.336257995Z"
+    created: "2026-11-08T10:41:16.447046894Z"
     description: Documentation site built from a Git repository with MkDocs, optionally
       behind a single sign-on login
     digest: c4df0db56154a9e6e1b564fbe78de8b4ff632d0179b7bb16347a8c2e860b8f64
@@ -2780,7 +2780,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: "1.6"
-    created: "2026-11-08T10:37:03.225578868Z"
+    created: "2026-11-08T10:41:17.397240678Z"
     description: Documentation site built from a Git repository with MkDocs, optionally
       behind a single sign-on login
     digest: 7112f472533eb6f87ab070e5c4bc4c5f724e9a0c0374473ae6aff15a3d1e513b
@@ -2807,7 +2807,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 2.41.6
-    created: "2026-11-08T10:36:46.507455185Z"
+    created: "2026-11-08T10:41:00.099161289Z"
     description: n8n workflow automation with a PostgreSQL database and optional queue
       mode
     digest: 7367cf81156d5a6b21fad788800add52d5a73a5e0dbb975d50c238f6476e1646
@@ -2834,7 +2834,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 2.41.6
-    created: "2026-11-08T10:36:56.423740881Z"
+    created: "2026-11-08T10:41:10.404104053Z"
     description: n8n workflow automation with a PostgreSQL database and optional queue
       mode
     digest: 4a7ce54beab826dd5d599e52fadd4ac12d79d17d7080252328a713c1cab42349
@@ -2861,7 +2861,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 2.41.6
-    created: "2026-11-08T10:37:16.813301747Z"
+    created: "2026-11-08T10:41:30.852609055Z"
     description: n8n workflow automation with a PostgreSQL database and optional queue
       mode
     digest: 307f4c4603f98274a24df179bc4afae270f8d9252aa012702302520f02fb440c
@@ -2888,7 +2888,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 2.41.6
-    created: "2026-11-08T10:37:22.962076634Z"
+    created: "2026-11-08T10:41:37.038000206Z"
     description: n8n workflow automation with a PostgreSQL database and optional queue
       mode
     digest: bd1f1078f822fcd4e73bbf953ca547a34c00a8ae0432d4a172594c01b3c8d0b3
@@ -2918,7 +2918,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 35.0.2
-    created: "2026-11-08T10:34:23.553428186Z"
+    created: "2026-11-08T10:38:17.977628073Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -2968,7 +2968,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 35.0.2
-    created: "2026-11-08T10:34:33.230227391Z"
+    created: "2026-11-08T10:38:28.459720857Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -3018,7 +3018,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 35.0.2
-    created: "2026-11-08T10:34:34.246621016Z"
+    created: "2026-11-08T10:38:29.373828754Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -3068,7 +3068,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 35.0.2
-    created: "2026-11-08T10:34:35.906368619Z"
+    created: "2026-11-08T10:38:31.012752988Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -3118,7 +3118,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 35.0.2
-    created: "2026-11-08T10:34:37.03816549Z"
+    created: "2026-11-08T10:38:31.953772005Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -3168,7 +3168,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 35.0.2
-    created: "2026-11-08T10:34:37.911967715Z"
+    created: "2026-11-08T10:38:32.803597262Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -3218,7 +3218,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 35.0.2
-    created: "2026-11-08T10:34:46.638833417Z"
+    created: "2026-11-08T10:38:42.11552774Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -3268,7 +3268,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 35.0.2
-    created: "2026-11-08T10:34:48.370127735Z"
+    created: "2026-11-08T10:38:44.423776484Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -3318,7 +3318,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 35.0.2
-    created: "2026-11-08T10:34:50.125437913Z"
+    created: "2026-11-08T10:38:47.167912794Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -3368,7 +3368,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 35.0.2
-    created: "2026-11-08T10:34:50.994327546Z"
+    created: "2026-11-08T10:38:48.299962835Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -3418,7 +3418,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 35.0.2
-    created: "2026-11-08T10:34:52.757601377Z"
+    created: "2026-11-08T10:38:50.212116578Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -3468,7 +3468,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 35.0.2
-    created: "2026-11-08T10:34:53.935002376Z"
+    created: "2026-11-08T10:38:51.142372377Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -3518,7 +3518,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 35.0.2
-    created: "2026-11-08T10:34:56.41208388Z"
+    created: "2026-11-08T10:38:54.148494156Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -3568,7 +3568,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 35.0.2
-    created: "2026-11-08T10:35:03.868061849Z"
+    created: "2026-11-08T10:39:02.86375051Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -3618,7 +3618,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 35.0.2
-    created: "2026-11-08T10:35:04.886928357Z"
+    created: "2026-11-08T10:39:03.993995906Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -3668,7 +3668,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 35.0.2
-    created: "2026-11-08T10:35:05.787450206Z"
+    created: "2026-11-08T10:39:05.105828984Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -3718,7 +3718,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 35.0.2
-    created: "2026-11-08T10:35:06.701688603Z"
+    created: "2026-11-08T10:39:06.114778156Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -3768,7 +3768,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 35.0.2
-    created: "2026-11-08T10:35:07.614497606Z"
+    created: "2026-11-08T10:39:07.104562356Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -3818,7 +3818,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 35.0.2
-    created: "2026-11-08T10:35:12.202610633Z"
+    created: "2026-11-08T10:39:11.693488065Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -3868,7 +3868,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 35.0.2
-    created: "2026-11-08T10:35:18.212486092Z"
+    created: "2026-11-08T10:39:17.572976341Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -3914,7 +3914,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 35.0.2
-    created: "2026-11-08T10:35:20.225441753Z"
+    created: "2026-11-08T10:39:19.493350542Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -3960,7 +3960,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 35.0.2
-    created: "2026-11-08T10:35:21.882071672Z"
+    created: "2026-11-08T10:39:21.38145615Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -4004,7 +4004,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 35.0.2
-    created: "2026-11-08T10:35:26.106898816Z"
+    created: "2026-11-08T10:39:25.554148511Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -4038,7 +4038,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 34.0.5
-    created: "2026-11-08T10:35:26.997718293Z"
+    created: "2026-11-08T10:39:26.596490821Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -4072,7 +4072,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 34.0.5
-    created: "2026-11-08T10:35:39.95499162Z"
+    created: "2026-11-08T10:39:40.480861908Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -4106,7 +4106,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 33.0.10
-    created: "2026-11-08T10:36:00.102604133Z"
+    created: "2026-11-08T10:40:04.596260597Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -4140,7 +4140,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 33.0.10
-    created: "2026-11-08T10:36:11.322512977Z"
+    created: "2026-11-08T10:40:20.591435386Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -4174,7 +4174,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 33.0.10
-    created: "2026-11-08T10:36:12.222012312Z"
+    created: "2026-11-08T10:40:22.231640223Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -4208,7 +4208,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 33.0.10
-    created: "2026-11-08T10:36:25.044477554Z"
+    created: "2026-11-08T10:40:37.155047849Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -4242,7 +4242,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 33.0.10
-    created: "2026-11-08T10:36:25.992432704Z"
+    created: "2026-11-08T10:40:38.121446937Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -4276,7 +4276,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 33.0.8
-    created: "2026-11-08T10:36:41.993379469Z"
+    created: "2026-11-08T10:40:55.574766467Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -4310,7 +4310,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 33.0.8
-    created: "2026-11-08T10:36:51.308475516Z"
+    created: "2026-11-08T10:41:04.878105626Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -4344,7 +4344,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 33.0.8
-    created: "2026-11-08T10:36:52.28301564Z"
+    created: "2026-11-08T10:41:05.853266926Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -4378,7 +4378,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 33.0.8
-    created: "2026-11-08T10:37:04.202818606Z"
+    created: "2026-11-08T10:41:18.748509353Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -4412,7 +4412,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 33.0.8
-    created: "2026-11-08T10:37:06.193190937Z"
+    created: "2026-11-08T10:41:20.648396511Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -4446,7 +4446,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 33.0.8
-    created: "2026-11-08T10:37:08.211663486Z"
+    created: "2026-11-08T10:41:22.608835289Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -4480,7 +4480,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 33.0.8
-    created: "2026-11-08T10:37:10.359734009Z"
+    created: "2026-11-08T10:41:24.468828369Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -4514,7 +4514,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 33.0.8
-    created: "2026-11-08T10:37:15.975067503Z"
+    created: "2026-11-08T10:41:30.069844454Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -4548,7 +4548,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 33.0.8
-    created: "2026-11-08T10:37:20.431744813Z"
+    created: "2026-11-08T10:41:34.43810906Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -4582,7 +4582,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 33.0.8
-    created: "2026-11-08T10:37:24.874380221Z"
+    created: "2026-11-08T10:41:38.928669614Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -4616,7 +4616,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 33.0.8
-    created: "2026-11-08T10:37:25.879074292Z"
+    created: "2026-11-08T10:41:39.905976926Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -4650,7 +4650,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 33.0.8
-    created: "2026-11-08T10:37:26.955807119Z"
+    created: "2026-11-08T10:41:40.882079813Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -4684,7 +4684,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 33.0.8
-    created: "2026-11-08T10:37:28.002335484Z"
+    created: "2026-11-08T10:41:41.846011647Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -4718,7 +4718,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 33.0.8
-    created: "2026-11-08T10:37:31.005413313Z"
+    created: "2026-11-08T10:41:44.71792981Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -4752,7 +4752,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 33.0.8
-    created: "2026-11-08T10:37:31.966900124Z"
+    created: "2026-11-08T10:41:45.79626465Z"
     dependencies:
     - name: nextcloud
       repository: https://nextcloud.github.io/helm/
@@ -4787,7 +4787,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 3.94.2
-    created: "2026-11-08T10:36:45.435915456Z"
+    created: "2026-11-08T10:40:59.164717475Z"
     description: Sonatype Nexus Repository for Maven, npm, container images and other
       package formats
     digest: f4df80dc279af38aebe421a3422902db489917573d13aff8f8b28ee0f566cd6a
@@ -4813,7 +4813,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 3.94.2
-    created: "2026-11-08T10:36:55.518903539Z"
+    created: "2026-11-08T10:41:09.303163264Z"
     description: Sonatype Nexus Repository for Maven, npm, container images and other
       package formats
     digest: e271d73a7e6e7faa9e99151643b36e1c0143ec73f30df2e98b2e4fd3c5e62142
@@ -4839,7 +4839,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 3.94.2
-    created: "2026-11-08T10:37:14.960869961Z"
+    created: "2026-11-08T10:41:29.000599546Z"
     description: Sonatype Nexus Repository for Maven, npm, container images and other
       package formats
     digest: 2d163fd91301b776c58fe1530c19586ce799b494eaaf7d700b14523390c0cae2
@@ -4865,7 +4865,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 3.94.2
-    created: "2026-11-08T10:37:29.905822403Z"
+    created: "2026-11-08T10:41:43.527682642Z"
     description: Sonatype Nexus Repository for Maven, npm, container images and other
       package formats
     digest: 73704fdf9c3e5aacd7aec74591520c01dec3696b4e241b1daec83bbe3b9fd15b
@@ -4892,7 +4892,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: "19.0"
-    created: "2026-11-08T10:36:44.647787325Z"
+    created: "2026-11-08T10:40:58.22701435Z"
     description: Odoo Community business applications with a PostgreSQL database and
       a filestore volume
     digest: e4b4740ce99fce2a03e748732f2defefb939707f88479c4540176241800b8b4a
@@ -4920,7 +4920,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: "19.0"
-    created: "2026-11-08T10:36:54.71581973Z"
+    created: "2026-11-08T10:41:08.461619488Z"
     description: Odoo Community business applications with a PostgreSQL database and
       a filestore volume
     digest: cd0e89bd458d846bfbf4c6561e85bf3d3c7448e0f0b44d34c332042496704fb7
@@ -4948,7 +4948,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: "19.0"
-    created: "2026-11-08T10:37:14.060456775Z"
+    created: "2026-11-08T10:41:28.118406135Z"
     description: Odoo Community business applications with a PostgreSQL database and
       a filestore volume
     digest: d8c3c2eceb5aeaf1f977049c30898845e039f4af72438e698d0fd0ace7db8dec
@@ -4976,7 +4976,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: "19.0"
-    created: "2026-11-08T10:37:22.10745097Z"
+    created: "2026-11-08T10:41:36.161915556Z"
     description: Odoo Community business applications with a PostgreSQL database and
       a filestore volume
     digest: bc6c410c1f343bf6dcddfc53107b1f56c57164410bbf3cea56bab74e00c54316
@@ -5005,7 +5005,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 3.8.49
-    created: "2026-11-08T10:36:43.705416399Z"
+    created: "2026-11-08T10:40:57.351337271Z"
     description: Self-hosted AI proxy that routes LLM requests to many providers through
       one endpoint
     digest: 18bf82b57159256dd2f72ea42cd2e6afe903825b6d718b61427cb9151df1937f
@@ -5031,7 +5031,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 3.8.49
-    created: "2026-11-08T10:36:53.898272612Z"
+    created: "2026-11-08T10:41:07.617511002Z"
     description: Self-hosted AI proxy that routes LLM requests to many providers through
       one endpoint
     digest: 4cd35b25534fd3827a5f03b1365b9381c33a201f597e429fda2a225a54e39358
@@ -5057,7 +5057,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 3.8.49
-    created: "2026-11-08T10:37:13.167975785Z"
+    created: "2026-11-08T10:41:27.006555749Z"
     description: Self-hosted AI proxy that routes LLM requests to many providers through
       one endpoint
     digest: 6c742fbe39006351ce574e872e4946683a4875cd4b15dfca80badaaf959280a4
@@ -5083,7 +5083,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 3.8.49
-    created: "2026-11-08T10:37:33.86441959Z"
+    created: "2026-11-08T10:41:47.639106442Z"
     description: Self-hosted AI proxy that routes LLM requests to many providers through
       one endpoint
     digest: 66a1c2cda85e1a7c4064009c785dac097383498ee45eb28d4fa92523b66288db
@@ -5109,7 +5109,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 3.8.49
-    created: "2026-11-08T10:37:34.710225267Z"
+    created: "2026-11-08T10:41:48.473483786Z"
     description: Self-hosted AI proxy that routes LLM requests to many providers through
       one endpoint
     digest: 0b81b8abf1dec23a30410c71bc9cc5aa9b88075f5593577e63709c4b884c2cc6
@@ -5135,7 +5135,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 3.8.49
-    created: "2026-11-08T10:37:35.599078175Z"
+    created: "2026-11-08T10:41:49.316203882Z"
     description: Self-hosted AI proxy that routes LLM requests to many providers through
       one endpoint
     digest: 61fdc2ed6882612630d8da3914814eafdde0d58e1b397ac6f483237e572f500c
@@ -5161,7 +5161,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 3.8.49
-    created: "2026-11-08T10:37:36.479078959Z"
+    created: "2026-11-08T10:41:50.206575809Z"
     description: Self-hosted AI proxy that routes LLM requests to many providers through
       one endpoint
     digest: bdb19c8d5b028e55c462d885935ecc49a5ed3868b6a99899c68b4048d60e736b
@@ -5190,7 +5190,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 2.1.1
-    created: "2026-11-08T10:34:28.414370122Z"
+    created: "2026-11-08T10:38:23.23943634Z"
     description: Personal OpenCode coding agent with a browser UI behind a login,
       reachable by other agents over A2A
     digest: 562849b1bf3ffb946cc48182ee2064ade5c74736693af4178640439335576ac8
@@ -5220,7 +5220,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 2.1.1
-    created: "2026-11-08T10:34:57.339045361Z"
+    created: "2026-11-08T10:38:54.994537159Z"
     description: Personal OpenCode coding agent with a browser UI behind a login,
       reachable by other agents over A2A
     digest: 434c2b1eb1e3e8e410343578d03ba45baad741c3bce49ebc61ce7fd5c15d270c
@@ -5250,7 +5250,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 2.1.1
-    created: "2026-11-08T10:34:59.609936022Z"
+    created: "2026-11-08T10:38:57.646761375Z"
     description: Personal OpenCode coding agent with a browser UI behind a login,
       reachable by other agents over A2A
     digest: 778af891471f1c4c3571da49eb84dd06f0692fc13eecc9413bcdc622b32c9fb8
@@ -5280,7 +5280,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 2.1.1
-    created: "2026-11-08T10:35:11.200623143Z"
+    created: "2026-11-08T10:39:10.76464333Z"
     description: Personal OpenCode coding agent with a browser UI behind a login,
       reachable by other agents over A2A
     digest: aa843306e04029085ef2353e684edc65451e1a532268f3d780c4dc011e87a9cb
@@ -5308,7 +5308,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 2.1.1
-    created: "2026-11-08T10:35:38.197540703Z"
+    created: "2026-11-08T10:39:37.663229587Z"
     description: Personal OpenCode coding agent with a browser UI behind a login,
       reachable by other agents over A2A
     digest: 09106e961b17ee06ee6d0f3efb39eb7171084d1124c16ed165cfc2a8771e50ef
@@ -5336,7 +5336,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 2.1.1
-    created: "2026-11-08T10:35:46.669664525Z"
+    created: "2026-11-08T10:39:47.504028902Z"
     description: Personal OpenCode coding agent with a browser UI behind a login,
       reachable by other agents over A2A
     digest: 823d11476eafa33e6a54005d45b3bbe55bc92ebdb874e6d04b450ba4fa984f59
@@ -5364,7 +5364,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 2.1.1
-    created: "2026-11-08T10:35:50.086303687Z"
+    created: "2026-11-08T10:39:51.034525239Z"
     description: Personal OpenCode coding agent with a browser UI behind a login,
       reachable by other agents over A2A
     digest: f6f65f840727ebf4aa244e3035d03b2b3e2c0a04513161b54f1bf9ce9eaa5080
@@ -5392,7 +5392,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 2.1.1
-    created: "2026-11-08T10:35:54.349133855Z"
+    created: "2026-11-08T10:39:55.788117563Z"
     description: Personal OpenCode coding agent with a browser UI behind a login,
       reachable by other agents over A2A
     digest: 7f6ffde5a12a1c311219f5b38f4c923937eca4ee487542f0abba424651ab2dd4
@@ -5420,7 +5420,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 2.1.1
-    created: "2026-11-08T10:35:55.310559614Z"
+    created: "2026-11-08T10:39:57.130783685Z"
     description: Personal OpenCode coding agent with a browser UI behind a login,
       reachable by other agents over A2A
     digest: 66be64a248644de46eaa92cfbb90b6ab239c3ba542623e5cb0e9ade1ffd5af1e
@@ -5448,7 +5448,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 2.1.1
-    created: "2026-11-08T10:35:59.140522871Z"
+    created: "2026-11-08T10:40:03.082846098Z"
     description: Personal OpenCode coding agent with a browser UI behind a login,
       reachable by other agents over A2A
     digest: 04055c1fd6262cfaac448826230bd8fa361e70b89a1656a16970c3bb0efcf2b6
@@ -5476,7 +5476,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 2.1.1
-    created: "2026-11-08T10:36:05.288486602Z"
+    created: "2026-11-08T10:40:11.512431263Z"
     description: Personal OpenCode coding agent with a browser UI behind a login,
       reachable by other agents over A2A
     digest: 9143982ca4968cc4fa38034617d0b3e4a29b0b1bb9c2e06ed3d755eb07de335d
@@ -5504,7 +5504,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 2.1.1
-    created: "2026-11-08T10:36:16.496539411Z"
+    created: "2026-11-08T10:40:27.988723185Z"
     description: Personal OpenCode coding agent with a browser UI behind a login,
       reachable by other agents over A2A
     digest: ccb018aac530a9514525666f338850c49f7ed43748530d4f2e4703d2c6781187
@@ -5532,7 +5532,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 2.1.1
-    created: "2026-11-08T10:36:18.971536687Z"
+    created: "2026-11-08T10:40:30.68021859Z"
     description: Personal OpenCode coding agent with a browser UI behind a login,
       reachable by other agents over A2A
     digest: f4c267b1c2a069a335f52af76ae74644950d931005d1521acb3ab557d7b9e90f
@@ -5560,7 +5560,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 2.1.1
-    created: "2026-11-08T10:36:21.631899327Z"
+    created: "2026-11-08T10:40:33.387561724Z"
     description: Personal OpenCode coding agent with a browser UI behind a login,
       reachable by other agents over A2A
     digest: 466f07dd1abc6900a91f9597db5967d7d666682b3f45c2b84253f63bc2f3296b
@@ -5588,7 +5588,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 2.1.1
-    created: "2026-11-08T10:36:24.113205378Z"
+    created: "2026-11-08T10:40:36.110861502Z"
     description: Personal OpenCode coding agent with a browser UI behind a login,
       reachable by other agents over A2A
     digest: ba7dbf69e27c7c6b5a7bccf79ec3f6300f53f9019d00d1aa9703cfb142eb63da
@@ -5616,7 +5616,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 2.1.1
-    created: "2026-11-08T10:36:26.844464786Z"
+    created: "2026-11-08T10:40:39.215293087Z"
     description: Personal OpenCode coding agent with a browser UI behind a login,
       reachable by other agents over A2A
     digest: cb3a82a4c11a46585ba86a2cfa5f1b33670bb586a9c417c4fb5ab1ea1c77ef6f
@@ -5644,7 +5644,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 2.1.1
-    created: "2026-11-08T10:36:27.641652665Z"
+    created: "2026-11-08T10:40:40.107117699Z"
     description: Personal OpenCode coding agent with a browser UI behind a login,
       reachable by other agents over A2A
     digest: e854bfb439e443765338fb0ec2d8c58d66a2aba683cb6f0dd0b92fb0fd27b41a
@@ -5672,7 +5672,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 2.1.1
-    created: "2026-11-08T10:36:32.118659354Z"
+    created: "2026-11-08T10:40:44.56468532Z"
     description: Personal OpenCode coding agent with a browser UI behind a login,
       reachable by other agents over A2A
     digest: 4a5d02e15986c52a50ae2f29a534fd40143f5b1c56ea9349b4c9660eaf83ff5a
@@ -5700,7 +5700,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 1.19.3
-    created: "2026-11-08T10:36:33.741762833Z"
+    created: "2026-11-08T10:40:46.361576217Z"
     description: Personal OpenCode coding agent with a browser UI behind a login,
       reachable by other agents over A2A
     digest: 144c0170b91075a26e8da3af4b7f3d12a142f14849707a8590644cddde1128e1
@@ -5728,7 +5728,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 1.19.3
-    created: "2026-11-08T10:36:35.36891Z"
+    created: "2026-11-08T10:40:48.316391375Z"
     description: Personal OpenCode coding agent with a browser UI behind a login,
       reachable by other agents over A2A
     digest: 66e9709f1f74e3c2cf037a35ed24407d1a7004b5920d9d7396c2b00606e5f826
@@ -5756,7 +5756,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 1.19.3
-    created: "2026-11-08T10:36:36.286090955Z"
+    created: "2026-11-08T10:40:49.274681123Z"
     description: Personal OpenCode coding agent with a browser UI behind a login,
       reachable by other agents over A2A
     digest: 30b76a1ef4d27125f3d824c846a8940470a6e430368878b3158b60d6f363c4e0
@@ -5784,7 +5784,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 1.19.3
-    created: "2026-11-08T10:36:37.869269971Z"
+    created: "2026-11-08T10:40:51.017948806Z"
     description: Personal OpenCode coding agent with a browser UI behind a login,
       reachable by other agents over A2A
     digest: 17f4bc86543f29bda825e841e2b7de1f6c672b2b67025b0be191f1090ed33b9f
@@ -5812,7 +5812,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 1.19.3
-    created: "2026-11-08T10:36:39.461751962Z"
+    created: "2026-11-08T10:40:52.718578795Z"
     description: Personal OpenCode coding agent with a browser UI behind a login,
       reachable by other agents over A2A
     digest: 99f72d4425b8750113b871b683b90ba1ddf9d4062769dc4c6458b94832e06716
@@ -5840,7 +5840,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 1.19.3
-    created: "2026-11-08T10:36:40.290135739Z"
+    created: "2026-11-08T10:40:53.61526968Z"
     description: Personal OpenCode coding agent with a browser UI behind a login,
       reachable by other agents over A2A
     digest: e5e0ed09c36ea67cd2ee9b56b90c7d078f0985be6dc43b54c29db0cc79446bce
@@ -5871,7 +5871,36 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 1.34.0
-    created: "2026-11-08T10:34:31.566279358Z"
+    created: "2026-11-08T10:38:14.775605033Z"
+    description: Shared OpenHands Agent Canvas coding agent with a browser UI behind
+      an OpenShift login
+    digest: eaca94b428daef65af68615e93b7fce44f7fabdbdf7886ab4b83dd0abd687da7
+    home: https://apps.openshift.eu
+    icon: https://raw.githubusercontent.com/OpenHands/OpenHands/main/docs/static/img/logo.png
+    keywords:
+    - ai
+    - agent
+    - openhands
+    - coding
+    maintainers:
+    - name: GRN.CLOUD B.V.
+      url: https://apps.openshift.eu
+    name: openhands
+    sources:
+    - https://github.com/OpenHands/OpenHands
+    - https://github.com/hoolia/apps.openshift.eu
+    type: application
+    urls:
+    - https://github.com/hoolia/apps.openshift.eu/releases/download/openhands-0.19.1/openhands-0.19.1.tgz
+    version: 0.19.1
+  - annotations:
+      apps.openshift.eu/category: ai-agent
+      apps.openshift.eu/vendor: All Hands AI
+      charts.openshift.io/name: OpenHands
+      charts.openshift.io/provider: GRN.CLOUD B.V.
+    apiVersion: v2
+    appVersion: 1.34.0
+    created: "2026-11-08T10:38:26.729300062Z"
     description: Shared OpenHands Agent Canvas coding agent with a browser UI behind
       an OpenShift login
     digest: 5f8b61c27aa5eab2bcf1b821fb66d68a67aef007ea3268e7f74b56341b96f33c
@@ -5900,7 +5929,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 1.34.0
-    created: "2026-11-08T10:34:40.237638652Z"
+    created: "2026-11-08T10:38:35.318680626Z"
     description: Shared OpenHands Agent Canvas coding agent with a browser UI behind
       an OpenShift login
     digest: 603cb880b4cbaf22ac0490183dd329b17b517f57ebbb60860fdf404ea704f4b4
@@ -5929,7 +5958,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 1.34.0
-    created: "2026-11-08T10:34:54.757712531Z"
+    created: "2026-11-08T10:38:51.990130178Z"
     description: Shared OpenHands Agent Canvas coding agent with a browser UI behind
       an OpenShift login
     digest: 3b1dcbf7bda72b4d240c1ef0f42a419e6777a3ad9a31106ba4be80f2e74de0c5
@@ -5958,7 +5987,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 1.34.0
-    created: "2026-11-08T10:34:55.495592416Z"
+    created: "2026-11-08T10:38:52.941990434Z"
     description: Shared OpenHands Agent Canvas coding agent with a browser UI behind
       an OpenShift login
     digest: 16e4302fd6b2719833da64d62a182de6dc0674070359a04d41ef448fc492af91
@@ -5987,7 +6016,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 1.34.0
-    created: "2026-11-08T10:34:58.079827036Z"
+    created: "2026-11-08T10:38:55.838956891Z"
     description: Shared OpenHands Agent Canvas coding agent with a browser UI behind
       an OpenShift login
     digest: adf3b103f703dc10fa2071c3744f9dee9eec218dfa108350073a089cc7ab4638
@@ -6016,7 +6045,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 1.34.0
-    created: "2026-11-08T10:34:58.816986667Z"
+    created: "2026-11-08T10:38:56.892308014Z"
     description: Shared OpenHands Agent Canvas coding agent with a browser UI behind
       an OpenShift login
     digest: 58489be4d319cf5350e7c0c1e2dd4a7eb5c80bc7199a5707bf242397c073a521
@@ -6045,7 +6074,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 1.34.0
-    created: "2026-11-08T10:35:01.234107618Z"
+    created: "2026-11-08T10:38:59.336505698Z"
     description: Shared OpenHands Agent Canvas coding agent with a browser UI behind
       an OpenShift login
     digest: 97e6f401df831445843ab1eaf6f3ef060a4e98c534f7ea79db6f1a59fa1d5a2a
@@ -6074,7 +6103,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 1.34.0
-    created: "2026-11-08T10:35:02.137615947Z"
+    created: "2026-11-08T10:39:00.33938417Z"
     description: Shared OpenHands Agent Canvas coding agent with a browser UI behind
       an OpenShift login
     digest: 7aca510809f62e832231a39c264409670858060713841c7b3d00dcb6cef531bc
@@ -6103,7 +6132,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 1.33.0
-    created: "2026-11-08T10:35:02.907249418Z"
+    created: "2026-11-08T10:39:01.44828524Z"
     description: Shared OpenHands Agent Canvas coding agent with a browser UI behind
       an OpenShift login
     digest: 82f5973b8c36922a1c34ddc1239d35a3dc64b8adf54bf342f0166acbc65b60a7
@@ -6132,7 +6161,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 1.33.0
-    created: "2026-11-08T10:35:10.37885861Z"
+    created: "2026-11-08T10:39:09.91497774Z"
     description: Shared OpenHands Agent Canvas coding agent with a browser UI behind
       an OpenShift login
     digest: 7894cc915ffa7cbe689b8af53da865c70abfd09bc528366b19c1389a9fee0b3c
@@ -6159,7 +6188,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 1.33.0
-    created: "2026-11-08T10:35:36.567084113Z"
+    created: "2026-11-08T10:39:36.15528492Z"
     description: Shared OpenHands Agent Canvas coding agent with a browser UI behind
       an OpenShift login
     digest: 7056eaefe01b4565e38200dbfdddf1e9fb1a6fed56e9d0bc3ec68ed46634cc9b
@@ -6186,7 +6215,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 1.33.0
-    created: "2026-11-08T10:35:37.345770129Z"
+    created: "2026-11-08T10:39:36.910832476Z"
     description: Shared OpenHands Agent Canvas coding agent with a browser UI behind
       an OpenShift login
     digest: c090a4dd1eba934e22de18a1134a6dc55c2ccf2c60d07eea4aabfb1c63e832cd
@@ -6213,7 +6242,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 1.33.0
-    created: "2026-11-08T10:35:38.992602726Z"
+    created: "2026-11-08T10:39:38.448579864Z"
     description: Shared OpenHands Agent Canvas coding agent with a browser UI behind
       an OpenShift login
     digest: adcaae20f7ba492ad977f214e72bb9e20c99a9288497963c820984c04dcd6af9
@@ -6240,7 +6269,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 1.33.0
-    created: "2026-11-08T10:35:42.331036296Z"
+    created: "2026-11-08T10:39:43.101416674Z"
     description: Shared OpenHands Agent Canvas coding agent with a browser UI behind
       an OpenShift login
     digest: 54710a896141f74f0bc651880154936b7b892b78fb07e6ca7ba9194e39580f42
@@ -6267,7 +6296,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 1.33.0
-    created: "2026-11-08T10:35:45.736019379Z"
+    created: "2026-11-08T10:39:46.618787631Z"
     description: Shared OpenHands Agent Canvas coding agent with a browser UI behind
       an OpenShift login
     digest: 8a14130641c87e353f1028d9a2676947b3d385ae008d6eee5c0b9568a80f4b17
@@ -6294,7 +6323,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 1.33.0
-    created: "2026-11-08T10:35:49.226400437Z"
+    created: "2026-11-08T10:39:50.083949087Z"
     description: Shared OpenHands Agent Canvas coding agent with a browser UI behind
       an OpenShift login
     digest: bfc46ebf426358d06969d8e14e6470564790bf7a485d3cf4687f90b714b1d337
@@ -6321,7 +6350,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 1.33.0
-    created: "2026-11-08T10:35:50.984478421Z"
+    created: "2026-11-08T10:39:51.813490947Z"
     description: Shared OpenHands Agent Canvas coding agent with a browser UI behind
       an OpenShift login
     digest: 75236a26b53f9a018c9b106037d09f02a60cf5320f535df26a022fa1188a5f25
@@ -6348,7 +6377,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 1.33.0
-    created: "2026-11-08T10:35:51.816631526Z"
+    created: "2026-11-08T10:39:52.676308223Z"
     description: Shared OpenHands Agent Canvas coding agent with a browser UI behind
       an OpenShift login
     digest: 6d8f3a111f4fd65cabf4ce14317cbc4bd3630fc6ab6a11b4ea9d5705b16f09ec
@@ -6375,7 +6404,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 1.33.0
-    created: "2026-11-08T10:35:53.472987479Z"
+    created: "2026-11-08T10:39:54.502545969Z"
     description: Shared OpenHands Agent Canvas coding agent with a browser UI behind
       an OpenShift login
     digest: 5f5fc7af645c9dba4d36f6c7c32e8756db335f1fff86d613cb804558e7850d03
@@ -6402,7 +6431,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 1.33.0
-    created: "2026-11-08T10:35:58.241179035Z"
+    created: "2026-11-08T10:40:01.267667024Z"
     description: Shared OpenHands Agent Canvas coding agent with a browser UI behind
       an OpenShift login
     digest: 46d42e2a3ee095ecd4804212f1f5ad5bdbb07c070d341adfe8e960cadf01d514
@@ -6429,7 +6458,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 1.33.0
-    created: "2026-11-08T10:36:00.968367145Z"
+    created: "2026-11-08T10:40:05.626534961Z"
     description: Shared OpenHands Agent Canvas coding agent with a browser UI behind
       an OpenShift login
     digest: 956ad54b245ed4540c224277c7dbbfaf4093572b9e7da92b94bbed68e350c71d
@@ -6456,7 +6485,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 1.33.0
-    created: "2026-11-08T10:36:01.772853963Z"
+    created: "2026-11-08T10:40:06.681065546Z"
     description: Shared OpenHands Agent Canvas coding agent with a browser UI behind
       an OpenShift login
     digest: d01f84c85d8a85b2eafd0a6718c83e54dd20f3cbb3e88f69744545a8998e14fe
@@ -6483,7 +6512,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 1.33.0
-    created: "2026-11-08T10:36:02.585570951Z"
+    created: "2026-11-08T10:40:07.894637072Z"
     description: Shared OpenHands Agent Canvas coding agent with a browser UI behind
       an OpenShift login
     digest: 2254971f0f7a7ef6a82b4d614e1b84a6771800c4a11d9de19f11826afde88885
@@ -6510,7 +6539,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 1.33.0
-    created: "2026-11-08T10:36:04.417033899Z"
+    created: "2026-11-08T10:40:09.964341292Z"
     description: Shared OpenHands Agent Canvas coding agent with a browser UI behind
       an OpenShift login
     digest: 149f108112750660c56af74082a75f72b47d9b8cdce7728fd4e9b6913c4f8f79
@@ -6537,7 +6566,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 1.33.0
-    created: "2026-11-08T10:36:09.526364282Z"
+    created: "2026-11-08T10:40:17.650583399Z"
     description: Shared OpenHands Agent Canvas coding agent with a browser UI behind
       an OpenShift login
     digest: 242a2da5ea779ec2b84a206de07f3e63cf245427942cf7c0038abd005e474d44
@@ -6564,7 +6593,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 1.33.0
-    created: "2026-11-08T10:36:13.03571138Z"
+    created: "2026-11-08T10:40:23.703568169Z"
     description: Shared OpenHands Agent Canvas coding agent with a browser UI behind
       an OpenShift login
     digest: d96d49c6d72a716ce2a648e589c6d351e9f227ad3b5c871c3c20234e686449d5
@@ -6591,7 +6620,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 1.30.0
-    created: "2026-11-08T10:36:13.88288622Z"
+    created: "2026-11-08T10:40:25.205433803Z"
     description: Shared OpenHands Agent Canvas coding agent with a browser UI behind
       an OpenShift login
     digest: c1572a260f65403d5764d052732440229548eb22a8fd1794500a71a4bb3f6c61
@@ -6618,7 +6647,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 1.30.0
-    created: "2026-11-08T10:36:15.632595176Z"
+    created: "2026-11-08T10:40:27.059568902Z"
     description: Shared OpenHands Agent Canvas coding agent with a browser UI behind
       an OpenShift login
     digest: ad905d8f9dd38b651bf02cf3c41ef00c356074961ea5e33d57bacf4a2f721cc6
@@ -6645,7 +6674,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 1.30.0
-    created: "2026-11-08T10:36:18.130044671Z"
+    created: "2026-11-08T10:40:29.820370197Z"
     description: Shared OpenHands Agent Canvas coding agent with a browser UI behind
       an OpenShift login
     digest: 930c8552a5ca9a76ee614cedcca4b80c5fed4d3d676b1821e84cd337cf61215f
@@ -6672,7 +6701,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 1.25.0
-    created: "2026-11-08T10:36:19.74549871Z"
+    created: "2026-11-08T10:40:31.599563293Z"
     description: Shared OpenHands Agent Canvas coding agent with a browser UI behind
       an OpenShift login
     digest: de9138f1d107592ae9416e67e67694b05c3303813811b31e1df337f2834607dd
@@ -6699,7 +6728,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 1.25.0
-    created: "2026-11-08T10:36:20.826390319Z"
+    created: "2026-11-08T10:40:32.472049551Z"
     description: Shared OpenHands Agent Canvas coding agent with a browser UI behind
       an OpenShift login
     digest: a1ad209edbcd5b0334a9a87f4fea4297efab6f27534aa945df1deedd54c9c4af
@@ -6729,7 +6758,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 0.12.3
-    created: "2026-11-08T10:34:30.737245389Z"
+    created: "2026-11-08T10:38:25.921084892Z"
     description: Personal Open WebUI chat for one person behind the OpenShift login,
       with models from an OpenAI-compatible gateway
     digest: e7deadeb61acfb13299a94607a1b24156c235d9e31bf572438518c6f79ef6353
@@ -6758,7 +6787,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 0.12.3
-    created: "2026-11-08T10:35:09.313595397Z"
+    created: "2026-11-08T10:39:09.005406088Z"
     description: Personal Open WebUI chat for one person behind the OpenShift login,
       with models from an OpenAI-compatible gateway
     digest: e14140267b6b8ab9b2ad9dc27f79b2dd9f85865ccc584a903faa13f01718e0b5
@@ -6785,7 +6814,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 0.12.3
-    created: "2026-11-08T10:35:44.882575502Z"
+    created: "2026-11-08T10:39:45.585966033Z"
     description: Personal Open WebUI chat for one person behind the OpenShift login,
       with models from an OpenAI-compatible gateway
     digest: e5acd329dcc06adefa2f721fd7f478cb4fc946a703f285957cd14fdeff2951ce
@@ -6812,7 +6841,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 0.12.3
-    created: "2026-11-08T10:35:48.417456111Z"
+    created: "2026-11-08T10:39:49.274640475Z"
     description: Personal Open WebUI chat for one person behind the OpenShift login,
       with models from an OpenAI-compatible gateway
     digest: 0302963996fe86e4895d31e3d0cd69c717163d10787e9fd9846d0b7c966ca2f8
@@ -6839,7 +6868,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 0.12.3
-    created: "2026-11-08T10:35:52.640183381Z"
+    created: "2026-11-08T10:39:53.575956313Z"
     description: Personal Open WebUI chat for one person behind the OpenShift login,
       with models from an OpenAI-compatible gateway
     digest: 1b30e4aacf1537c2a7581554d54edde760751b42933547fcc63e7f1c694abf44
@@ -6866,7 +6895,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 0.12.3
-    created: "2026-11-08T10:35:57.363958251Z"
+    created: "2026-11-08T10:39:59.714747669Z"
     description: Personal Open WebUI chat for one person behind the OpenShift login,
       with models from an OpenAI-compatible gateway
     digest: 913954872a679794ff43c757ac6c0a54163160fa406cae2fedbe07aca19a0e15
@@ -6893,7 +6922,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 0.12.3
-    created: "2026-11-08T10:36:07.855190027Z"
+    created: "2026-11-08T10:40:15.185610214Z"
     description: Personal Open WebUI chat for one person behind the OpenShift login,
       with models from an OpenAI-compatible gateway
     digest: 9713a269136bf3964cfff2e505b8889a1601951fac68af2777f310c1f828f54c
@@ -6920,7 +6949,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 0.12.3
-    created: "2026-11-08T10:36:14.726300861Z"
+    created: "2026-11-08T10:40:26.157567273Z"
     description: Personal Open WebUI chat for one person behind the OpenShift login,
       with models from an OpenAI-compatible gateway
     digest: b909e802517536dcaf68c21c81f6fd86065a4d00c11dc57229ab48e1665dcad4
@@ -6947,7 +6976,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 0.12.3
-    created: "2026-11-08T10:36:17.341935102Z"
+    created: "2026-11-08T10:40:28.919343026Z"
     description: Personal Open WebUI chat for one person behind the OpenShift login,
       with models from an OpenAI-compatible gateway
     digest: 169cf7ccd708e01a2a98d04a9ec7a73bd31e408ce9a932cd2805d01e506b4ac7
@@ -6974,7 +7003,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 0.12.3
-    created: "2026-11-08T10:36:22.509540767Z"
+    created: "2026-11-08T10:40:34.220861796Z"
     description: Personal Open WebUI chat for one person behind the OpenShift login,
       with models from an OpenAI-compatible gateway
     digest: 9a7da19cac990335f07ae6e454b4b332a1e8d0e28115cf01af2dd0b1f491bc26
@@ -7001,7 +7030,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 0.12.3
-    created: "2026-11-08T10:36:23.345921527Z"
+    created: "2026-11-08T10:40:35.078976591Z"
     description: Personal Open WebUI chat for one person behind the OpenShift login,
       with models from an OpenAI-compatible gateway
     digest: 2cd98b669ac0a31b952ccdacb531c992ff3fe261721905228fd7887cd5af7d52
@@ -7028,7 +7057,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 0.12.3
-    created: "2026-11-08T10:36:38.694615184Z"
+    created: "2026-11-08T10:40:51.839399032Z"
     description: Personal Open WebUI chat for one person behind the OpenShift login,
       with models from an OpenAI-compatible gateway
     digest: b3432ccdff7d91c8715e3a49471a13c4bd4360551d239a5fa2609467630761f9
@@ -7056,7 +7085,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: v0.0.83
-    created: "2026-11-08T10:36:37.089573469Z"
+    created: "2026-11-08T10:40:50.117906704Z"
     description: Playwright MCP server (headless Chromium browser tools for AI agents)
       for one team, discovered by an MCP gateway
     digest: 84dbf3e5143caf708092e66549ca0aab03bfa4be147a5c620f4b815fb46a8fe6
@@ -7084,7 +7113,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: v1.19.2
-    created: "2026-11-08T10:36:28.748762974Z"
+    created: "2026-11-08T10:40:40.982358238Z"
     description: Qdrant vector database with optional memory tools for AI agents (mcp-server-qdrant)
       in the release namespace, protected by an API key
     digest: 206b52cd433a72886dce4e1dd3c9360ad7f406348c68a7751355d7711496a8ea
@@ -7112,7 +7141,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: v1.19.2
-    created: "2026-11-08T10:36:29.523777744Z"
+    created: "2026-11-08T10:40:41.948480574Z"
     description: Qdrant vector database with optional memory tools for AI agents (mcp-server-qdrant)
       in the release namespace, protected by an API key
     digest: f4fc7913231aa2267bd118ab66af1dbd9c5fa99882326f9fe17c9d23e98957ea
@@ -7140,7 +7169,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: v1.19.2
-    created: "2026-11-08T10:36:30.414441717Z"
+    created: "2026-11-08T10:40:42.796807414Z"
     description: Qdrant vector database with optional memory tools for AI agents (mcp-server-qdrant)
       in the release namespace, protected by an API key
     digest: 07d5afe776b860c3d63f3999b612de8d481280cc8f487990c636651cb36549d8
@@ -7168,7 +7197,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: v1.19.2
-    created: "2026-11-08T10:36:31.25628569Z"
+    created: "2026-11-08T10:40:43.748992965Z"
     description: Qdrant vector database for agents and RAG workloads in the release
       namespace, protected by an API key
     digest: 908c7235e378376b96e186044927df657e8375512131c7a0709c77624c00c0ee
@@ -7199,7 +7228,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 1.37.3
-    created: "2026-11-08T10:34:21.184926139Z"
+    created: "2026-11-08T10:38:15.568533159Z"
     description: Vaultwarden password manager, a server for the Bitwarden apps and
       browser extensions
     digest: db50480b5087dafb026076d8e4a8cbb7062693872acb804fb3d9bd15c171ba86
@@ -7226,7 +7255,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 1.37.3
-    created: "2026-11-08T10:36:42.771624686Z"
+    created: "2026-11-08T10:40:56.498019608Z"
     description: Vaultwarden password manager, a server for the Bitwarden apps and
       browser extensions
     digest: 1dc6dbabecdaf77164dbdad56c868024cfc538f4f020db8e240aa5090bea7ec8
@@ -7253,7 +7282,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 1.37.3
-    created: "2026-11-08T10:36:53.093506233Z"
+    created: "2026-11-08T10:41:06.790213016Z"
     description: Vaultwarden password manager, a server for the Bitwarden apps and
       browser extensions
     digest: 19bec25fc3afc3cd2e7c9c5d19dc140aa9abb69a56db616fd6557e1b799e30be
@@ -7280,7 +7309,7 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 1.37.3
-    created: "2026-11-08T10:37:12.221853677Z"
+    created: "2026-11-08T10:41:26.108785761Z"
     description: Vaultwarden password manager, a server for the Bitwarden apps and
       browser extensions
     digest: b01316118763caecf7808d77af70bdc4eed8907e10387a513c47459d5686dff2
@@ -7307,7 +7336,7 @@ entries:
       charts.openshift.io/provider: Hoolia B.V.
     apiVersion: v2
     appVersion: 1.37.3
-    created: "2026-11-08T10:37:23.840300216Z"
+    created: "2026-11-08T10:41:37.912352168Z"
     description: Vaultwarden password manager, a server for the Bitwarden apps and
       browser extensions
     digest: 63951a3c56acb2ef2e8fffbcb9a270e4dbe51bd7c948666a46a54b7ba81de83a
@@ -7329,4 +7358,4 @@ entries:
     urls:
     - https://github.com/hoolia/apps.openshift.eu/releases/download/vaultwarden-0.1.0/vaultwarden-0.1.0.tgz
     version: 0.1.0
-generated: "2026-11-08T10:37:36.478128107Z"
+generated: "2026-11-08T10:41:50.20567948Z"
