@@ -128,3 +128,23 @@ the dashboard container, because the dashboard may restart the gateway in its ow
 {{- end -}}
 {{- toJson $issuers -}}
 {{- end -}}
+
+{{/* system prompt text: where the user reaches this Hermes and how to hand over files */}}
+{{- define "hermes.environmentHint" -}}
+{{- $lines := list "To give the user a file in the chat, write MEDIA:<absolute path> on a line of its own; the chat shows it as a download." -}}
+{{- with .Values.route.host -}}
+{{- $lines = prepend $lines (printf "The user reaches you in the browser at https://%s/ (Hermes dashboard, behind a login)." .) -}}
+{{- end -}}
+{{- if and .Values.fileServer.enabled .Values.route.host -}}
+{{- $fs := .Values.fileServer -}}
+{{- range .Values.extraVolumeMounts -}}
+{{- if eq .name $fs.volume -}}
+{{- $lines = append $lines (printf "Files under %s/ are also at https://%s%s/<path below %s>, behind the same login: give that link when the user wants a URL." (trimSuffix "/" .mountPath) $.Values.route.host (trimSuffix "/" $fs.path) (trimSuffix "/" .mountPath)) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- with .Values.environmentHint -}}
+{{- $lines = append $lines . -}}
+{{- end -}}
+{{- join "\n" $lines -}}
+{{- end -}}

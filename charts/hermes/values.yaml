@@ -222,6 +222,10 @@ statefulSet:
 extraVolumes: []
 extraVolumeMounts: []
 
+# extra text for the system prompt's environment block, after what the chart derives from
+# route.host and fileServer (public URL, file links)
+environmentHint: ""
+
 # one extraVolume served read-only at https://<route.host><path>/, behind the dashboard login
 fileServer:
   enabled: false
