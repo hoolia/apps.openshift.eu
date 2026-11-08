@@ -60,6 +60,7 @@ The Secret `public-assistant` holds `sso-issuer-url`, `sso-client-id` and `sso-c
 - `skills.repositories` (default: empty): `{name, url, ref, path}` per repository.
 - `config` (default: empty): keys merged into `config.yaml` at every start; they win over the dashboard.
 - `extraVolumes`, `extraVolumeMounts` (default: empty): extra volumes, mounted in `gateway` and `dashboard`.
+- `environmentHint` (default: empty): text added to the system prompt (`HERMES_ENVIRONMENT_HINT`). The chart always tells the agent to hand over a file with a `MEDIA:<absolute path>` line, which the chat shows as a download; with `route.host` it adds the public URL, and with `fileServer.enabled` the `https://<route.host><fileServer.path>/` link for files of that volume.
 - `fileServer.enabled` (default: false): serves the extraVolume `fileServer.volume` read-only at `https://<route.host><fileServer.path>/` (default `/downloads`), with a directory listing, behind the same login as the dashboard. Container `file-server` listens on loopback port `fileServer.port` (8899).
 - `storage.size`, `storage.className`, `storage.accessMode` (default: `10Gi`, default class, `ReadWriteOnce`).
 - `resources`, `dashboard.resources`, `oauthProxy.resources`, `tokenProxy.resources`, `mcpSync.resources`: per container.

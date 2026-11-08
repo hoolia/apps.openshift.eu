@@ -107,6 +107,8 @@ spec:
         {{- toYaml $common | nindent 8 }}
         - name: HERMES_GATEWAY_NO_SUPERVISE
           value: "1"
+        - name: HERMES_ENVIRONMENT_HINT
+          value: {{ include "hermes.environmentHint" . | quote }}
         {{- include "hermes.a2aEnv" . | nindent 8 }}
         volumeMounts:
         - name: data
@@ -139,6 +141,8 @@ spec:
         - --no-open
         env:
         {{- toYaml $common | nindent 8 }}
+        - name: HERMES_ENVIRONMENT_HINT
+          value: {{ include "hermes.environmentHint" . | quote }}
         {{- include "hermes.a2aEnv" . | nindent 8 }}
         {{- if .Values.sso.enabled }}
         - name: SSO_DIR
