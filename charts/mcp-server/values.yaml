@@ -100,6 +100,35 @@ route:
   path: ""
   annotations: {}
 
+# Register the server for the project's agents (kagent, Hermes) as a RemoteMCPServer.
+# Without image.repository only this object renders: a hosted MCP server elsewhere.
+remoteMCPServer:
+  enabled: false
+  # empty: the release name
+  name: ""
+  description: ""
+  # oauth2: callers log in through the server's own OAuth broker (annotation
+  # openhands.dev/auth); empty: no annotation
+  auth: ""
+  annotations: {}
+  # empty: https://<route.host><path>, which needs route.enabled and route.host
+  url: ""
+  # Same: agents of this project only; All: every project
+  allowedNamespaces: Same
+  timeout: 60s
+  sseReadTimeout: 5m0s
+
+# The server's credential Secret from a secret store (External Secrets Operator)
+externalSecret:
+  enabled: false
+  storeKind: ClusterSecretStore
+  storeName: ""
+  refreshInterval: 1h
+  # the Secret it writes; empty: envFromSecret
+  name: ""
+  # [{secretKey, item, property}], property e.g. login.username, login.password
+  data: []
+
 # Extra pod labels and annotations, e.g. sidecar.istio.io/inject: "false" in a mesh namespace
 podLabels: {}
 podAnnotations: {}
