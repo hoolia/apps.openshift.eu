@@ -140,6 +140,9 @@
               "properties": {
                 "cookieSecret": {
                   "type": "string"
+                },
+                "approvalSigningKey": {
+                  "type": "string"
                 }
               }
             }
@@ -230,7 +233,8 @@
             "properties": {
               "name": {
                 "type": "string",
-                "pattern": "^[a-z0-9][a-z0-9-]*$"
+                "pattern": "^[a-z0-9][a-z0-9-]*$",
+                "maxLength": 50
               },
               "url": {
                 "type": "string",
@@ -241,9 +245,20 @@
               },
               "path": {
                 "type": "string"
+              },
+              "secretName": {
+                "type": "string",
+                "pattern": "^$|^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$",
+                "maxLength": 253
+              },
+              "externalSecret": {
+                "type": "string"
               }
             }
           }
+        },
+        "knownHosts": {
+          "type": "string"
         }
       }
     },
@@ -396,6 +411,38 @@
     },
     "environmentHint": {
       "type": "string"
+    },
+    "approvalSigning": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "secretName": {
+          "type": "string",
+          "pattern": "^$|^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$",
+          "maxLength": 253
+        },
+        "key": {
+          "type": "string",
+          "pattern": "^[-._a-zA-Z0-9]+$"
+        }
+      }
+    },
+    "approval": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "approvers": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9_-]+:[^,\\s]+$"
+          }
+        },
+        "webChatUser": {
+          "type": "string",
+          "pattern": "^[^,\\s]*$"
+        }
+      }
     }
   }
 }

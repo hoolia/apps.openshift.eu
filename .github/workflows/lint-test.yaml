@@ -44,6 +44,10 @@ jobs:
       run: python3 -m unittest charts/mcp-sonarqube/files/test_broker.py
     - name: Test openwebui chart
       run: ci/test-openwebui.sh
+    - name: Test hermes chart
+      run: ci/test-hermes.sh
+    - name: Test hermes private skill repositories
+      run: python3 -m unittest ci/test_hermes_seed_config.py
     - name: Test the GitLab API exporter
       run: python3 -m unittest ci/test_gitlab_api_exporter.py
     - name: Test the website catalog
