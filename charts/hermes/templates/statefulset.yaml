@@ -295,8 +295,10 @@ spec:
       - name: kube-api-access
         projected:
           sources:
+          # 3607 as in the default mount: the API server extends it, and
+          # oauth-proxy reads it once at start as its OAuth client secret
           - serviceAccountToken:
-              expirationSeconds: 3600
+              expirationSeconds: 3607
               path: token
           - configMap:
               name: kube-root-ca.crt
