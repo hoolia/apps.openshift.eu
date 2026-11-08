@@ -154,6 +154,11 @@ class SeedConfigAuth(unittest.TestCase):
         self.assertEqual(open(os.path.join(scratch, "id")).read(), "KEY2\n")
         self.assertEqual(open(os.path.join(scratch, "known_hosts")).read(), "example.com ssh-ed25519 AAAAown\n")
 
+    def test_ssh_key_from_vault_note(self):
+        scratch = tempfile.mkdtemp(dir=TMP)
+        sc.git_env(secret(sshPrivateKey="-----BEGIN-----\r\nAAA\r\n-----END-----", url="git@x:y", type="git"), scratch)
+        self.assertEqual(open(os.path.join(scratch, "id")).read(), "-----BEGIN-----\nAAA\n-----END-----\n")
+
     def test_key_copy_removed_after_clone(self):
         sc.clone(self.url, "", os.path.join(TMP, "c5"), secret(sshPrivateKey="KEY", password=TOKEN))
         self.assertEqual(os.listdir(os.environ["AUTH_TMP"]), [])

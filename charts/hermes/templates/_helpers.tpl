@@ -153,11 +153,21 @@ the dashboard container, because the dashboard may restart the gateway in its ow
 {{- define "hermes.skillRepositories" -}}
 {{- $out := list -}}
 {{- range .Values.skills.repositories -}}
-{{- $r := omit . "secretName" -}}
-{{- if .secretName -}}
+{{- $r := omit . "secretName" "externalSecret" -}}
+{{- if or .secretName .externalSecret -}}
 {{- $_ := set $r "authDir" (printf "/etc/hermes-skill-repos/%s" .name) -}}
 {{- end -}}
 {{- $out = append $out $r -}}
 {{- end -}}
 {{- toJson $out -}}
+{{- end -}}
+
+{{/* Secret of the approval signing key: approvalSigning.secretName, else the ExternalSecret of
+secrets.externalSecret.items.approvalSigningKey; empty: no key */}}
+{{- define "hermes.approvalSecret" -}}
+{{- if .Values.approvalSigning.secretName -}}
+{{- .Values.approvalSigning.secretName -}}
+{{- else if and (eq .Values.secrets.type "externalSecret") .Values.secrets.externalSecret.items.approvalSigningKey -}}
+{{- printf "%s-approval-signing" (include "hermes.name" .) -}}
+{{- end -}}
 {{- end -}}

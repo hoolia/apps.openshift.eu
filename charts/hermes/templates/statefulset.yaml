@@ -5,8 +5,8 @@
 {{- $common := list (dict "name" "HOME" "value" $home) (dict "name" "HERMES_HOME" "value" $home) }}
 {{- $skillAuth := list }}
 {{- range .Values.skills.repositories }}
-{{- if .secretName }}
-{{- $skillAuth = append $skillAuth . }}
+{{- if or .secretName .externalSecret }}
+{{- $skillAuth = append $skillAuth (dict "name" .name "secretName" (.secretName | default (printf "%s-skills-%s" $name .name))) }}
 {{- end }}
 {{- end }}
 apiVersion: apps/v1
@@ -132,13 +132,21 @@ spec:
         - name: HERMES_ENVIRONMENT_HINT
           value: {{ include "hermes.environmentHint" . | quote }}
         {{- include "hermes.a2aEnv" . | nindent 8 }}
-        {{- with .Values.approvalSigning.secretName }}
+        {{- with include "hermes.approvalSecret" . }}
         # the gateway only: the dashboard, sidecars and init step never see it
         - name: APPROVAL_SIGNING_KEY
           valueFrom:
             secretKeyRef:
               name: {{ . }}
               key: {{ $.Values.approvalSigning.key }}
+        {{- end }}
+        {{- with .Values.approval.approvers }}
+        - name: APPROVAL_APPROVERS
+          value: {{ join "," . | quote }}
+        {{- end }}
+        {{- with .Values.approval.webChatUser }}
+        - name: APPROVAL_WEB_CHAT_USER
+          value: {{ . | quote }}
         {{- end }}
         volumeMounts:
         - name: data

@@ -140,6 +140,9 @@
               "properties": {
                 "cookieSecret": {
                   "type": "string"
+                },
+                "approvalSigningKey": {
+                  "type": "string"
                 }
               }
             }
@@ -247,6 +250,9 @@
                 "type": "string",
                 "pattern": "^$|^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$",
                 "maxLength": 253
+              },
+              "externalSecret": {
+                "type": "string"
               }
             }
           }
@@ -418,6 +424,23 @@
         "key": {
           "type": "string",
           "pattern": "^[-._a-zA-Z0-9]+$"
+        }
+      }
+    },
+    "approval": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "approvers": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9_-]+:[^,\\s]+$"
+          }
+        },
+        "webChatUser": {
+          "type": "string",
+          "pattern": "^[^,\\s]*$"
         }
       }
     }

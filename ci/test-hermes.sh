@@ -43,6 +43,28 @@ check "github known hosts" '[e["value"] for e in ctr("seed-config")["env"] if e[
 OUT=$(render --set 'skills.repositories[0].name=public' --set 'skills.repositories[0].url=https://github.com/example/public')
 check "no auth without secretName" 'not any(v["name"].startswith("skills-auth") for v in pod["volumes"]) and "KNOWN_HOSTS" not in envs(ctr("seed-config"))'
 
+# both Secrets from the vault, as the cookie secret
+ES=(--set secrets.type=externalSecret --set secrets.externalSecret.storeName=vault-test)
+VAULT=(--set secrets.externalSecret.items.approvalSigningKey=item-approval
+  --set 'skills.repositories[0].name=private' --set 'skills.repositories[0].url=git@github.com:example/private.git'
+  --set 'skills.repositories[0].path=skills' --set 'skills.repositories[0].externalSecret=item-deploy-key'
+  --set 'approval.approvers={whatsapp:+31600000000,tui:sam}' --set approval.webChatUser=sam)
+OUT=$(render "${ES[@]}" "${VAULT[@]}")
+check "approval ES" '[d for d in docs if d["kind"] == "ExternalSecret" and d["metadata"]["name"] == "t-approval-signing"][0]["spec"]["data"] == [{"secretKey": "approval-signing-key", "remoteRef": {"key": "item-approval", "property": "login.password", "conversionStrategy": "Default", "decodingStrategy": "None", "metadataPolicy": "None", "nullBytePolicy": "Ignore"}}]'
+check "approval ES wired" 'ref(ctr("gateway"), "APPROVAL_SIGNING_KEY") == {"name": "t-approval-signing", "key": "approval-signing-key"}'
+check "skills ES" '(lambda s: s["data"][0]["remoteRef"]["key"] == "item-deploy-key" and s["data"][0]["remoteRef"]["property"] == "notes" and s["data"][0]["secretKey"] == "sshPrivateKey" and s["target"]["name"] == "t-skills-private" and s["target"]["template"]["data"] == {"type": "git", "url": "git@github.com:example/private.git", "sshPrivateKey": "{{ .sshPrivateKey }}"})([d for d in docs if d["kind"] == "ExternalSecret" and d["metadata"]["name"] == "t-skills-private"][0]["spec"])'
+check "skills ES wired" '[v for v in pod["volumes"] if v["name"] == "skills-auth-private"][0]["secret"]["secretName"] == "t-skills-private" and "authDir" in [e["value"] for e in ctr("seed-config")["env"] if e["name"] == "SKILL_REPOSITORIES"][0] and "externalSecret" not in [e["value"] for e in ctr("seed-config")["env"] if e["name"] == "SKILL_REPOSITORIES"][0]'
+check "approvers env" '{e["name"]: e.get("value") for e in ctr("gateway")["env"]}["APPROVAL_APPROVERS"] == "whatsapp:+31600000000,tui:sam" and {e["name"]: e.get("value") for e in ctr("gateway")["env"]}["APPROVAL_WEB_CHAT_USER"] == "sam"'
+check "approvers gateway only" '[c["name"] for c in all_ctrs if "APPROVAL_APPROVERS" in envs(c)] == ["gateway"]'
+OUT=$(render "${ES[@]}")
+check "no extra ES by default" '[d["metadata"]["name"] for d in docs if d["kind"] == "ExternalSecret"] == [] and not any(e.startswith("APPROVAL") for e in envs(ctr("gateway")))'
+OUT=$(render "${ES[@]}" --set secrets.externalSecret.items.cookieSecret=item-cookie --set secrets.externalSecret.items.approvalSigningKey=item-approval --set approvalSigning.secretName=own)
+check "own secret wins" 'ref(ctr("gateway"), "APPROVAL_SIGNING_KEY")["name"] == "own" and [d["metadata"]["name"] for d in docs if d["kind"] == "ExternalSecret"] == ["t-cookie-secret"]'
+OUT=$(render --set secrets.externalSecret.items.approvalSigningKey=item-approval)
+check "kubernetes type ignores vault item" 'not any("APPROVAL_SIGNING_KEY" in envs(c) for c in all_ctrs)'
+render --set 'skills.repositories[0].name=p' --set 'skills.repositories[0].url=git@x:y' --set 'skills.repositories[0].externalSecret=i' >/dev/null && { echo "FAIL skills externalSecret without secrets.type externalSecret accepted"; fail=1; }
+render --set 'approval.approvers={sam}' >/dev/null && { echo "FAIL schema: approver without platform accepted"; fail=1; }
+
 render --set approvalSigning.secretName=Bad_Name >/dev/null && { echo "FAIL schema: Bad_Name accepted"; fail=1; }
 render --set approvalSigning.other=x >/dev/null && { echo "FAIL schema: unknown key accepted"; fail=1; }
 

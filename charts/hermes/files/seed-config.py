@@ -73,8 +73,10 @@ def git_env(auth_dir: str, scratch: str) -> dict:
     key = _read(auth_dir, "sshPrivateKey", "ssh-privatekey")
     if key:
         key_file = os.path.join(scratch, "id")
+        # a key from a vault note may carry CRLF line ends or no final newline
+        key = key.replace("\r\n", "\n").strip() + "\n"
         with open(os.open(key_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w") as fh:
-            fh.write(key if key.endswith("\n") else key + "\n")
+            fh.write(key)
         hosts_file = os.path.join(scratch, "known_hosts")
         with open(hosts_file, "w") as fh:
             fh.write(_read(auth_dir, "known_hosts") or KNOWN_HOSTS)
