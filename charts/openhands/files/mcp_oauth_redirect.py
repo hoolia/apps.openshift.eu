@@ -10,8 +10,10 @@ path to it behind the login proxy. One OAuth login runs at a time.
 Google issues a refresh token only to an authorization request with
 access_type=offline, and again after the first consent only with prompt=consent.
 Without it the login expires after an hour, so every authorization URL on
-accounts.google.com gets both. The agent-server loads this module with
---import-modules from /opt/agent-canvas/tools.
+accounts.google.com gets both, plus select_account in the prompt so the user
+picks the Google account rather than the one the browser is signed in with.
+The agent-server loads this module with --import-modules from
+/opt/agent-canvas/tools.
 """
 import os
 import sys
@@ -20,7 +22,7 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 URL = os.environ.get("MCP_OAUTH_REDIRECT_URL", "")
 PORT = int(os.environ.get("MCP_OAUTH_CALLBACK_PORT") or 0)
 OFFLINE_HOSTS = {"accounts.google.com"}
-OFFLINE_PARAMS = (("access_type", "offline"), ("prompt", "consent"))
+OFFLINE_PARAMS = (("access_type", "offline"), ("prompt", "select_account consent"))
 
 
 def offline(authorization_url: str) -> str:
