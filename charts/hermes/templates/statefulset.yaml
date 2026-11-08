@@ -108,12 +108,6 @@ spec:
         - name: HERMES_GATEWAY_NO_SUPERVISE
           value: "1"
         {{- include "hermes.a2aEnv" . | nindent 8 }}
-        {{- if .Values.a2a.enabled }}
-        ports:
-        - name: a2a
-          containerPort: {{ .Values.a2a.port }}
-          protocol: TCP
-        {{- end }}
         volumeMounts:
         - name: data
           mountPath: /opt/data
@@ -192,6 +186,45 @@ spec:
           {{- toYaml .Values.dashboard.resources | nindent 10 }}
         securityContext:
           {{- include "hermes.containerSecurityContext" . | nindent 10 }}
+      {{- if .Values.a2a.enabled }}
+      # A2A entry: admits bearer JWTs of the tenant, then the gateway's loopback A2A server
+      - name: a2a-auth
+        image: {{ include "hermes.image" . }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command:
+        - /opt/hermes/.venv/bin/python
+        - /opt/hermes-scripts/a2a-auth.py
+        env:
+        - name: PORT
+          value: {{ .Values.a2a.port | quote }}
+        - name: UPSTREAM_PORT
+          value: {{ .Values.a2a.gatewayPort | quote }}
+        - name: TENANT
+          value: {{ include "hermes.a2aTenant" . | quote }}
+        - name: JWT_ISSUERS
+          value: {{ include "hermes.a2aJwtIssuers" . | quote }}
+        ports:
+        - name: a2a
+          containerPort: {{ .Values.a2a.port }}
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: a2a
+          periodSeconds: 10
+        volumeMounts:
+        - name: scripts
+          mountPath: /opt/hermes-scripts
+          readOnly: true
+        # the JWKS of the cluster issuer needs a token
+        - name: kube-api-access
+          mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+          readOnly: true
+        resources:
+          {{- toYaml .Values.a2a.resources | nindent 10 }}
+        securityContext:
+          {{- include "hermes.containerSecurityContext" . | nindent 10 }}
+      {{- end }}
       - name: oauth-proxy
         image: {{ .Values.oauthProxy.image }}
         imagePullPolicy: IfNotPresent

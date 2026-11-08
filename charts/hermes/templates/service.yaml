@@ -17,7 +17,7 @@ spec:
     targetPort: ui
 {{- if .Values.a2a.enabled }}
 ---
-# A2A of the gateway, token required; reached by agents of the tenant and the kagent relay
+# A2A through the a2a-auth sidecar; reached by agents of the tenant and the kagent relay
 apiVersion: v1
 kind: Service
 metadata:

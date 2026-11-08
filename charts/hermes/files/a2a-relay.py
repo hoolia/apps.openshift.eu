@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Streams every request on :8080 to UPSTREAM with the A2A bearer token, responses chunk by chunk.
+"""Streams every request on :8080 to UPSTREAM unchanged, responses chunk by chunk.
 
-kagent runs a BYO agent as its own Deployment on port 8080. Hermes serves A2A itself and
-admits only callers with a token, so this kagent-managed pod adds the token of its peer
-name (file TOKEN_FILE) to every request. Standard library only.
+kagent runs a BYO agent as its own Deployment on port 8080; the Hermes gateway serves A2A
+on loopback only, behind the a2a-auth sidecar of the Hermes pod, and this relay is the
+kagent-managed pod in front of it. The caller's bearer token passes unchanged. Standard library only.
 """
 import http.client
 import os
@@ -12,15 +12,7 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 UPSTREAM = urllib.parse.urlsplit(os.environ["UPSTREAM"])
-TOKEN_FILE = os.environ["TOKEN_FILE"]
-HOP = {"connection", "keep-alive", "proxy-connection", "transfer-encoding", "te", "trailer", "upgrade", "host",
-       "authorization"}
-
-
-def token() -> str:
-    # read on every request: a rotated Secret takes effect without a restart
-    with open(TOKEN_FILE) as f:
-        return f.read().strip()
+HOP = {"connection", "keep-alive", "proxy-connection", "transfer-encoding", "te", "trailer", "upgrade", "host"}
 
 
 class Relay(BaseHTTPRequestHandler):
@@ -31,7 +23,6 @@ class Relay(BaseHTTPRequestHandler):
         body = self.rfile.read(length) if length else None
         conn = http.client.HTTPConnection(UPSTREAM.hostname, UPSTREAM.port or 80, timeout=3700)
         headers = {k: v for k, v in self.headers.items() if k.lower() not in HOP}
-        headers["Authorization"] = "Bearer " + token()
         try:
             conn.request(self.command, self.path, body=body, headers=headers)
             resp = conn.getresponse()

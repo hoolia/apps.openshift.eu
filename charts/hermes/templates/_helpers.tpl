@@ -91,31 +91,40 @@ seccompProfile:
 {{- default "Hermes agent" .Values.a2a.description -}}
 {{- end -}}
 
-{{/* A2A server of the gateway: in the gateway and the dashboard container, because the
-dashboard may restart the gateway in its own container */}}
+{{/* A2A server of the gateway, on loopback behind the a2a-auth sidecar: in the gateway and
+the dashboard container, because the dashboard may restart the gateway in its own container */}}
 {{- define "hermes.a2aEnv" -}}
 {{- if .Values.a2a.enabled -}}
 {{- $name := include "hermes.name" . -}}
 {{- $ns := include "hermes.namespace" . -}}
 - name: A2A_HOST
-  value: 0.0.0.0
+  value: 127.0.0.1
 - name: A2A_PORT
-  value: {{ .Values.a2a.port | quote }}
+  value: {{ .Values.a2a.gatewayPort | quote }}
 - name: A2A_AGENT_NAME
   value: {{ default (printf "%s.%s" $name $ns) .Values.a2a.agentName | quote }}
 - name: A2A_AGENT_DESCRIPTION
   value: {{ include "hermes.a2aDescription" . | quote }}
 - name: A2A_PUBLIC_URL
   value: http://{{ $name }}-a2a.{{ $ns }}.svc:{{ .Values.a2a.port }}/
-- name: A2A_TOKEN
-  valueFrom:
-    secretKeyRef:
-      name: {{ $name }}-a2a
-      key: token
-# one token per peer; the peer name is the identity in the audit log
-- name: A2A_PEER_TOKENS
-  value: {{ printf "%s:$(A2A_TOKEN)" .Values.a2a.peer | quote }}
-- name: A2A_TRUSTED_PEERS
-  value: {{ .Values.a2a.peer | quote }}
 {{- end -}}
+{{- end -}}
+
+{{/* tenant whose callers the a2a-auth sidecar admits: namespaces <tenant> and <tenant>-* */}}
+{{- define "hermes.a2aTenant" -}}
+{{- default (first (splitList "-" (include "hermes.namespace" .))) .Values.a2a.tenantAuth.tenant -}}
+{{- end -}}
+
+{{/* JSON list of trusted JWT issuers for the a2a-auth sidecar */}}
+{{- define "hermes.a2aJwtIssuers" -}}
+{{- $t := .Values.a2a.tenantAuth -}}
+{{- $sa := "/var/run/secrets/kubernetes.io/serviceaccount" -}}
+{{- $issuers := list -}}
+{{- with $t.kubernetesIssuer -}}
+{{- $issuers = append $issuers (dict "issuer" . "kind" "kubernetes" "ca_file" (printf "%s/ca.crt" $sa) "token_file" (printf "%s/token" $sa)) -}}
+{{- end -}}
+{{- range $t.oidcIssuers -}}
+{{- $issuers = append $issuers (dict "issuer" . "kind" "oidc") -}}
+{{- end -}}
+{{- toJson $issuers -}}
 {{- end -}}
