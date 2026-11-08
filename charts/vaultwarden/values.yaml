@@ -41,6 +41,26 @@ smtp:
   fromName: Vaultwarden
   username: ""
 
+# Vaultwarden's OpenID Connect login (SSO_*) next to the master password, while the Secret
+# secretName exists. A user the issuer signs in gets an account only when signups.allowed,
+# an invitation or signups.domains admits the address; the master password still unlocks
+# the vault. Without the Secret it does nothing
+sso:
+  enabled: true
+  # Secret with the issuer, client ID and client secret; its client needs the redirect URI
+  # https://<host>/identity/connect/oidc-signin. Empty: public-vaultwarden
+  secretName: ""
+  keys:
+    issuer: sso-issuer-url
+    clientId: sso-client-id
+    clientSecret: sso-client-secret
+  # seconds between two reads of the Secret; a change restarts Vaultwarden in its container
+  interval: 30
+
+# extra labels on the Deployment only, not on its pods: a platform policy keyed on a
+# label (an SSO client for sso.secretName) finds it without a pod restart
+deploymentLabels: {}
+
 # further settings of Vaultwarden as environment variables
 extraEnv: []
 

@@ -1,0 +1,14 @@
+{{- if .Values.sso.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vaultwarden-sso
+  labels:
+    app: vaultwarden
+    app.kubernetes.io/name: vaultwarden
+    app.kubernetes.io/component: config
+    {{- include "vaultwarden.commonLabels" $ | nindent 4 }}
+data:
+  sso.sh: |
+    {{- .Files.Get "files/sso.sh" | nindent 4 }}
+{{- end }}
