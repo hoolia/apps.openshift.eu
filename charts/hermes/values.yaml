@@ -76,6 +76,9 @@ secrets:
       # vault item of the approval signing key (its password), for approvalSigning.
       # Empty: no ExternalSecret
       approvalSigningKey: ""
+      # vault item of the Telegram bot token (its password), for telegram.
+      # Empty: no ExternalSecret
+      telegramBotToken: ""
 
 # Agent-to-Agent (A2A v1.0) on Service <release>-a2a, for agents of the tenant. Callers
 # send their own bearer JWT; no credential is stored
@@ -187,6 +190,18 @@ approvalSigning:
   secretName: ""
   # key of that Secret
   key: approval-signing-key
+
+# Telegram channel of the gateway, on while a bot token is set: env TELEGRAM_BOT_TOKEN of
+# containers gateway and dashboard (a gateway restarted from the dashboard runs there).
+# An unknown user gets a pairing code: hermes pairing approve telegram <code>. Empty
+# secretName: secrets.externalSecret.items.telegramBotToken, else no Telegram
+telegram:
+  # Secret in the release namespace
+  secretName: ""
+  # key of that Secret
+  key: telegram-bot-token
+  # numeric Telegram user ids admitted without pairing (TELEGRAM_ALLOWED_USERS)
+  allowedUsers: []
 
 # merged into config.yaml at every start; keys set here win over the dashboard
 config: {}

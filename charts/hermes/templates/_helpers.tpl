@@ -164,6 +164,28 @@ the dashboard container, because the dashboard may restart the gateway in its ow
 
 {{/* Secret of the approval signing key: approvalSigning.secretName, else the ExternalSecret of
 secrets.externalSecret.items.approvalSigningKey; empty: no key */}}
+{{- define "hermes.telegramSecret" -}}
+{{- if .Values.telegram.secretName -}}
+{{- .Values.telegram.secretName -}}
+{{- else if and (eq .Values.secrets.type "externalSecret") .Values.secrets.externalSecret.items.telegramBotToken -}}
+{{- printf "%s-telegram" (include "hermes.name" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "hermes.telegramEnv" -}}
+{{- with include "hermes.telegramSecret" . }}
+- name: TELEGRAM_BOT_TOKEN
+  valueFrom:
+    secretKeyRef:
+      name: {{ . }}
+      key: {{ $.Values.telegram.key }}
+{{- with $.Values.telegram.allowedUsers }}
+- name: TELEGRAM_ALLOWED_USERS
+  value: {{ join "," . | quote }}
+{{- end }}
+{{- end }}
+{{- end -}}
+
 {{- define "hermes.approvalSecret" -}}
 {{- if .Values.approvalSigning.secretName -}}
 {{- .Values.approvalSigning.secretName -}}

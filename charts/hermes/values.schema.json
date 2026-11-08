@@ -143,6 +143,9 @@
                 },
                 "approvalSigningKey": {
                   "type": "string"
+                },
+                "telegramBotToken": {
+                  "type": "string"
                 }
               }
             }
@@ -411,6 +414,32 @@
     },
     "environmentHint": {
       "type": "string"
+    },
+    "telegram": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "secretName": {
+          "type": "string",
+          "pattern": "^$|^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$",
+          "maxLength": 253
+        },
+        "key": {
+          "type": "string",
+          "pattern": "^[-._a-zA-Z0-9]+$"
+        },
+        "allowedUsers": {
+          "type": "array",
+          "items": {
+            "type": [
+              "string",
+              "integer"
+            ],
+            "pattern": "^[0-9]+$",
+            "minimum": 1
+          }
+        }
+      }
     },
     "approvalSigning": {
       "type": "object",
