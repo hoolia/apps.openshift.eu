@@ -66,6 +66,8 @@ secrets:
   # oauth-proxy cookie secret. Empty: generated once. A value that is not 16, 24 or
   # 32 characters long is hashed to 32
   cookieSecret: ""
+  # bearer token of the A2A peer (a2a.peer). Empty: generated once; under Argo CD pass it
+  a2aToken: ""
   externalSecret:
     storeKind: ClusterSecretStore
     storeName: ""
@@ -73,6 +75,30 @@ secrets:
     # vault item of the cookie secret (its password). Empty: generated in the cluster
     items:
       cookieSecret: ""
+      # vault item of the A2A token (its password). Empty: generated in the cluster
+      a2aToken: ""
+
+# Agent-to-Agent (A2A v1.0) server of the gateway on Service <release>-a2a, for agents of
+# the tenant. Callers send the token of Secret <release>-a2a (key token) as bearer token
+a2a:
+  enabled: false
+  port: 9900
+  # name on the agent card; empty: <release>.<namespace>
+  agentName: ""
+  # description on the agent card and in kagent; empty: "Hermes agent"
+  description: ""
+  # identity of the token holder in the audit log and the only trusted peer
+  peer: kagent
+  # register the agent in kagent (BYO Agent named like the release) when kagent is installed
+  kagent:
+    enabled: true
+    # the relay pod kagent runs in front of the A2A Service; it adds the token
+    resources:
+      requests:
+        cpu: 5m
+        memory: 32Mi
+      limits:
+        memory: 96Mi
 
 gateway:
   # OpenAI-compatible model and MCP gateway the token proxy forwards to, for example

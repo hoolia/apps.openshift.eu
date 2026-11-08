@@ -78,8 +78,44 @@ seccompProfile:
 {{- end -}}
 {{- $_ := set $cfg "model" $model -}}
 {{- end -}}
+{{- if .Values.a2a.enabled -}}
+{{- $_ := set $cfg "platforms" (dict "a2a" (dict "enabled" true)) -}}
+{{- end -}}
 {{- if .Values.skills.repositories -}}
 {{- $_ := set $cfg "skills" (dict "external_dirs" (list "/opt/data/skills-external")) -}}
 {{- end -}}
 {{- toJson (mergeOverwrite $cfg (deepCopy .Values.config)) -}}
+{{- end -}}
+
+{{- define "hermes.a2aDescription" -}}
+{{- default "Hermes agent" .Values.a2a.description -}}
+{{- end -}}
+
+{{/* A2A server of the gateway: in the gateway and the dashboard container, because the
+dashboard may restart the gateway in its own container */}}
+{{- define "hermes.a2aEnv" -}}
+{{- if .Values.a2a.enabled -}}
+{{- $name := include "hermes.name" . -}}
+{{- $ns := include "hermes.namespace" . -}}
+- name: A2A_HOST
+  value: 0.0.0.0
+- name: A2A_PORT
+  value: {{ .Values.a2a.port | quote }}
+- name: A2A_AGENT_NAME
+  value: {{ default (printf "%s.%s" $name $ns) .Values.a2a.agentName | quote }}
+- name: A2A_AGENT_DESCRIPTION
+  value: {{ include "hermes.a2aDescription" . | quote }}
+- name: A2A_PUBLIC_URL
+  value: http://{{ $name }}-a2a.{{ $ns }}.svc:{{ .Values.a2a.port }}/
+- name: A2A_TOKEN
+  valueFrom:
+    secretKeyRef:
+      name: {{ $name }}-a2a
+      key: token
+# one token per peer; the peer name is the identity in the audit log
+- name: A2A_PEER_TOKENS
+  value: {{ printf "%s:$(A2A_TOKEN)" .Values.a2a.peer | quote }}
+- name: A2A_TRUSTED_PEERS
+  value: {{ .Values.a2a.peer | quote }}
+{{- end -}}
 {{- end -}}

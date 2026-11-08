@@ -140,10 +140,16 @@
               "properties": {
                 "cookieSecret": {
                   "type": "string"
+                },
+                "a2aToken": {
+                  "type": "string"
                 }
               }
             }
           }
+        },
+        "a2aToken": {
+          "type": "string"
         }
       }
     },
@@ -319,6 +325,38 @@
             "string",
             "integer"
           ]
+        }
+      }
+    },
+    "a2a": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "port": {
+          "type": "integer"
+        },
+        "agentName": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "peer": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._-]+$"
+        },
+        "kagent": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "resources": {
+              "type": "object"
+            }
+          }
         }
       }
     }

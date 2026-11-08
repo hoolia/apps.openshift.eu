@@ -90,16 +90,30 @@ spec:
       - name: gateway
         image: {{ include "hermes.image" . }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
-        # without s6: the gateway in the foreground, restarted by the kubelet
+        # without s6: the gateway in the foreground. A gateway restarted from the dashboard
+        # runs in the dashboard container and this one exits at once, so wait and retry
         command:
-        - /opt/hermes/.venv/bin/hermes
-        - gateway
-        - run
-        - --no-supervise
+        - /bin/sh
+        - -c
+        - |
+          trap 'kill $p 2>/dev/null; wait $p; exit 0' TERM INT
+          while :; do
+            /opt/hermes/.venv/bin/hermes gateway run --no-supervise & p=$!
+            wait $p
+            sleep 30 & p=$!
+            wait $p
+          done
         env:
         {{- toYaml $common | nindent 8 }}
         - name: HERMES_GATEWAY_NO_SUPERVISE
           value: "1"
+        {{- include "hermes.a2aEnv" . | nindent 8 }}
+        {{- if .Values.a2a.enabled }}
+        ports:
+        - name: a2a
+          containerPort: {{ .Values.a2a.port }}
+          protocol: TCP
+        {{- end }}
         volumeMounts:
         - name: data
           mountPath: /opt/data
@@ -131,6 +145,7 @@ spec:
         - --no-open
         env:
         {{- toYaml $common | nindent 8 }}
+        {{- include "hermes.a2aEnv" . | nindent 8 }}
         {{- if .Values.sso.enabled }}
         - name: SSO_DIR
           value: /etc/hermes-sso
