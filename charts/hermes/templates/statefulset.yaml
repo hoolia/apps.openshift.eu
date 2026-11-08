@@ -50,7 +50,9 @@ spec:
         # Hermes refuses a home that its own user does not own
         runAsUser: {{ .Values.image.uid }}
         runAsGroup: {{ .Values.image.uid }}
-        fsGroup: {{ .Values.image.uid }}
+        # a volume shared with a pod of the project (a browser's downloads) needs a
+        # group of the project's range; kubelet adds it to every container's groups
+        fsGroup: {{ .Values.podSecurityContext.fsGroup | default .Values.image.uid }}
         runAsNonRoot: true
         seccompProfile:
           type: RuntimeDefault

@@ -4,6 +4,12 @@ team: ""
 # tenant the app belongs to; required with team
 tenant: ""
 
+# group of the pod's volumes; empty: image.uid. Set the first group of the project's
+# range (annotation openshift.io/sa.scc.supplemental-groups) when an extraVolume is
+# shared with a pod of the project, such as a browser that saves downloads
+podSecurityContext:
+  fsGroup: ""
+
 image:
   repository: docker.io/nousresearch/hermes-agent
   tag: v0.23.0
