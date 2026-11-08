@@ -86,6 +86,9 @@ llm:
   model: ""
   # context window of that model in tokens; 0: what the gateway reports. Hermes needs 64000
   contextLength: 0
+  # name of the gateway in /model and hermes status, for example the platform's brand or
+  # <tenant>-bifrost for a tenant's own gateway; empty: "Custom endpoint"
+  providerName: ""
 
 mcp:
   # turn every kagent RemoteMCPServer the agent may list into an MCP server of Hermes

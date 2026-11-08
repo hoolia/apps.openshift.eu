@@ -168,6 +168,9 @@
         "contextLength": {
           "type": "integer",
           "minimum": 0
+        },
+        "providerName": {
+          "type": "string"
         }
       }
     },
