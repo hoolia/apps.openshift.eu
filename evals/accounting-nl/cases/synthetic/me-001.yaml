@@ -1,0 +1,28 @@
+# synthetic: month end with depreciation of two assets and one accrual with reversal
+id: me-001
+kind: month_end
+synthetic: true
+input:
+  period: 2026-03
+  asset_schedule:
+  - {asset_code: VB-001, rgs_cumulative: BMvaBeiCae, rgs_expense: WAfsAmvBei, start_period: 2026-01, cost: 1500.00, residual_value: 0.00, life_months: 36}
+  - {asset_code: VB-002, rgs_cumulative: BMvaBeiCae, rgs_expense: WAfsAmvBei, start_period: 2025-07, cost: 10000.00, residual_value: 1000.00, life_months: 60}
+  recurring_without_invoice:
+  - {supplier: Voorbeeld Energie BV, rgs: WBedHuiElk, monthly_amount: 180.00, invoice_expected: 2026-04}
+expected:
+  bookings:
+  - tool: draft_general_journal_entry
+    description: {supplier: Afschrijving, period: 2026-03, ref: AFS-2026-03}
+    lines:
+    - {rgs: WAfsAmvBei, amount: 191.66}
+    - {rgs: BMvaBeiCae, amount: -191.66}
+  - tool: draft_general_journal_entry
+    description: {supplier: Voorbeeld Energie BV, period: 2026-03, ref: OVL-2026-03}
+    lines:
+    - {rgs: WBedHuiElk, amount: 180.00}
+    - {rgs: BSchOpaNhv, amount: -180.00}
+  - tool: draft_general_journal_entry
+    description: {supplier: Voorbeeld Energie BV, period: 2026-04, ref: OVL-2026-03}
+    lines:
+    - {rgs: WBedHuiElk, amount: -180.00}
+    - {rgs: BSchOpaNhv, amount: 180.00}

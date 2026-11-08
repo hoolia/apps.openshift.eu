@@ -1,0 +1,23 @@
+# synthetic: accountant invoice with two rates on one invoice (21% advice, 9% book)
+id: inv-003
+kind: invoice
+synthetic: true
+input:
+  supplier: Voorbeeld Advies BV
+  supplier_vat: NL000000001B01
+  country: NL
+  invoice_number: "2026-118"
+  invoice_date: 2026-03-15
+  due_date: 2026-04-14
+  currency: EUR
+  lines:
+  - {description: Samenstellen jaarrekening 2025, amount_excl: 800.00, vat_percentage: 21, vat_amount: 168.00}
+  - {description: Vakboek fiscaal, amount_excl: 50.00, vat_percentage: 9, vat_amount: 4.50}
+  total_incl: 1022.50
+expected:
+  bookings:
+  - tool: draft_purchase_entry
+    description: {supplier: Voorbeeld Advies BV, period: 2026-03, ref: "2026-118"}
+    lines:
+    - {rgs: WBedAeaAea, amount: 800.00, vat: {rubriek: 5b, percentage: 21, amount: 168.00, reverse_charge: false}}
+    - {rgs: WBedKanVak, amount: 50.00, vat: {rubriek: 5b, percentage: 9, amount: 4.50, reverse_charge: false}}

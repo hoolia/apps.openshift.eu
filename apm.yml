@@ -13,4 +13,18 @@ dependencies:
   - ./skills/helm-kustomize
   - ./skills/exact-invoice-matching
   - ./skills/exact-purchase-invoice-upload
+  - ./skills/nl-conventions
+  - ./skills/afletteren
+  - ./skills/afschrijving
+  - ./skills/loonjournaalpost
+  - ./skills/maandafsluiting
+  - ./skills/import-transactions
+  - ./skills/smart-categorize
+  - ./skills/month-end-close
+  - ./skills/monthly-digest
+  - ./skills/expense-optimizer
+  - ./skills/profit-loss
+  - ./skills/cash-flow-forecast
+  - ./skills/runway-calculator
+  - ./skills/revenue-concentration
   - ./mcp/kubernetes

@@ -1,0 +1,22 @@
+# synthetic: EU supplier of a cloud service, no VAT on the invoice (reverse charge)
+id: inv-002
+kind: invoice
+synthetic: true
+input:
+  supplier: Example Cloud GmbH
+  supplier_vat: DE000000000
+  country: DE
+  invoice_number: EC-77001
+  invoice_date: 2026-03-01
+  due_date: 2026-03-31
+  currency: EUR
+  note: Reverse charge, VAT to be accounted for by the recipient
+  lines:
+  - {description: Cloud hosting March, amount_excl: 250.00, vat_percentage: 0, vat_amount: 0.00}
+  total_incl: 250.00
+expected:
+  bookings:
+  - tool: draft_purchase_entry
+    description: {supplier: Example Cloud GmbH, period: 2026-03, ref: EC-77001}
+    lines:
+    - {rgs: WBedKanKoa, amount: 250.00, vat: {rubriek: 4b, percentage: 21, amount: 52.50, reverse_charge: true}}

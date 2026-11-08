@@ -1,0 +1,21 @@
+# synthetic: domestic software subscription, 21% VAT
+id: inv-001
+kind: invoice
+synthetic: true
+input:
+  supplier: Voorbeeld Software BV
+  supplier_vat: NL000000000B01
+  country: NL
+  invoice_number: VS-2026-0042
+  invoice_date: 2026-03-31
+  due_date: 2026-04-14
+  currency: EUR
+  lines:
+  - {description: Abonnement boekhoudtool maart, amount_excl: 100.00, vat_percentage: 21, vat_amount: 21.00}
+  total_incl: 121.00
+expected:
+  bookings:
+  - tool: draft_purchase_entry
+    description: {supplier: Voorbeeld Software BV, period: 2026-03, ref: VS-2026-0042}
+    lines:
+    - {rgs: WBedKanSof, amount: 100.00, vat: {rubriek: 5b, percentage: 21, amount: 21.00, reverse_charge: false}}

@@ -43,8 +43,11 @@ when they do not. A negative total is a credit note (`credit_note: true`).
 1. `draft_purchase_entry` with `dry_run: true`: `supplier_id`, `journal`, `your_ref`,
    `entry_date` (invoice date), `due_date`, `description`, `currency`, `payment_reference`,
    `credit_note`, `lines[{gl_account_id, amount, vat_code, vat_amount, description}]`.
-2. Show the user the dry run as a table (lines, VAT, totals) next to the invoice totals, and
-   ask for confirmation. Only after an explicit yes call it again with `dry_run: false`.
+   Description, accounts and VAT follow the `nl-conventions` skill (description parts
+   `{supplier}|{period}|{ref}|{short}`, RGS meaning, BTW rubriek).
+2. Send the dry run as an approval request on the approval channel (`nl-conventions`):
+   one line per booking line, VAT and the total next to the invoice total. Only after
+   `boek <id>` call it again with `dry_run: false`; `afkeuren <id> <reden>` writes nothing.
 3. Attach the file: `attach_document` with `entry_id` of the new entry, `file_name`, and
    `content_base64` of the file (or `file_url` for an https URL); `dry_run: true` first,
    then `dry_run: false` with the same confirmation.

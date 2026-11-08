@@ -1,0 +1,18 @@
+# synthetic: monthly bank charges on suspense, moved to bank costs (no VAT)
+id: bank-001
+kind: bank_line
+synthetic: true
+input:
+  date: 2026-03-31
+  amount: -12.50
+  counterparty: Voorbeeld Bank NV
+  counterparty_iban: NL00BANK0000000000
+  description: Kosten betaalrekening maart 2026
+  booked_on: BSchTusTov
+expected:
+  bookings:
+  - tool: draft_general_journal_entry
+    description: {supplier: Voorbeeld Bank NV, period: 2026-03, ref: KOSTEN-2026-03}
+    lines:
+    - {rgs: WBedAdlBan, amount: 12.50}
+    - {rgs: BSchTusTov, amount: -12.50}

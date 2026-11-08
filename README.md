@@ -52,7 +52,8 @@ This repository also hosts agent skills and MCP servers as packages of
 
 | Directory | Package |
 |---|---|
-| `skills/<name>/SKILL.md` | one skill: `openshift-cli`, `gitlab-cli`, `helm-kustomize` |
+| `skills/<name>/SKILL.md` | one skill: `openshift-cli`, `gitlab-cli`, `helm-kustomize`, and the Exact Online accounting skills (`exact-*`, `nl-conventions` and the skills that name it) |
+| `evals/accounting-nl/` | the evaluation set format, synthetic cases and runner of the accounting skills |
 | `mcp/<server>/apm.yml` | one MCP server: `kubernetes` (read-only `kubernetes-mcp-server`) |
 | `apm.yml` | every package above, for an agent session in a clone of this repository |
 | `images/coding-agent/` | the Claude Code and OpenCode images, which carry these packages in the user's home |
