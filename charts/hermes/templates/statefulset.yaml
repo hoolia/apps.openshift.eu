@@ -239,10 +239,15 @@ spec:
         - 127.0.0.1
         - --directory
         - /srv/files
+        # the kubelet dials the pod IP; the server listens on loopback only
         readinessProbe:
-          tcpSocket:
-            port: {{ .Values.fileServer.port }}
+          exec:
+            command:
+            - /opt/hermes/.venv/bin/python
+            - -c
+            - import urllib.request; urllib.request.urlopen("http://127.0.0.1:{{ .Values.fileServer.port }}/", timeout=3)
           periodSeconds: 10
+          timeoutSeconds: 5
         volumeMounts:
         - name: {{ required "fileServer.volume names an extraVolume" .Values.fileServer.volume }}
           mountPath: /srv/files{{ .Values.fileServer.path | trimSuffix "/" }}
