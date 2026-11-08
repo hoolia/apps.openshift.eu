@@ -358,6 +358,98 @@
           "type": "string"
         }
       }
+    },
+    "remoteMCPServer": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "auth": {
+          "type": "string",
+          "enum": [
+            "",
+            "oauth2"
+          ]
+        },
+        "annotations": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "url": {
+          "type": "string"
+        },
+        "allowedNamespaces": {
+          "type": "string",
+          "enum": [
+            "Same",
+            "All"
+          ]
+        },
+        "timeout": {
+          "type": "string"
+        },
+        "sseReadTimeout": {
+          "type": "string"
+        }
+      }
+    },
+    "externalSecret": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "storeKind": {
+          "type": "string",
+          "enum": [
+            "ClusterSecretStore",
+            "SecretStore"
+          ]
+        },
+        "storeName": {
+          "type": "string"
+        },
+        "refreshInterval": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "data": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "secretKey",
+              "item",
+              "property"
+            ],
+            "properties": {
+              "secretKey": {
+                "type": "string"
+              },
+              "item": {
+                "type": "string"
+              },
+              "property": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
     }
   }
 }

@@ -1,0 +1,34 @@
+{{- $r := .Values.remoteMCPServer }}
+{{- if $r.enabled }}
+{{- $url := $r.url }}
+{{- if and (not $url) .Values.image.repository .Values.route.enabled .Values.route.host }}
+{{- $url = printf "https://%s%s" .Values.route.host .Values.path }}
+{{- end }}
+# registers the server for the agents of the project (kagent, Hermes)
+apiVersion: kagent.dev/v1alpha2
+kind: RemoteMCPServer
+metadata:
+  name: {{ $r.name | default .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "mcp-server.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+  {{- if or $r.auth $r.annotations }}
+  annotations:
+    {{- with $r.auth }}
+    openhands.dev/auth: {{ . }}
+    {{- end }}
+    {{- with $r.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
+spec:
+  allowedNamespaces:
+    from: {{ $r.allowedNamespaces }}
+  description: {{ required "remoteMCPServer.description is required" $r.description | quote }}
+  url: {{ required "remoteMCPServer.url is required without a published Route" $url }}
+  protocol: STREAMABLE_HTTP
+  timeout: {{ $r.timeout }}
+  sseReadTimeout: {{ $r.sseReadTimeout }}
+  terminateOnClose: true
+{{- end }}

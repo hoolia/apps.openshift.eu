@@ -13,6 +13,8 @@ Choices:
 - A NetworkPolicy admits callers from the own project and `networkPolicy.ingressNamespaces` only. Egress goes to cluster DNS and the public internet; a private upstream needs an entry in `networkPolicy.egress.allow`.
 - `rbacProxy.enabled` puts kube-rbac-proxy in front of the server: every call needs a Kubernetes ServiceAccount token allowed `services/proxy` on the Service (Role `<release>-caller`, subjects from `rbacProxy.callers`). The server then listens on `127.0.0.1`; `serviceAccountName` must name a ServiceAccount bound to `system:auth-delegator`, which the cluster administrator creates. With `route.enabled` a Route publishes the endpoint (reencrypt to the proxy) for an MCP gateway on another cluster.
 - `secretEnv` maps single keys of existing Secrets to variables, for example a ServiceAccount token Secret.
+- `remoteMCPServer.enabled` registers the server for the project's agents (kagent, Hermes) as a `RemoteMCPServer` at `https://<route.host><path>`. `remoteMCPServer.auth: oauth2` marks a server with its own OAuth broker, so each user logs in from the agent. Without `image.repository` the chart renders only this object, for a hosted MCP server at `remoteMCPServer.url`.
+- `externalSecret.enabled` writes the Secret of `envFromSecret` from a secret store: one entry per variable in `externalSecret.data` (`secretKey`, `item`, `property`).
 - The default port 8000 is outside the ports a typical project default opens to everyone (80, 443, 8080, 8443).
 
 ### Token check
