@@ -67,6 +67,15 @@ seccompProfile:
 {{- $model := dict "provider" "custom" "base_url" (printf "http://127.0.0.1:%v/v1" .Values.tokenProxy.port) "api_key" "token-proxy" -}}
 {{- with .Values.llm.model }}{{ $_ := set $model "default" . }}{{ end -}}
 {{- with .Values.llm.contextLength }}{{ $_ := set $model "context_length" (int .) }}{{ end -}}
+{{- with .Values.llm.providerName -}}
+{{- /* a named provider: /model and hermes status show this name, not "Custom endpoint" */ -}}
+{{- $id := regexReplaceAll "[^a-z0-9]+" (lower .) "-" | trimAll "-" -}}
+{{- $entry := dict "name" . "base_url" $model.base_url "api_key" $model.api_key -}}
+{{- with $model.default }}{{ $_ := set $entry "model" . }}{{ end -}}
+{{- with $model.context_length }}{{ $_ := set $entry "context_length" . }}{{ end -}}
+{{- $_ := set $model "provider" $id -}}
+{{- $_ := set $cfg "providers" (dict $id $entry) -}}
+{{- end -}}
 {{- $_ := set $cfg "model" $model -}}
 {{- end -}}
 {{- if .Values.skills.repositories -}}

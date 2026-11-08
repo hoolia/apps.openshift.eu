@@ -54,6 +54,7 @@ The Secret `public-assistant` holds `sso-issuer-url`, `sso-client-id` and `sso-c
 - `secrets.cookieSecret` (default: empty): oauth-proxy cookie secret; empty: generated once. Under Argo CD pass it, or it changes on every sync.
 - `gateway.upstream`, `gateway.audience` (default: empty): model and MCP gateway, audience of the token.
 - `llm.model`, `llm.contextLength` (default: empty, 0): default model and its context window.
+- `llm.providerName` (default: empty): name of the gateway in `/model` and `hermes status`, for example `<tenant>-bifrost` for a tenant's own gateway. Empty: Hermes shows "Custom endpoint".
 - `mcp.*`: discovery, see Purpose. `mcp.clusterRole` (default: `kagent-remotemcpserver-view`) is bound in the namespace so `mcp-sync` may list `RemoteMCPServers`.
 - `skills.repositories` (default: empty): `{name, url, ref, path}` per repository.
 - `config` (default: empty): keys merged into `config.yaml` at every start; they win over the dashboard.
