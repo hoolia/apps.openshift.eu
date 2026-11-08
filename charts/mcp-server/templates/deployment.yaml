@@ -62,6 +62,13 @@ spec:
               name: {{ .secret }}
               key: {{ .key }}
         {{- end }}
+        {{- if .Values.postgres.enabled }}
+        - name: {{ .Values.postgres.envName }}
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "mcp-server.postgres" . }}-app
+              key: uri
+        {{- end }}
         {{- with .Values.envFromSecret }}
         envFrom:
         - secretRef:

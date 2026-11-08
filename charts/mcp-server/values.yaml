@@ -143,6 +143,32 @@ persistence:
   # empty: the default storage class
   className: ""
 
+# A CloudNativePG Cluster <release>-postgres in the release namespace for the server's
+# database; the server gets its URL (key uri of the Secret <release>-postgres-app) in the
+# variable envName. Needs the CloudNativePG operator
+postgres:
+  enabled: false
+  envName: DATABASE_URL
+  instances: 1
+  database: app
+  owner: app
+  storage:
+    size: 1Gi
+    # empty: the cluster's default StorageClass
+    storageClass: ""
+  # empty: the operator's default PostgreSQL image
+  imageName: ""
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
+  # namespaces of the CloudNativePG operator, which reads the instance status
+  operatorNamespaceSelector:
+    matchLabels:
+      kubernetes.io/metadata.name: openshift-operators
+
 resources:
   requests:
     cpu: 10m

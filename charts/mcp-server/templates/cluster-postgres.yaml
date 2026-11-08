@@ -1,0 +1,34 @@
+{{- if and .Values.image.repository .Values.postgres.enabled }}
+{{- $c := .Values.postgres }}
+# The server's database; the server reads its URL from the key uri of the generated
+# Secret <release>-postgres-app (env postgres.envName)
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: {{ include "mcp-server.postgres" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "mcp-server.labels" . | nindent 4 }}
+    app.kubernetes.io/component: database
+    app.openshift.io/runtime: postgresql
+spec:
+  instances: {{ $c.instances }}
+  {{- with $c.imageName }}
+  imageName: {{ . }}
+  {{- end }}
+  # a single instance with a PDB would block every node drain
+  enablePDB: {{ gt (int $c.instances) 1 }}
+  bootstrap:
+    initdb:
+      database: {{ $c.database }}
+      owner: {{ $c.owner }}
+  storage:
+    size: {{ $c.storage.size }}
+    {{- with $c.storage.storageClass }}
+    storageClass: {{ . }}
+    {{- end }}
+  {{- with $c.resources }}
+  resources:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}

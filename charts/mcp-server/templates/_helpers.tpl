@@ -7,6 +7,11 @@ app.kubernetes.io/part-of: {{ .Release.Name | quote }}
 app.kubernetes.io/version: {{ .Values.image.tag | default .Chart.AppVersion | splitList "@" | first | trunc 63 | quote }}
 {{- end -}}
 
+{{/* CloudNativePG Cluster of the server; its Secret is <name>-app */}}
+{{- define "mcp-server.postgres" -}}
+{{- printf "%s-postgres" .Release.Name -}}
+{{- end -}}
+
 {{- define "mcp-server.selectorLabels" -}}
 app.kubernetes.io/name: mcp-server
 app.kubernetes.io/instance: {{ .Release.Name | quote }}

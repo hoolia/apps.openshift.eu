@@ -46,6 +46,15 @@ spec:
         {{- range concat .exceptCidrs .extraExceptCidrs }}
         - {{ . }}
         {{- end }}
+  {{- if $.Values.postgres.enabled }}
+  - to:
+    - podSelector:
+        matchLabels:
+          cnpg.io/cluster: {{ include "mcp-server.postgres" $ }}
+    ports:
+    - protocol: TCP
+      port: 5432
+  {{- end }}
   {{- range .allow }}
   - to:
     - ipBlock:
@@ -60,4 +69,41 @@ spec:
   {{- end }}
   {{- end }}
   {{- end }}
+{{- if .Values.postgres.enabled }}
+---
+# The database: the server, its own instances (replication) and the CloudNativePG
+# operator, which reads the instance status
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "mcp-server.postgres" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "mcp-server.labels" . | nindent 4 }}
+    app.kubernetes.io/component: database
+spec:
+  podSelector:
+    matchLabels:
+      cnpg.io/cluster: {{ include "mcp-server.postgres" . }}
+  policyTypes:
+  - Ingress
+  ingress:
+  - ports:
+    - protocol: TCP
+      port: 5432
+    from:
+    - podSelector:
+        matchLabels:
+          {{- include "mcp-server.selectorLabels" . | nindent 10 }}
+  - from:
+    - podSelector:
+        matchLabels:
+          cnpg.io/cluster: {{ include "mcp-server.postgres" . }}
+  - ports:
+    - protocol: TCP
+      port: 8000
+    from:
+    - namespaceSelector:
+        {{- toYaml .Values.postgres.operatorNamespaceSelector | nindent 8 }}
+{{- end }}
 {{- end }}

@@ -43,6 +43,14 @@ helm install grafana grncloud/mcp-server \
 
 A server that keeps state of its own (OAuth logins of its users, tokens, a SQLite file) needs `persistence.enabled`: a claim `<release>-data` mounted at `persistence.mountPath` (default `/data`) that survives restarts and an uninstall. Point the server's data path at it, for example with `env`.
 
+A server that needs PostgreSQL gets one with `postgres.enabled`: a CloudNativePG `Cluster` `<release>-postgres` in the release namespace (needs the CloudNativePG operator), 1 instance on `postgres.storage.size` (default 1Gi) of `postgres.storage.storageClass` (default: the cluster's default class), with requests of 50m CPU and 128Mi memory and a 512Mi limit (`postgres.resources`). The server reads the connection URL, `postgresql://<owner>:<password>@<release>-postgres-rw.<namespace>:5432/<database>`, from the variable `postgres.envName` (default `DATABASE_URL`), taken from the key `uri` of the Secret `<release>-postgres-app` that the operator writes. A NetworkPolicy `<release>-postgres` admits the server on 5432, the instances among each other and the operator namespaces of `postgres.operatorNamespaceSelector` on 8000. The chart renders no backup: add a `ScheduledBackup` or let a platform policy add one.
+
+```bash
+helm install ledger grncloud/mcp-server \
+  --set image.repository=ghcr.io/example/ledger-mcp --set image.tag=1.0.0 \
+  --set postgres.enabled=true --set postgres.storage.size=5Gi
+```
+
 ## How to login
 
 No human login: callers authenticate with a bearer token checked by `auth.*`, or the OpenShift RBAC proxy `rbacProxy.*`.
@@ -50,5 +58,6 @@ No human login: callers authenticate with a bearer token checked by `auth.*`, or
 ## Delivery instructions
 
 - Check the pod is Ready: `oc get pods -l app.kubernetes.io/instance=grafana`.
+- With `postgres.enabled`, check the database is healthy: `oc get clusters.postgresql.cnpg.io <release>-postgres`.
 - Through your MCP gateway the tools appear as `<release>_<tool>`. From inside the project: `POST http://<release>:8000/mcp` with an MCP `initialize` request.
 - The server has whatever rights its credential has: give it a read-only one where the upstream allows it.
