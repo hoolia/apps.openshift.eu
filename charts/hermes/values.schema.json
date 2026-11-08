@@ -23,6 +23,22 @@
         "annotations": {"type": ["object", "null"]}
       }
     },
+    "sso": {
+      "type": "object",
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "secretName": {"type": "string"},
+        "keys": {
+          "type": "object",
+          "properties": {
+            "issuer": {"type": "string", "minLength": 1},
+            "clientId": {"type": "string", "minLength": 1},
+            "clientSecret": {"type": "string", "minLength": 1}
+          }
+        },
+        "scopes": {"type": "string", "minLength": 1}
+      }
+    },
     "oauth": {
       "type": "object",
       "properties": {
@@ -106,6 +122,10 @@
     "tokenProxy": {"type": "object"},
     "mcpSync": {"type": "object"},
     "serviceAccount": {"type": "object"},
+    "statefulSet": {
+      "type": "object",
+      "properties": {"labels": {"type": "object"}}
+    },
     "extraVolumes": {"type": "array"},
     "extraVolumeMounts": {"type": "array"},
     "nodeSelector": {"type": "object"},

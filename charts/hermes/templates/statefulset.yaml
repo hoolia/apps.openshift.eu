@@ -11,6 +11,9 @@ metadata:
   labels:
     {{- include "hermes.labels" . | nindent 4 }}
     app.kubernetes.io/component: server
+    {{- with .Values.statefulSet.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
   annotations:
     app.openshift.io/custom-icon: {{ .Chart.Icon }}
 spec:
@@ -121,6 +124,30 @@ spec:
         - --no-open
         env:
         {{- toYaml $common | nindent 8 }}
+        {{- if .Values.sso.enabled }}
+        {{- $secret := .Values.sso.secretName | default (printf "%s-sso" $name) }}
+        # the browser Origin the chat accepts; also the base of the login callback
+        - name: HERMES_DASHBOARD_PUBLIC_URL
+          value: https://{{ required "route.host is required with sso.enabled" .Values.route.host }}
+        - name: HERMES_DASHBOARD_OIDC_ISSUER
+          valueFrom:
+            secretKeyRef:
+              name: {{ $secret }}
+              key: {{ .Values.sso.keys.issuer }}
+        - name: HERMES_DASHBOARD_OIDC_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: {{ $secret }}
+              key: {{ .Values.sso.keys.clientId }}
+        - name: HERMES_DASHBOARD_OIDC_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: {{ $secret }}
+              key: {{ .Values.sso.keys.clientSecret }}
+              optional: true
+        - name: HERMES_DASHBOARD_OIDC_SCOPES
+          value: {{ .Values.sso.scopes | quote }}
+        {{- end }}
         readinessProbe:
           exec:
             command:
