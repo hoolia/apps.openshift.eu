@@ -4,7 +4,8 @@
 The gateway serves A2A on loopback only. This proxy admits a ServiceAccount token from a
 namespace <tenant> or <tenant>-*, or an OIDC token whose groups claim holds <tenant> or
 <tenant>-*; kubelet and the identity provider issue and rotate those tokens, so no
-credential is stored. Agent cards are public. Runs on the Hermes image (PyJWT).
+credential is stored. Agent cards are public. A caller of A2A v0.3 (header A2A-Version 0.x,
+such as kagent) gets the gateway's v1.0 answers in v0.3 shape. Runs on the Hermes image (PyJWT).
 """
 import http.client
 import json
@@ -92,6 +93,81 @@ def identity(header: str) -> str | None:
     return None
 
 
+# --- A2A v0.3 callers (kagent): the gateway speaks v1.0 only ---------------------------
+
+TERMINAL = {"completed", "failed", "canceled", "rejected", "input-required", "auth-required"}
+
+
+def v03_state(state: str) -> str:
+    return state.removeprefix("TASK_STATE_").lower().replace("_", "-") if state.startswith("TASK_STATE_") else state
+
+
+def v03_part(part: dict) -> dict:
+    if "kind" in part:
+        return part
+    kind = "text" if "text" in part else "data" if "data" in part else "file"
+    return {"kind": kind, **part}
+
+
+def v03_message(msg: dict) -> dict:
+    out = {**msg, "kind": "message", "role": {"ROLE_AGENT": "agent", "ROLE_USER": "user"}.get(msg.get("role"), msg.get("role"))}
+    out["parts"] = [v03_part(p) for p in msg.get("parts") or []]
+    return out
+
+
+def v03_status(status: dict) -> dict:
+    out = {**status, "state": v03_state(status.get("state", ""))}
+    if isinstance(status.get("message"), dict):
+        out["message"] = v03_message(status["message"])
+    return out
+
+
+def v03_artifact(art: dict) -> dict:
+    return {**art, "parts": [v03_part(p) for p in art.get("parts") or []]}
+
+
+def v03_task(task: dict) -> dict:
+    out = {**task, "kind": "task", "status": v03_status(task.get("status") or {})}
+    if "artifacts" in task:
+        out["artifacts"] = [v03_artifact(a) for a in task["artifacts"] or []]
+    if "history" in task:
+        out["history"] = [v03_message(m) for m in task["history"] or []]
+    return out
+
+
+def v03_result(result):
+    if not isinstance(result, dict):
+        return result
+    if "statusUpdate" in result:
+        ev = result["statusUpdate"]
+        status = v03_status(ev.get("status") or {})
+        return {**ev, "kind": "status-update", "status": status, "final": status.get("state") in TERMINAL}
+    if "artifactUpdate" in result:
+        ev = result["artifactUpdate"]
+        return {**ev, "kind": "artifact-update", "artifact": v03_artifact(ev.get("artifact") or {})}
+    if set(result) == {"task"}:
+        return v03_task(result["task"])
+    if set(result) == {"message"}:
+        return v03_message(result["message"])
+    if "status" in result and "id" in result:
+        return v03_task(result)
+    if "messageId" in result and "parts" in result:
+        return v03_message(result)
+    if isinstance(result.get("tasks"), list):
+        return {**result, "tasks": [v03_task(t) for t in result["tasks"]]}
+    return result
+
+
+def v03_envelope(raw: bytes) -> bytes:
+    try:
+        env = json.loads(raw)
+    except ValueError:
+        return raw
+    if isinstance(env, dict) and "result" in env:
+        env["result"] = v03_result(env["result"])
+    return json.dumps(env).encode()
+
+
 class Proxy(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
@@ -119,24 +195,39 @@ class Proxy(BaseHTTPRequestHandler):
         body = self.rfile.read(length) if length else None
         headers = {k: v for k, v in self.headers.items() if k.lower() not in DROP}
         headers["Host"] = f"127.0.0.1:{UPSTREAM_PORT}"
+        # a v0.3 caller: the gateway refuses the header and answers in v1.0 shape
+        legacy = self.headers.get("A2A-Version", "").startswith("0.") and self.command == "POST"
+        if legacy:
+            headers = {k: v for k, v in headers.items() if k.lower() != "a2a-version"}
         conn = http.client.HTTPConnection("127.0.0.1", UPSTREAM_PORT, timeout=3700)
         try:
             conn.request(self.command, self.path, body=body, headers=headers)
             resp = conn.getresponse()
         except OSError as exc:
             return self._deny(502, f"gateway: {exc}")
+        stream = "text/event-stream" in (resp.getheader("Content-Type") or "")
         self.send_response(resp.status, resp.reason)
         for k, v in resp.getheaders():
             if k.lower() not in DROP and k.lower() != "content-length":
                 self.send_header(k, v)
         self.send_header("Transfer-Encoding", "chunked")
         self.end_headers()
-        while True:
-            chunk = resp.read1(65536)
-            if not chunk:
-                break
-            self.wfile.write(b"%x\r\n%s\r\n" % (len(chunk), chunk))
-            self.wfile.flush()
+
+        def write(data: bytes):
+            if data:
+                self.wfile.write(b"%x\r\n%s\r\n" % (len(data), data))
+                self.wfile.flush()
+
+        if legacy and stream:
+            while line := resp.readline():
+                if line.startswith(b"data:"):
+                    line = b"data: " + v03_envelope(line[5:].strip()) + b"\n"
+                write(line)
+        elif legacy:
+            write(v03_envelope(resp.read()))
+        else:
+            while chunk := resp.read1(65536):
+                write(chunk)
         self.wfile.write(b"0\r\n\r\n")
         conn.close()
 
