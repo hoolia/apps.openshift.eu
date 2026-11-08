@@ -55,6 +55,7 @@ The Secret `public-assistant` holds `sso-issuer-url`, `sso-client-id` and `sso-c
 - `gateway.upstream`, `gateway.audience` (default: empty): model and MCP gateway, audience of the token.
 - `llm.model`, `llm.contextLength` (default: empty, 0): default model and its context window.
 - `llm.providerName` (default: empty): name of the gateway in `/model` and `hermes status`, for example `<tenant>-bifrost` for a tenant's own gateway. Empty: Hermes shows "Custom endpoint".
+- `a2a.enabled` (default: false): A2A v1.0 server of the gateway on Service `<release>-a2a`, port `a2a.port` (9900). Callers send the token of Secret `<release>-a2a`, key `token`, as bearer token; the token holder is peer `a2a.peer` (kagent). With kagent installed, `a2a.kagent.enabled` registers a BYO Agent named like the release whose relay pod adds the token: every pod that may reach that relay (the project's network policies decide, normally the tenant) can call the agent. `secrets.a2aToken` or `secrets.externalSecret.items.a2aToken` set the token; empty, it is generated once.
 - `mcp.*`: discovery, see Purpose. `mcp.clusterRole` (default: `kagent-remotemcpserver-view`) is bound in the namespace so `mcp-sync` may list `RemoteMCPServers`.
 - `skills.repositories` (default: empty): `{name, url, ref, path}` per repository.
 - `config` (default: empty): keys merged into `config.yaml` at every start; they win over the dashboard.

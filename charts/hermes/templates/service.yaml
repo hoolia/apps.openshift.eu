@@ -15,3 +15,23 @@ spec:
   - name: http
     port: {{ .Values.oauthProxy.port }}
     targetPort: ui
+{{- if .Values.a2a.enabled }}
+---
+# A2A of the gateway, token required; reached by agents of the tenant and the kagent relay
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "hermes.name" . }}-a2a
+  namespace: {{ include "hermes.namespace" . }}
+  labels:
+    {{- include "hermes.labels" . | nindent 4 }}
+    app.kubernetes.io/component: a2a
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "hermes.selectorLabels" . | nindent 4 }}
+  ports:
+  - name: a2a
+    port: {{ .Values.a2a.port }}
+    targetPort: a2a
+{{- end }}
