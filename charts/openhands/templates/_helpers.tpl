@@ -152,6 +152,9 @@ seccompProfile:
 {{- with .Values.llm.profileDefaults -}}
 {{- $_ := set $llm "profileDefaults" . -}}
 {{- end -}}
+{{- with .Values.llm.modelProfileDefaults -}}
+{{- $_ := set $llm "modelProfileDefaults" . -}}
+{{- end -}}
 {{- if .Values.llm.gatewayModels -}}
 {{- $_ := set $llm "gatewayModels" true -}}
 {{- end -}}
