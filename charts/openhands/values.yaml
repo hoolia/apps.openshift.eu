@@ -188,6 +188,12 @@ llm:
     stream: true
     enable_encrypted_reasoning: false
     inline_image_urls: true
+  # settings for the profiles of one model, keyed by its name after the last "/", laid
+  # over profileDefaults with the same once-per-value rule. For example a model whose
+  # chat template thinks longest without an effort:
+  #   glm-5.3-flash:
+  #     reasoning_effort: low
+  modelProfileDefaults: {}
 
 # The editor (VS Code in the browser) with a chat extension that uses the agent's own
 # models and MCP servers. Its built-in chat needs a GitHub Copilot sign-in and stays off

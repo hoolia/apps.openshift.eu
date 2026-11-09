@@ -6,7 +6,8 @@ edit in the UI is kept until the values change again. SEED_LLM is a JSON llm
 diff, SEED_MCP a JSON map of server name to MCP server settings, where passEnv
 names pod environment variables to hand to a stdio server. With gatewayModels,
 profiles for new gateway models are added on every start; without a model, the
-first gateway model named in preferredModels becomes the default. SEED_CONDENSER
+first gateway model named in preferredModels becomes the default. modelProfileDefaults
+adds settings for the profiles of one model, by its name after the last "/". SEED_CONDENSER
 is written into the settings and every OpenHands agent profile once per change
 of its own value. On every start GIT_REPOSITORIES_DIR becomes a workspace parent, whose
 repositories the new-conversation picker lists, and each URL in GIT_REPOSITORIES that is
@@ -25,9 +26,15 @@ import urllib.request
 
 API = "http://127.0.0.1:18000"
 STATE = os.path.join(os.environ.get("HOME", "/tmp"), ".openhands", "agent-canvas")
-# llm.profileDefaults, filled from SEED_LLM in main
+# llm.profileDefaults and llm.modelProfileDefaults, filled from SEED_LLM in main
 DEFAULTS: dict = {}
+MODEL_DEFAULTS: dict = {}
 MARKER = os.path.join(STATE, ".seeded-" + os.environ.get("SEED_HASH", "none"))
+
+
+def defaults_for(model: str | None) -> dict:
+    """profileDefaults with the modelProfileDefaults of the model laid over them."""
+    return {**DEFAULTS, **MODEL_DEFAULTS.get((model or "").rsplit("/", 1)[-1], {})}
 
 
 def request(method: str, path: str, body: dict | None = None) -> tuple[int, object]:
@@ -76,7 +83,7 @@ def seed_connection(llm: dict, conn: dict, models: list[str]) -> bool:
         # profile names are path segments; the model keeps its gateway prefix
         names[model] = model.rsplit("/", 1)[-1]
         if call("POST", f"/api/profiles/{names[model]}",
-                {"llm": {**DEFAULTS, "model": model, "provider_connection_id": conn_id},
+                {"llm": {**defaults_for(model), "model": model, "provider_connection_id": conn_id},
                  "include_secrets": False}) not in (200, 201):
             print(f"seed: profile {names[model]} not written", file=sys.stderr)
             ok = False
@@ -126,10 +133,11 @@ def preferred_model(llm: dict, conn: dict, preferred: list[str]) -> str | None:
 
 
 def seed_profile_defaults(conn: dict | None) -> None:
-    """llm.profileDefaults into every profile on the connection, once per value."""
-    if not DEFAULTS or not conn:
+    """llm.profileDefaults and the model's modelProfileDefaults into every profile on
+    the connection, once per value."""
+    if not (DEFAULTS or MODEL_DEFAULTS) or not conn:
         return
-    raw = json.dumps(DEFAULTS, sort_keys=True)
+    raw = json.dumps([DEFAULTS, MODEL_DEFAULTS], sort_keys=True) if MODEL_DEFAULTS else json.dumps(DEFAULTS, sort_keys=True)
     marker = os.path.join(STATE, ".seeded-profile-defaults-" + hashlib.sha256(raw.encode()).hexdigest()[:8])
     if os.path.exists(marker):
         return
@@ -148,9 +156,10 @@ def seed_profile_defaults(conn: dict | None) -> None:
         if status != 200 or not config:
             ok = False
             continue
-        if all(config.get(k) == v for k, v in DEFAULTS.items()):
+        wanted = defaults_for(config.get("model"))
+        if all(config.get(k) == v for k, v in wanted.items()):
             continue
-        body = {"llm": {**config, **DEFAULTS, "provider_connection_id": found[0]["id"]},
+        body = {"llm": {**config, **wanted, "provider_connection_id": found[0]["id"]},
                 "include_secrets": False}
         if call("POST", f"/api/profiles/{prof['name']}", body) not in (200, 201):
             print(f"seed: defaults of profile {prof['name']} not written", file=sys.stderr)
@@ -243,7 +252,7 @@ def add_gateway_profiles(llm: dict, conn: dict) -> None:
         if name in taken:
             continue
         if call("POST", f"/api/profiles/{name}",
-                {"llm": {**DEFAULTS, "model": model, "provider_connection_id": found[0]["id"]},
+                {"llm": {**defaults_for(model), "model": model, "provider_connection_id": found[0]["id"]},
                  "include_secrets": False}) in (200, 201):
             taken.add(name)
         else:
@@ -263,6 +272,7 @@ def main() -> None:
     every = llm.pop("gatewayModels", False)
     preferred = llm.pop("preferredModels", [])
     DEFAULTS.update(llm.pop("profileDefaults", None) or {})
+    MODEL_DEFAULTS.update(llm.pop("modelProfileDefaults", None) or {})
     seed_repositories()
     seed_condenser()
     if os.path.exists(MARKER):
