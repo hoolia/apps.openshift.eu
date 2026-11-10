@@ -1,6 +1,7 @@
 {{- if .Values.minio.enabled }}
 {{- $name := .Values.global.storage.secretName | default "airbyte-minio-credentials" }}
-{{- if eq .Values.secrets.type "kubernetes" }}
+{{- $fromStore := and (eq .Values.secrets.type "externalSecret") .Values.secrets.externalSecret.items.minio }}
+{{- if not $fromStore }}
 {{- if .Values.secrets.minioRootPassword }}
 apiVersion: v1
 kind: Secret
@@ -17,54 +18,7 @@ stringData:
   AWS_ACCESS_KEY_ID: {{ .Values.minio.rootUser | quote }}
   AWS_SECRET_ACCESS_KEY: {{ .Values.secrets.minioRootPassword | quote }}
 {{- else }}
-# Creates the Secret with a random password once, inside the cluster, before the first
-# sync; a later render never sees or changes it
-apiVersion: batch/v1
-kind: Job
-metadata:
-  name: {{ $name }}
-  namespace: {{ .Release.Namespace }}
-  labels:
-    app: airbyte-minio
-    app.kubernetes.io/name: minio
-    app.kubernetes.io/component: credentials
-    {{- include "airbyte.commonLabels" $ | nindent 4 }}
-  annotations:
-    helm.sh/hook: pre-install,pre-upgrade
-    helm.sh/hook-weight: "-5"
-    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
-spec:
-  backoffLimit: 3
-  template:
-    metadata:
-      labels:
-        app.kubernetes.io/name: minio-credentials
-        app.kubernetes.io/instance: {{ .Release.Name | quote }}
-        sidecar.istio.io/inject: "false"
-    spec:
-      restartPolicy: Never
-      serviceAccountName: {{ .Values.upstream.airbyteBootloader.serviceAccountName | default "airbyte-bootloader" }}
-      containers:
-      - name: create
-        image: "{{ .Values.connections.image.repository }}:{{ .Values.connections.image.tag }}"
-        imagePullPolicy: {{ .Values.connections.image.pullPolicy }}
-        command:
-        - python3
-        - -c
-        - {{ .Files.Get "files/ensure-secret.py" | quote }}
-        env:
-        - name: SECRET_NAME
-          value: {{ $name }}
-        - name: FIXED_KEYS
-          value: {{ dict "AWS_ACCESS_KEY_ID" .Values.minio.rootUser | toJson | quote }}
-        - name: RANDOM_KEYS
-          value: AWS_SECRET_ACCESS_KEY
-        - name: LABELS
-          value: {{ dict "app" "airbyte-minio" "app.kubernetes.io/name" "minio" "app.kubernetes.io/component" "credentials" | toJson | quote }}
-        resources:
-          {{- toYaml .Values.connections.resources | nindent 10 }}
-        securityContext:
-          {{- include "wrapper.containerSecurityContext" . | nindent 10 }}
+{{- include "wrapper.secretJob" (dict "root" . "name" $name "component" "minio" "fixed" (dict "AWS_ACCESS_KEY_ID" .Values.minio.rootUser) "random" "AWS_SECRET_ACCESS_KEY") }}
 {{- end }}
 ---
 {{- end }}

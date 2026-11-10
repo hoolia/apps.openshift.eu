@@ -10,7 +10,7 @@
 {{- $declarative = append $declarative (dict "name" .name "manifest" .manifest) }}
 {{- end }}
 {{- end }}
-{{- $spec := dict "workspace" .Values.connections.workspace "declarativeSources" $declarative "destinations" .Values.connections.destinations "sources" .Values.connections.sources "connections" .Values.connections.connections }}
+{{- $spec := dict "workspace" .Values.connections.workspace "definitionVersions" .Values.connections.definitionVersions "declarativeSources" $declarative "destinations" .Values.connections.destinations "sources" .Values.connections.sources "connections" .Values.connections.connections }}
 apiVersion: v1
 kind: ConfigMap
 metadata:

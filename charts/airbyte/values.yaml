@@ -9,9 +9,13 @@ global:
   tracking:
     enabled: false
   database:
-    # Password of the bundled database; set it with upstream.postgresql.postgresqlPassword
-    # to the same value at the first install. Empty: the upstream default
-    password: ""
+    # Secret with DATABASE_USER and DATABASE_PASSWORD; with database.enabled an install
+    # hook creates it once with a random password
+    secretName: airbyte-db-credentials
+    # the configuration reader uses the same user
+    replica:
+      userSecretKey: DATABASE_USER
+      passwordSecretKey: DATABASE_PASSWORD
   storage:
     # Logs and state in the chart's own MinIO (minio.enabled)
     type: minio
@@ -53,11 +57,34 @@ secrets:
     storeKind: ClusterSecretStore
     storeName: ""
     refreshInterval: 1h
-    # vault item whose password field is the MinIO root password
+    # Vault items (login.username, login.password); an empty item: the install hook
+    # generates that Secret in the cluster instead
     items:
-      minio: airbyte-minio
-    # property of the item that holds the password
-    property: login.password
+      # password is the MinIO root password
+      minio: ""
+      # username and password of the database user
+      database: ""
+
+# PostgreSQL for Airbyte and Temporal at airbyte-db-svc, an install hook like upstream's
+# (the bootloader needs it before the first sync), with a password generated in the cluster.
+# false: set global.database.host and global.database.secretName to an external database
+database:
+  enabled: true
+  image:
+    repository: docker.io/airbyte/db
+    # empty: the chart's appVersion
+    tag: ""
+    pullPolicy: IfNotPresent
+  persistence:
+    size: 5Gi
+    # empty: the cluster default
+    storageClass: ""
+  resources:
+    requests:
+      cpu: 50m
+      memory: 256Mi
+    limits:
+      memory: 1Gi
 
 # MinIO for logs and connector state, run by this chart (not as an install hook)
 minio:
@@ -126,6 +153,13 @@ connections:
   # Cron schedule to apply them again, so a credential Secret added later takes effect;
   # empty: only after install and upgrade
   reconcileSchedule: ""
+  # Credential Secrets of connectors from the secret store secrets.externalSecret:
+  # [{name, item, data: {<secret key>: <item property>}}], for example
+  # {name: google-ads, item: my-google-ads, data: {client-id: login.username}}
+  externalSecrets: []
+  # Connector versions, registry name: image tag, for example ClickHouse: 2.1.34 (a fix
+  # newer than the platform's default). Applies to the whole instance
+  definitionVersions: {}
   # Declarative (low-code) connectors: [{name, manifest}] with the manifest as a YAML
   # object, or [{name, file}] for a manifest of this chart (files/declarative/<file>.yaml:
   # odoo, Odoo 19 and later through the JSON-2 API)
@@ -164,16 +198,9 @@ upstream:
     create: false
   minio:
     enabled: false
+  # replaced by the chart's own database (database.enabled)
   postgresql:
-    enabled: true
-    postgresqlPassword: airbyte
-    podSecurityContext:
-      fsGroup: null
-    containerSecurityContext:
-      runAsUser: null
-      runAsGroup: null
-    storage:
-      volumeClaimValue: 5Gi
+    enabled: false
   server:
     extraVolumes:
     - name: feature-flags

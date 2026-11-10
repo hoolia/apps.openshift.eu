@@ -112,3 +112,106 @@ spec:
 {{- end -}}
 {{- $names | uniq | sortAlpha | toJson -}}
 {{- end -}}
+
+{{/* Install hook Job that creates Secret name with random keys once, inside the cluster,
+before the first sync; a later render never sees or changes it */}}
+{{- define "wrapper.secretJob" -}}
+{{- $root := .root }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .name }}
+  namespace: {{ $root.Release.Namespace }}
+  labels:
+    app: airbyte-{{ .component }}
+    app.kubernetes.io/name: {{ .component }}
+    app.kubernetes.io/component: credentials
+    {{- include "airbyte.commonLabels" $root | nindent 4 }}
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-5"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ .component }}-credentials
+        app.kubernetes.io/instance: {{ $root.Release.Name | quote }}
+        sidecar.istio.io/inject: "false"
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ $root.Values.upstream.airbyteBootloader.serviceAccountName | default "airbyte-bootloader" }}
+      containers:
+      - name: create
+        image: "{{ $root.Values.connections.image.repository }}:{{ $root.Values.connections.image.tag }}"
+        imagePullPolicy: {{ $root.Values.connections.image.pullPolicy }}
+        command:
+        - python3
+        - -c
+        - {{ $root.Files.Get "files/ensure-secret.py" | quote }}
+        env:
+        - name: SECRET_NAME
+          value: {{ .name }}
+        - name: FIXED_KEYS
+          value: {{ .fixed | toJson | quote }}
+        - name: RANDOM_KEYS
+          value: {{ .random }}
+        - name: LABELS
+          value: {{ dict "app" (printf "airbyte-%s" .component) "app.kubernetes.io/name" .component "app.kubernetes.io/component" "credentials" | toJson | quote }}
+        resources:
+          {{- toYaml $root.Values.connections.resources | nindent 10 }}
+        securityContext:
+          {{- include "wrapper.containerSecurityContext" $root | nindent 10 }}
+{{- end -}}
+
+{{/* ExternalSecret name: data {secretKey: {key, property}}, optional template {key: text};
+as an install hook (hook true) it exists before the database and the bootloader, and its
+Secret outlives the ExternalSecret that a sync replaces */}}
+{{- define "wrapper.externalSecret" -}}
+{{- $root := .root }}
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: {{ .name }}
+  namespace: {{ $root.Release.Namespace }}
+  labels:
+    app: airbyte-{{ .component }}
+    app.kubernetes.io/name: {{ .component }}
+    app.kubernetes.io/component: credentials
+    {{- include "airbyte.commonLabels" $root | nindent 4 }}
+  {{- if .hook }}
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-6"
+    helm.sh/hook-delete-policy: before-hook-creation
+  {{- end }}
+spec:
+  refreshInterval: {{ $root.Values.secrets.externalSecret.refreshInterval }}
+  secretStoreRef:
+    kind: {{ .store.kind }}
+    name: {{ .store.name }}
+  target:
+    name: {{ .name }}
+    creationPolicy: {{ ternary "Orphan" "Owner" (eq .hook true) }}
+    deletionPolicy: Retain
+    {{- with .template }}
+    template:
+      engineVersion: v2
+      data:
+        {{- range $k, $v := . }}
+        {{ $k }}: {{ $v | quote }}
+        {{- end }}
+    {{- end }}
+  data:
+  {{- range $secretKey, $ref := .data }}
+  - secretKey: {{ $secretKey }}
+    remoteRef:
+      key: {{ $ref.key }}
+      property: {{ $ref.property | quote }}
+      conversionStrategy: Default
+      decodingStrategy: None
+      metadataPolicy: None
+      nullBytePolicy: Ignore
+  {{- end }}
+{{- end -}}

@@ -9,7 +9,7 @@ warehouse such as ClickHouse or PostgreSQL. This chart wraps the upstream chart 
 - every pod runs under `restricted-v2` with OpenShift's own user id;
 - the chart's own ServiceAccount, Role and RoleBinding, so a GitOps tool does not replace
   them on every sync (upstream renders them as install hooks);
-- MinIO for logs and state as a normal StatefulSet;
+- PostgreSQL and MinIO with passwords generated inside the cluster, never in values;
 - a Route with a certificate from cert-manager for the web UI and the API;
 - an MCP server for AI agents: list connections, start and cancel syncs, read job status;
 - sources, destinations and connections declared in values and applied through the
@@ -30,9 +30,9 @@ are started by the workload launcher in the release namespace.
 |---|---|---|
 | `route.host` | empty | Host of the web UI and the API. Empty: OpenShift assigns one. |
 | `global.airbyteUrl` | empty | `https://<route.host>`. Airbyte's login cookie needs it. |
-| `upstream.postgresql.postgresqlPassword` | `airbyte` | Password of the bundled database. Set it, and `global.database.password` to the same value, at the first install. |
-| `upstream.postgresql.storage.volumeClaimValue` | `5Gi` | Size of the database volume. |
-| `secrets.type` | `kubernetes` | `externalSecret` reads the MinIO password from a secret store. |
+| `database.persistence.size` | `5Gi` | Size of the database volume. |
+| `database.enabled` | `true` | `false`: an external PostgreSQL at `global.database.host`, credentials in Secret `global.database.secretName` (keys `DATABASE_USER`, `DATABASE_PASSWORD`). |
+| `secrets.type` | `kubernetes` | `externalSecret` reads the database and MinIO credentials from the vault items `secrets.externalSecret.items.database` and `.minio` (login username and password) through store `secrets.externalSecret.storeName`; an empty item is generated in the cluster. |
 | `secrets.minioRootPassword` | empty | MinIO root password. Empty: an install hook creates the Secret `airbyte-minio-credentials` with a random one, once. |
 | `minio.persistence.size` | `5Gi` | Size of the volume for logs and state. |
 | `global.jobs.resources` | 100m, 256Mi; limit 2 CPU, 2Gi | Requests and limits of each sync, check and discover container. |
@@ -41,6 +41,8 @@ are started by the workload launcher in the release namespace.
 | `mcp.allowWrite` | `true` | `false` leaves out the tools that start and cancel syncs. |
 | `mcp.ingressNamespaces` | empty | Label selectors of the namespaces that may call the MCP server, for example an MCP gateway's. |
 | `connections.enabled` | `false` | Apply `connections.*` through the Airbyte API after every install and upgrade. |
+| `connections.externalSecrets` | `[]` | Connector credential Secrets from the secret store: `{name, item, data: {<key>: <item property>}}`. |
+| `connections.definitionVersions` | `{}` | Connector versions by registry name, for example `ClickHouse: 2.1.34`. |
 | `featureFlags` | stdio mode | Platform feature flags. |
 
 Platform pods request about 0.75 CPU and 4.5Gi of memory; each running sync adds one pod
@@ -112,19 +114,18 @@ community edition.
 ## Delivery instructions
 
 - One release per namespace: the upstream chart uses fixed object names.
-- Upstream renders the database, its Service, the environment ConfigMaps, the Secret
-  `airbyte-airbyte-secrets` and the bootloader as install hooks. Argo CD runs them before
-  every sync and replaces them, so the database pod restarts when the Application syncs a
-  change. Its data stays on the volume claim `airbyte-volume-db-airbyte-db-0`. A
-  `helm uninstall` or Application delete leaves these hook objects behind; delete them by
-  hand.
-- The MinIO password and the instance admin's password and API client are generated
-  inside the cluster (Secrets `airbyte-minio-credentials` and `airbyte-auth-secrets`), so
-  a GitOps tool that renders without cluster access never rotates them. Uninstalling
-  leaves both Secrets.
-- The bundled database's password is the value `upstream.postgresql.postgresqlPassword`
-  (with `global.database.password`); the database accepts connections from the project's
-  own pods.
+- The bootloader migrates the database as an install hook, so the database, its Service,
+  the environment ConfigMaps and the Secret `airbyte-airbyte-secrets` are install hooks as
+  well. Argo CD runs them before every sync and replaces them, so the database pod restarts
+  when the Application syncs a change. Its data stays on the volume claim
+  `airbyte-volume-db-airbyte-db-0`, the claim of upstream's bundled database. A `helm uninstall` or Application delete leaves these hook objects
+  behind; delete them by hand.
+- The database and MinIO passwords and the instance admin's password and API client are
+  generated inside the cluster (Secrets `airbyte-db-credentials`,
+  `airbyte-minio-credentials` and `airbyte-auth-secrets`), so a GitOps tool that renders
+  without cluster access never rotates them. Uninstalling leaves the three Secrets.
+- ClickHouse 26.8 and later need destination ClickHouse 2.1.33 or later
+  (`connections.definitionVersions`).
 - Keep `mcp.ingressNamespaces` to the gateway: the MCP server has no login of its own and
   can start syncs.
 - Connector pods download their images from Docker Hub (`airbyte/source-*`).
