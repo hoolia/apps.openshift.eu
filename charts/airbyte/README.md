@@ -43,7 +43,7 @@ are started by the workload launcher in the release namespace.
 | `mcp.ingressNamespaces` | empty | Label selectors of the namespaces that may call the MCP server, for example an MCP gateway's. |
 | `connections.enabled` | `false` | Apply `connections.*` through the Airbyte API after every install and upgrade. |
 | `connections.externalSecrets` | `[]` | Connector credential Secrets from the secret store: `{name, item, data: {<key>: <item property>}}`. |
-| `connections.definitionVersions` | `{}` | Connector versions as `<source|destination>/<registry name>: <tag>`, for example `destination/ClickHouse: 2.1.34`. |
+| `connections.definitionVersions` | `{}` | Connector versions, `source/<name>` or `destination/<name>` with an image tag, for example `destination/ClickHouse: 2.1.34`. |
 | `featureFlags` | stdio mode | Platform feature flags. |
 
 Platform pods request about 0.75 CPU and 4.5Gi of memory; each running sync adds one pod
