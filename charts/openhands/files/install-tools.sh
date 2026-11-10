@@ -47,8 +47,10 @@ while read -r kind cmd keep args; do
       "$uv" tool install --force $args
       ;;
     npm)
+      # npm 11 skips install scripts not in allowScripts; the tool's own package may run
+      # its scripts, a dependency only when args names it (--allow-scripts=<package>)
       # shellcheck disable=SC2086
-      npm install --global --no-fund --no-audit --omit=dev $cmd $args
+      npm install --global --no-fund --no-audit --omit=dev --allow-scripts="${cmd%@*}" $cmd $args
       ;;
     pip)
       # constrained to the base image's packages, so its agent keeps its versions
