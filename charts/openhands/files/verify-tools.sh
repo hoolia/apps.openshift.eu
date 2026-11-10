@@ -2,6 +2,8 @@
 # Fails the image build when any tool in checks.txt does not run; called as a non-root UID.
 set -eu
 export HOME=/tmp KREW_ROOT=/tmp/.krew
+# az uploads telemetry from a background process that outlives its check
+export AZURE_CORE_COLLECT_TELEMETRY=no
 id -un >/dev/null 2>&1 || echo "agent:x:$(id -u):0:agent:$HOME:/bin/sh" >> /etc/passwd
 failed=""
 while IFS= read -r line; do
@@ -15,7 +17,8 @@ while IFS= read -r line; do
   fi
 done < "$(dirname "$0")/checks.txt"
 grep -v "^agent:x:$(id -u):" /etc/passwd > /tmp/passwd && cat /tmp/passwd > /etc/passwd && rm -f /tmp/passwd
-rm -rf /tmp/.krew /tmp/.cache /tmp/.config /tmp/.local /tmp/.azure
+# a background process may still write there; leftovers do not fail the build
+rm -rf /tmp/.krew /tmp/.cache /tmp/.config /tmp/.local /tmp/.azure 2>/dev/null || true
 if [ -n "$failed" ]; then
   echo "tools that do not run:$failed" >&2
   exit 1
