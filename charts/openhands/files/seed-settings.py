@@ -113,6 +113,31 @@ def seed_connection(llm: dict, conn: dict, models: list[str]) -> bool:
     return ok
 
 
+def repair_agent_llm_refs() -> None:
+    """OpenHands agent profiles whose LLM profile does not exist use the active one.
+
+    The agent-server seeds agent profile "default" on its first start, before this
+    script wrote a model, with a reference to an LLM profile "default" it never saves;
+    a conversation of that agent profile is then refused.
+    """
+    status, listing = request("GET", "/api/profiles")
+    if status != 200:
+        return
+    active = (listing or {}).get("active_profile")
+    names = {p.get("name") for p in (listing or {}).get("profiles", [])}
+    if not active or active not in names:
+        return
+    status, agents = request("GET", "/api/agent-profiles")
+    for agent in (agents or {}).get("profiles", []):
+        if agent.get("agent_kind") != "openhands" or agent.get("llm_profile_ref") in names:
+            continue
+        status, detail = request("GET", f"/api/agent-profiles/{agent['name']}")
+        body = (detail or {}).get("profile")
+        if not body or call("POST", f"/api/agent-profiles/{agent['name']}",
+                            {**body, "llm_profile_ref": active}) not in (200, 201):
+            print(f"seed: agent profile {agent['name']} not moved to {active}", file=sys.stderr)
+
+
 def gateway_models(llm: dict, conn: dict) -> list[str]:
     """Every model the gateway lists, in the form of llm.model (provider prefix)."""
     req = urllib.request.Request(llm["base_url"].rstrip("/") + "/models",
@@ -279,6 +304,7 @@ def main() -> None:
         if every and conn and llm.get("base_url"):
             add_gateway_profiles(llm, conn)
         seed_profile_defaults(conn)
+        repair_agent_llm_refs()
         return
     ok = True
     if preferred and not llm.get("model") and conn and llm.get("base_url"):
@@ -293,6 +319,7 @@ def main() -> None:
     if every and conn and llm.get("base_url"):
         add_gateway_profiles(llm, conn)
     seed_profile_defaults(conn)
+    repair_agent_llm_refs()
     for name, server in json.loads(os.environ.get("SEED_MCP") or "{}").items():
         # the agent-server starts stdio servers with a reduced environment
         pass_env = server.pop("passEnv", [])

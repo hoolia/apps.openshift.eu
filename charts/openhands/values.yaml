@@ -60,7 +60,8 @@ build:
   - {kind: npm, command: "@bitwarden/cli@2026.10.0", check: "bw --version"}
   - {kind: npm, command: "@higgsfield/cli@1.2.2", check: "higgsfield --version"}
   - {kind: npm, command: "confluence-cli@2.30.4", check: "confluence --version"}
-  - {kind: npm, command: "renovate@44.176.1", check: "renovate --version"}
+  # re2 fetches its prebuilt native module in its install script
+  - {kind: npm, command: "renovate@44.176.1", args: "--allow-scripts=re2", check: "renovate --version && cd /usr/local/lib/node_modules/renovate && node -e \"new (require('re2'))('a'); console.log('re2 loads')\""}
   - {kind: npm, command: "snyk@1.1308.2", check: "snyk --version"}
   - {kind: pip, command: "atlassian-python-api==5.0.5", check: "python3 -c 'import atlassian, importlib.metadata as m; print(m.version(\"atlassian-python-api\"))'"}
   - {kind: tarball, command: gws, args: "https://github.com/googleworkspace/cli/releases/download/v0.22.5/google-workspace-cli-x86_64-unknown-linux-musl.tar.gz 4db473dde4b1ab872e4ff35d769b0d4af1f1a6441a605e79d5cf8ada9c87e920", check: "gws --version"}
