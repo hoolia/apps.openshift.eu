@@ -88,9 +88,11 @@ def main():
             failed.append(f"declarative source {d['name']}: {err}")
 
     defs = {}
+    tags = {}
     for kind in ("source", "destination"):
         out = api.internal(f"/{kind}_definitions/list_for_workspace", {"workspaceId": wid})
         defs[kind] = {x["name"]: x[f"{kind}DefinitionId"] for x in out[f"{kind}Definitions"]}
+        tags.update({(kind, x["name"]): x.get("dockerImageTag") for x in out[f"{kind}Definitions"]})
         for name, d in declared.items():
             if kind == "source":
                 defs[kind].setdefault(name, d.get("id"))
@@ -100,6 +102,10 @@ def main():
         kind = next((k for k in ("source", "destination") if name in defs[k]), None)
         if not kind:
             failed.append(f"definition version {name}: no such connector")
+            continue
+        # an update fetches the connector spec again, even for the same tag
+        if tags.get((kind, name)) == str(tag):
+            print(f"{kind} definition {name}: {tag}")
             continue
         try:
             out = api.internal(f"/{kind}_definitions/update", {
