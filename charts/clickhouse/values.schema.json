@@ -1,0 +1,131 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "definitions": {
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "repository": {"type": "string", "minLength": 1},
+        "tag": {"type": "string", "minLength": 1},
+        "pullPolicy": {"enum": ["Always", "IfNotPresent", "Never"]}
+      }
+    },
+    "userName": {"type": "string", "pattern": "^[a-z_][a-z0-9_]*$"},
+    "selectors": {"type": "array", "items": {"type": "object"}}
+  },
+  "properties": {
+    "image": {"$ref": "#/definitions/image"},
+    "persistence": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "size": {"type": "string", "pattern": "^[0-9]+(Mi|Gi|Ti)$"},
+        "storageClass": {"type": "string"}
+      }
+    },
+    "resources": {"type": "object"},
+    "podLabels": {"type": "object"},
+    "users": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "admin": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {"name": {"$ref": "#/definitions/userName"}}
+        },
+        "reader": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "name": {"$ref": "#/definitions/userName"},
+            "grants": {"type": "string", "pattern": "^GRANT "},
+            "settings": {"type": "object"}
+          }
+        },
+        "writer": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "name": {"$ref": "#/definitions/userName"},
+            "grants": {"type": "string", "pattern": "^GRANT "}
+          }
+        }
+      }
+    },
+    "database": {"type": "string", "minLength": 1},
+    "config": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "markCacheSize": {"type": "integer", "minimum": 0},
+        "disableSystemLogs": {"type": "array", "items": {"type": "string", "pattern": "^[a-z_]+$"}},
+        "extra": {"type": "string"}
+      }
+    },
+    "secrets": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {"enum": ["kubernetes", "externalSecret"]},
+        "adminPassword": {"type": "string"},
+        "readerPassword": {"type": "string"},
+        "writerPassword": {"type": "string"},
+        "externalSecret": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "storeKind": {"enum": ["ClusterSecretStore", "SecretStore"]},
+            "storeName": {"type": "string"},
+            "refreshInterval": {"type": "string"},
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "admin": {"type": "string"},
+                "reader": {"type": "string"},
+                "writer": {"type": "string"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "networkPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "ingressNamespaces": {"$ref": "#/definitions/selectors"}
+      }
+    },
+    "route": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "host": {"type": "string"},
+        "annotations": {"type": "object"}
+      }
+    },
+    "mcp": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "image": {"$ref": "#/definitions/image"},
+        "port": {"type": "integer", "minimum": 1024, "maximum": 65535, "not": {"enum": [8080, 8443]}},
+        "path": {"type": "string", "pattern": "^/"},
+        "appProtocol": {"type": "string"},
+        "targetName": {"type": "string"},
+        "queryTimeout": {"type": "integer", "minimum": 1},
+        "allowedHosts": {"type": "array", "items": {"type": "string"}},
+        "extraEnv": {"type": "object"},
+        "podLabels": {"type": "object"},
+        "resources": {"type": "object"},
+        "ingressNamespaces": {"$ref": "#/definitions/selectors"}
+      }
+    }
+  }
+}
