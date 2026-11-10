@@ -188,6 +188,10 @@ metadata:
     argocd.argoproj.io/hook: PreSync
     argocd.argoproj.io/hook-delete-policy: HookFailed
     argocd.argoproj.io/sync-wave: "-6"
+  {{- else }}
+  annotations:
+    # a connector whose vault item does not exist yet is left out, not an error
+    argocd.argoproj.io/ignore-healthcheck: "true"
   {{- end }}
 spec:
   refreshInterval: {{ $root.Values.secrets.externalSecret.refreshInterval }}
