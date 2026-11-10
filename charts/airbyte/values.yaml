@@ -112,8 +112,9 @@ mcp:
 # Sources, destinations and connections, applied through the Airbyte API by a Job after
 # every install and upgrade. Matched by name: a changed entry is updated, an entry
 # removed here stays in Airbyte. Strings "${secret:<Secret>/<key>}" in a configuration are
-# replaced by that key of a Secret of the namespace; a source or destination whose Secret
-# or key is missing is skipped, and so are its connections
+# replaced by that key of a Secret of the namespace, "${secretlist:<Secret>/<key>}" by its
+# comma-separated items as a list; a source or destination whose Secret or key is missing
+# is skipped, and so are its connections
 connections:
   enabled: false
   image:
@@ -129,10 +130,10 @@ connections:
   # object, or [{name, file}] for a manifest of this chart (files/declarative/<file>.yaml:
   # odoo, Odoo 19 and later through the JSON-2 API)
   declarativeSources: []
-  # [{name, definition, secretName, configuration}]; definition is the connector name
+  # [{name, definition, configuration}]; definition is the connector name
   # in the registry (ClickHouse) or of a declarativeSources entry
   destinations: []
-  # [{name, definition, secretName, configuration}]
+  # [{name, definition, configuration}]
   sources: []
   # [{name, source, destination, enabled, schedule, namespaceFormat, prefix, streams}];
   # schedule: a Quartz cron expression, or empty for manual syncs; streams: names to
@@ -154,7 +155,9 @@ featureFlags:
 upstream:
   # helm test pod; upstream's airbyte/utils has no tag of this version
   testWebapp:
-    image: registry.access.redhat.com/ubi9/ubi-minimal:9.8
+    image:
+      repository: registry.access.redhat.com/ubi9/ubi-minimal
+      tag: "9.8"
   serviceAccount:
     # the chart's own ServiceAccount, Role and RoleBinding; upstream renders them as
     # install hooks, which a GitOps tool replaces on every sync

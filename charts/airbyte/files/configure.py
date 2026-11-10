@@ -1,8 +1,9 @@
 """Apply the declared sources, destinations and connections through the Airbyte API.
 
 Objects are matched by name: missing ones are created, existing ones updated. Strings
-${secret:<Secret>/<key>} in a configuration are read from /secrets/<Secret>/<key>; an
-object whose Secret or key is missing is skipped together with its connections.
+${secret:<Secret>/<key>} in a configuration are read from /secrets/<Secret>/<key>, and
+${secretlist:<Secret>/<key>} as a comma-separated list; an object whose Secret or key is
+missing is skipped together with its connections.
 """
 import json
 import os
@@ -14,6 +15,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from airbyte_api import Airbyte, ApiError  # noqa: E402
 
 SECRET = re.compile(r"\$\{secret:([a-z0-9.-]+)/([A-Za-z0-9._-]+)\}")
+SECRET_LIST = re.compile(r"\$\{secretlist:([a-z0-9.-]+)/([A-Za-z0-9._-]+)\}")
 SECRETS_DIR = os.environ.get("SECRETS_DIR", "/secrets")
 
 
@@ -40,6 +42,9 @@ def resolve(value):
         whole = SECRET.fullmatch(value)
         if whole:
             return read(whole)
+        listed = SECRET_LIST.fullmatch(value)
+        if listed:
+            return [x.strip() for x in read(listed).split(",") if x.strip()]
         return SECRET.sub(read, value)
     return value
 
