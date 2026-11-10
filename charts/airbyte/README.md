@@ -114,10 +114,9 @@ community edition.
 ## Delivery instructions
 
 - One release per namespace: the upstream chart uses fixed object names.
-- The bootloader migrates the database as an install hook, so the database, its Service,
-  the environment ConfigMaps and the Secret `airbyte-airbyte-secrets` are install hooks as
-  well. Argo CD runs them before every sync and replaces them, so the database pod restarts
-  when the Application syncs a change. Its data stays on the volume claim
+- The bootloader migrates the database as an install hook, so the database, its Service
+  and its ExternalSecret are install hooks as well. Argo CD applies them in place before
+  every sync, so the database keeps running; `helm upgrade` replaces them. Its data stays on the volume claim
   `airbyte-volume-db-airbyte-db-0`, the claim of upstream's bundled database. A `helm uninstall` or Application delete leaves these hook objects
   behind; delete them by hand.
 - The database and MinIO passwords and the instance admin's password and API client are
