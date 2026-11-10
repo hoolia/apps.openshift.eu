@@ -191,16 +191,17 @@ seccompProfile:
 {{- toJson $out -}}
 {{- end -}}
 
-{{/* MCP servers the seed script writes: JSON map of name to server settings */}}
+{{/* MCP servers the seed script writes: JSON map of name to server settings; the agent-server
+hands timeout to fastmcp 4, which reads it in milliseconds */}}
 {{- define "openhands.seedMcp" -}}
 {{- $servers := dict -}}
 {{- range .Values.mcpServers -}}
-{{- $s := dict "url" (printf "http://127.0.0.1:%v%s" $.Values.tokenProxy.port .path) "transport" "streamable-http" "timeout" (default 60 .timeout) "enabled" (ne .enabled false) -}}
+{{- $s := dict "url" (printf "http://127.0.0.1:%v%s" $.Values.tokenProxy.port .path) "transport" "streamable-http" "timeout" (mul (default 60 .timeout) 1000) "enabled" (ne .enabled false) -}}
 {{- with .icon }}{{ $_ := set $s "icon" . }}{{ end -}}
 {{- $_ := set $servers .name $s -}}
 {{- end -}}
 {{- if .Values.kubernetesMcpServer.enabled -}}
-{{- $_ := set $servers "kubernetes" (dict "command" "/tools/kubernetes-mcp-server" "args" (list "--config" "/opt/openhands-scripts/kubernetes-mcp-server.toml" "--kubeconfig" "/opt/openhands-scripts/kubeconfig" "--disable-multi-cluster") "transport" "stdio" "timeout" 60 "icon" "https://cdn.simpleicons.org/kubernetes") -}}
+{{- $_ := set $servers "kubernetes" (dict "command" "/tools/kubernetes-mcp-server" "args" (list "--config" "/opt/openhands-scripts/kubernetes-mcp-server.toml" "--kubeconfig" "/opt/openhands-scripts/kubeconfig" "--disable-multi-cluster") "transport" "stdio" "timeout" 60000 "icon" "https://cdn.simpleicons.org/kubernetes") -}}
 {{- end -}}
 {{- toJson $servers -}}
 {{- end -}}
