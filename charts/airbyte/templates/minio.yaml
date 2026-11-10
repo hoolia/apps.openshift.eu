@@ -1,0 +1,133 @@
+{{- if .Values.minio.enabled }}
+{{- if and (eq .Values.secrets.type "kubernetes") }}
+{{- $name := .Values.global.storage.secretName | default "airbyte-minio-credentials" }}
+{{- $found := lookup "v1" "Secret" .Release.Namespace $name }}
+{{- $password := .Values.secrets.minioRootPassword }}
+{{- if and (not $password) $found (hasKey (default dict $found.data) "AWS_SECRET_ACCESS_KEY") }}
+{{- $password = index $found.data "AWS_SECRET_ACCESS_KEY" | b64dec }}
+{{- end }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: airbyte-minio
+    app.kubernetes.io/name: minio
+    app.kubernetes.io/component: credentials
+    {{- include "airbyte.commonLabels" $ | nindent 4 }}
+type: Opaque
+stringData:
+  AWS_ACCESS_KEY_ID: {{ .Values.minio.rootUser | quote }}
+  AWS_SECRET_ACCESS_KEY: {{ $password | default (randAlphaNum 40) | quote }}
+---
+{{- end }}
+apiVersion: v1
+kind: Service
+metadata:
+  # the name upstream's default MinIO endpoint points at
+  name: airbyte-minio-svc
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: airbyte-minio
+    app.kubernetes.io/name: minio
+    app.kubernetes.io/component: storage
+    {{- include "airbyte.commonLabels" $ | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: minio
+    app.kubernetes.io/instance: {{ .Release.Name | quote }}
+  ports:
+  - name: s3
+    port: 9000
+    targetPort: s3
+    protocol: TCP
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: airbyte-minio
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: airbyte-minio
+    app.kubernetes.io/name: minio
+    app.kubernetes.io/component: storage
+    app.openshift.io/runtime: openshift
+    {{- include "airbyte.commonLabels" $ | nindent 4 }}
+spec:
+  serviceName: airbyte-minio-svc
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: minio
+      app.kubernetes.io/instance: {{ .Release.Name | quote }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: minio
+        app.kubernetes.io/instance: {{ .Release.Name | quote }}
+        sidecar.istio.io/inject: "false"
+    spec:
+      containers:
+      - name: minio
+        image: "{{ .Values.minio.image.repository }}:{{ .Values.minio.image.tag }}"
+        imagePullPolicy: {{ .Values.minio.image.pullPolicy }}
+        args:
+        - server
+        - /data
+        - --address
+        - :9000
+        - --console-address
+        - :9001
+        lifecycle:
+          postStart:
+            exec:
+              command:
+              - /bin/sh
+              - -c
+              - for i in $(seq 1 60); do mc alias set local http://127.0.0.1:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" >/dev/null 2>&1 && mc mb --ignore-existing local/{{ .Values.minio.bucket }} && exit 0; sleep 2; done; exit 1
+        env:
+        - name: MC_CONFIG_DIR
+          value: /tmp/.mc
+        - name: HOME
+          value: /tmp
+        - name: MINIO_ROOT_USER
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.global.storage.secretName | default "airbyte-minio-credentials" }}
+              key: AWS_ACCESS_KEY_ID
+        - name: MINIO_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.global.storage.secretName | default "airbyte-minio-credentials" }}
+              key: AWS_SECRET_ACCESS_KEY
+        ports:
+        - name: s3
+          containerPort: 9000
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /minio/health/ready
+            port: s3
+          periodSeconds: 10
+        volumeMounts:
+        - name: data
+          mountPath: /data
+        resources:
+          {{- toYaml .Values.minio.resources | nindent 10 }}
+        securityContext:
+          {{- include "wrapper.containerSecurityContext" . | nindent 10 }}
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      {{- with .Values.minio.persistence.storageClass }}
+      storageClassName: {{ . }}
+      {{- end }}
+      resources:
+        requests:
+          storage: {{ .Values.minio.persistence.size }}
+{{- end }}

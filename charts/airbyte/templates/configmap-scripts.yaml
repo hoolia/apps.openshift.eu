@@ -1,0 +1,39 @@
+{{- if or .Values.mcp.enabled .Values.connections.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-scripts
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: airbyte-mcp
+    app.kubernetes.io/name: airbyte
+    app.kubernetes.io/component: server
+    {{- include "airbyte.commonLabels" $ | nindent 4 }}
+data:
+  airbyte_api.py: |
+    {{- .Files.Get "files/airbyte_api.py" | nindent 4 }}
+  mcp-server.py: |
+    {{- .Files.Get "files/mcp-server.py" | nindent 4 }}
+  configure.py: |
+    {{- .Files.Get "files/configure.py" | nindent 4 }}
+{{- end }}
+---
+# Feature flags the platform reads from /etc/launchdarkly/flags.yml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: airbyte-feature-flags
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: airbyte
+    app.kubernetes.io/name: airbyte
+    app.kubernetes.io/component: server
+    {{- include "airbyte.commonLabels" $ | nindent 4 }}
+data:
+  flags.yml: |
+    flags:
+    {{- range $name, $serve := .Values.featureFlags }}
+    - name: {{ $name }}
+      serve: {{ $serve }}
+    {{- else }} []
+    {{- end }}

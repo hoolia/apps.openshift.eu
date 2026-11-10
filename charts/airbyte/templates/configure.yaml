@@ -1,0 +1,73 @@
+{{- if .Values.connections.enabled }}
+{{- $name := include "wrapper.configName" . }}
+{{- $declarative := list }}
+{{- range .Values.connections.declarativeSources }}
+{{- if .file }}
+{{- $manifest := $.Files.Get (printf "files/declarative/%s.yaml" .file) | fromYaml }}
+{{- if not $manifest }}{{ fail (printf "connections.declarativeSources: no bundled manifest %s" .file) }}{{ end }}
+{{- $declarative = append $declarative (dict "name" .name "manifest" $manifest) }}
+{{- else }}
+{{- $declarative = append $declarative (dict "name" .name "manifest" .manifest) }}
+{{- end }}
+{{- end }}
+{{- $spec := dict "workspace" .Values.connections.workspace "declarativeSources" $declarative "destinations" .Values.connections.destinations "sources" .Values.connections.sources "connections" .Values.connections.connections }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: airbyte-config
+    app.kubernetes.io/name: airbyte
+    app.kubernetes.io/component: worker
+    {{- include "airbyte.commonLabels" $ | nindent 4 }}
+data:
+  connections.json: {{ $spec | toJson | quote }}
+{{- $pod := include "wrapper.configPod" . }}
+---
+# Applies the declared connections after every install, upgrade and sync
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: airbyte-config
+    app.kubernetes.io/name: airbyte
+    app.kubernetes.io/component: worker
+    {{- include "airbyte.commonLabels" $ | nindent 4 }}
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 86400
+  template:
+    {{- $pod | nindent 4 }}
+{{- if .Values.connections.reconcileSchedule }}
+---
+# Applies them again on a schedule, so a credential Secret added later takes effect
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: airbyte-config
+    app.kubernetes.io/name: airbyte
+    app.kubernetes.io/component: worker
+    {{- include "airbyte.commonLabels" $ | nindent 4 }}
+spec:
+  schedule: {{ .Values.connections.reconcileSchedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        {{- $pod | nindent 8 }}
+{{- end }}
+{{- end }}
