@@ -1,3 +1,8 @@
+# argocd: the database, its Secret and the bootloader account are normal objects ordered by
+# Argo CD sync waves, and the bootloader runs as a Sync hook after them. helm: install hooks
+# for helm install and helm upgrade; then also set upstream.airbyteBootloader.annotations: {}
+installMode: argocd
+
 # Values shared with the upstream chart (below upstream:)
 global:
   # Address people open, https://<route.host>; empty: http://localhost:8080
@@ -312,6 +317,11 @@ upstream:
   airbyteBootloader:
     # account of templates/rbac-bootloader.yaml
     serviceAccountName: airbyte-bootloader
+    # under Argo CD a Sync hook after the database (installMode argocd)
+    annotations:
+      argocd.argoproj.io/hook: Sync
+      argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+      argocd.argoproj.io/sync-wave: "-1"
     podSecurityContext:
       fsGroup: null
     containerSecurityContext:

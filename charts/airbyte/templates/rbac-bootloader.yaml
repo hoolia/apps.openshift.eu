@@ -1,5 +1,4 @@
-# The bootloader runs as an install hook before the chart's other objects exist; its
-# account is a hook as well, replaced on every run without touching airbyte-admin
+# Account of the bootloader and of the jobs that create Secrets; ordered before them
 {{- $name := .Values.upstream.airbyteBootloader.serviceAccountName | default "airbyte-bootloader" }}
 apiVersion: v1
 kind: ServiceAccount
@@ -12,12 +11,7 @@ metadata:
     app.kubernetes.io/component: server
     {{- include "airbyte.commonLabels" $ | nindent 4 }}
   annotations:
-    helm.sh/hook: pre-install,pre-upgrade
-    helm.sh/hook-weight: "-10"
-    helm.sh/hook-delete-policy: before-hook-creation
-    argocd.argoproj.io/hook: PreSync
-    argocd.argoproj.io/hook-delete-policy: HookFailed
-    argocd.argoproj.io/sync-wave: "-10"
+    {{- include "wrapper.order" (dict "root" . "wave" "-4") | nindent 4 }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -30,12 +24,7 @@ metadata:
     app.kubernetes.io/component: server
     {{- include "airbyte.commonLabels" $ | nindent 4 }}
   annotations:
-    helm.sh/hook: pre-install,pre-upgrade
-    helm.sh/hook-weight: "-10"
-    helm.sh/hook-delete-policy: before-hook-creation
-    argocd.argoproj.io/hook: PreSync
-    argocd.argoproj.io/hook-delete-policy: HookFailed
-    argocd.argoproj.io/sync-wave: "-10"
+    {{- include "wrapper.order" (dict "root" . "wave" "-4") | nindent 4 }}
 rules:
 - apiGroups:
   - ""
@@ -60,12 +49,7 @@ metadata:
     app.kubernetes.io/component: server
     {{- include "airbyte.commonLabels" $ | nindent 4 }}
   annotations:
-    helm.sh/hook: pre-install,pre-upgrade
-    helm.sh/hook-weight: "-10"
-    helm.sh/hook-delete-policy: before-hook-creation
-    argocd.argoproj.io/hook: PreSync
-    argocd.argoproj.io/hook-delete-policy: HookFailed
-    argocd.argoproj.io/sync-wave: "-10"
+    {{- include "wrapper.order" (dict "root" . "wave" "-4") | nindent 4 }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
