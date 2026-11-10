@@ -23,6 +23,7 @@ are started by the workload launcher in the release namespace.
 
     helm repo add grncloud https://apps.openshift.eu
     helm install airbyte grncloud/airbyte \
+      --set installMode=helm \
       --set route.host=airbyte.example.org \
       --set global.airbyteUrl=https://airbyte.example.org
 
@@ -114,9 +115,11 @@ community edition.
 ## Delivery instructions
 
 - One release per namespace: the upstream chart uses fixed object names.
-- The bootloader migrates the database as an install hook, so the database, its Service
-  and its ExternalSecret are install hooks as well. Argo CD applies them in place before
-  every sync, so the database keeps running; `helm upgrade` replaces them. Its data stays on the volume claim
+- `installMode: argocd` (default): the database, its Secret and the bootloader account are
+  normal objects in early sync waves and the bootloader is a Sync hook after them, so
+  Argo CD never replaces the database. `installMode: helm` for `helm install`: they are
+  install hooks, and `helm upgrade` replaces them; set
+  `upstream.airbyteBootloader.annotations: {}` as well. Its data stays on the volume claim
   `airbyte-volume-db-airbyte-db-0`, the claim of upstream's bundled database. A `helm uninstall` or Application delete leaves these hook objects
   behind; delete them by hand.
 - The database and MinIO passwords and the instance admin's password and API client are

@@ -128,9 +128,7 @@ metadata:
     app.kubernetes.io/component: credentials
     {{- include "airbyte.commonLabels" $root | nindent 4 }}
   annotations:
-    helm.sh/hook: pre-install,pre-upgrade
-    helm.sh/hook-weight: "-5"
-    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+    {{- include "wrapper.order" (dict "root" $root "wave" "-3" "job" true) | nindent 4 }}
 spec:
   backoffLimit: 3
   template:
@@ -182,12 +180,7 @@ metadata:
     {{- include "airbyte.commonLabels" $root | nindent 4 }}
   {{- if .hook }}
   annotations:
-    helm.sh/hook: pre-install,pre-upgrade
-    helm.sh/hook-weight: "-6"
-    helm.sh/hook-delete-policy: before-hook-creation
-    argocd.argoproj.io/hook: PreSync
-    argocd.argoproj.io/hook-delete-policy: HookFailed
-    argocd.argoproj.io/sync-wave: "-6"
+    {{- include "wrapper.order" (dict "root" $root "wave" "-3") | nindent 4 }}
   {{- else }}
   annotations:
     # a connector whose vault item does not exist yet is left out, not an error
@@ -221,4 +214,20 @@ spec:
       metadataPolicy: None
       nullBytePolicy: Ignore
   {{- end }}
+{{- end -}}
+
+{{/* Order before the bootloader. installMode helm: install hooks by weight (wave). argocd:
+sync waves of normal objects, which Argo CD never replaces; a job is a Sync hook */}}
+{{- define "wrapper.order" -}}
+{{- if eq .root.Values.installMode "helm" -}}
+helm.sh/hook: pre-install,pre-upgrade
+helm.sh/hook-weight: {{ .wave | quote }}
+helm.sh/hook-delete-policy: {{ ternary "before-hook-creation,hook-succeeded" "before-hook-creation" (eq .job true) }}
+{{- else -}}
+argocd.argoproj.io/sync-wave: {{ .wave | quote }}
+{{- if .job }}
+argocd.argoproj.io/hook: Sync
+argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+{{- end }}
+{{- end -}}
 {{- end -}}

@@ -83,6 +83,7 @@
         }
       }
     },
+    "installMode": {"enum": ["argocd", "helm"]},
     "featureFlags": {"type": "object"},
     "upstream": {"type": "object"}
   }

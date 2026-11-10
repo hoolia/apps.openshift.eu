@@ -4,8 +4,8 @@
 {{- include "wrapper.secretJob" (dict "root" . "name" $secret "component" "database" "fixed" (dict "DATABASE_USER" "airbyte") "random" "DATABASE_PASSWORD") }}
 ---
 {{- end }}
-# The bootloader migrates the database as an install hook, so the database is a hook too,
-# one weight earlier; Argo CD keeps it running across syncs
+# The bootloader migrates the database before the other components start: the database
+# comes first (install hook under Helm, sync wave under Argo CD)
 apiVersion: v1
 kind: Service
 metadata:
@@ -17,13 +17,7 @@ metadata:
     app.kubernetes.io/component: database
     {{- include "airbyte.commonLabels" $ | nindent 4 }}
   annotations:
-    helm.sh/hook: pre-install,pre-upgrade
-    helm.sh/hook-weight: "-2"
-    helm.sh/hook-delete-policy: before-hook-creation
-    # Argo CD applies it in place on later syncs instead of replacing it
-    argocd.argoproj.io/hook: PreSync
-    argocd.argoproj.io/hook-delete-policy: HookFailed
-    argocd.argoproj.io/sync-wave: "-2"
+    {{- include "wrapper.order" (dict "root" . "wave" "-2") | nindent 4 }}
 spec:
   type: ClusterIP
   selector:
@@ -47,13 +41,7 @@ metadata:
     app.openshift.io/runtime: postgresql
     {{- include "airbyte.commonLabels" $ | nindent 4 }}
   annotations:
-    helm.sh/hook: pre-install,pre-upgrade
-    helm.sh/hook-weight: "-2"
-    helm.sh/hook-delete-policy: before-hook-creation
-    # Argo CD applies it in place on later syncs instead of replacing it
-    argocd.argoproj.io/hook: PreSync
-    argocd.argoproj.io/hook-delete-policy: HookFailed
-    argocd.argoproj.io/sync-wave: "-2"
+    {{- include "wrapper.order" (dict "root" . "wave" "-2") | nindent 4 }}
 spec:
   serviceName: airbyte-db-svc
   replicas: 1
