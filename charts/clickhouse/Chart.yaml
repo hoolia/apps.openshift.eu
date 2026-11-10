@@ -1,0 +1,28 @@
+apiVersion: v2
+name: clickhouse
+description: ClickHouse analytical database for one team, with read-only SQL tools for AI agents (mcp-clickhouse) discovered by an MCP gateway
+type: application
+version: 0.1.0
+appVersion: 26.8.36.3
+home: https://apps.openshift.eu
+icon: https://avatars.githubusercontent.com/u/54801242
+keywords:
+- database
+- analytics
+- olap
+- clickhouse
+- ai
+- agents
+- mcp
+sources:
+- https://github.com/ClickHouse/ClickHouse
+- https://github.com/ClickHouse/mcp-clickhouse
+- https://github.com/hoolia/apps.openshift.eu
+maintainers:
+- name: GRN.CLOUD B.V.
+  url: https://apps.openshift.eu
+annotations:
+  charts.openshift.io/name: ClickHouse
+  charts.openshift.io/provider: GRN.CLOUD B.V.
+  apps.openshift.eu/category: database
+  apps.openshift.eu/vendor: ClickHouse Inc.

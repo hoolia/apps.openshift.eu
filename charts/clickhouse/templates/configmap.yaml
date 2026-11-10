@@ -1,0 +1,71 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "clickhouse.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ include "clickhouse.fullname" . }}
+    app.kubernetes.io/name: clickhouse
+    app.kubernetes.io/component: database
+    {{- include "clickhouse.commonLabels" . | nindent 4 }}
+data:
+  # config.d/chart.xml: log to the console, small caches, only the HTTP and native ports
+  config.xml: |
+    <clickhouse>
+      <mysql_port remove="remove"/>
+      <postgresql_port remove="remove"/>
+      <interserver_http_port remove="remove"/>
+      <logger>
+        <level>information</level>
+        <console>1</console>
+        <log remove="remove"/>
+        <errorlog remove="remove"/>
+      </logger>
+      <mark_cache_size>{{ int64 .Values.config.markCacheSize }}</mark_cache_size>
+      {{- range .Values.config.disableSystemLogs }}
+      <{{ . }} remove="remove"/>
+      {{- end }}
+      {{- with .Values.config.extra }}
+      {{- . | nindent 6 }}
+      {{- end }}
+    </clickhouse>
+  # users.d/chart.xml: passwords are SHA-256 hashes from the environment
+  users.xml: |
+    <clickhouse>
+      <users>
+        <default remove="remove"/>
+        <{{ .Values.users.admin.name }}>
+          <password_sha256_hex from_env="CLICKHOUSE_ADMIN_PASSWORD_SHA256"/>
+          <networks><ip>::/0</ip></networks>
+          <profile>default</profile>
+          <quota>default</quota>
+          <access_management>1</access_management>
+          <named_collection_control>1</named_collection_control>
+        </{{ .Values.users.admin.name }}>
+        <{{ .Values.users.reader.name }}>
+          <password_sha256_hex from_env="CLICKHOUSE_READER_PASSWORD_SHA256"/>
+          <networks><ip>::/0</ip></networks>
+          <profile>reader</profile>
+          <quota>default</quota>
+          <grants>
+            <query>{{ .Values.users.reader.grants }}</query>
+          </grants>
+        </{{ .Values.users.reader.name }}>
+        <{{ .Values.users.writer.name }}>
+          <password_sha256_hex from_env="CLICKHOUSE_WRITER_PASSWORD_SHA256"/>
+          <networks><ip>::/0</ip></networks>
+          <profile>default</profile>
+          <quota>default</quota>
+          <grants>
+            <query>{{ .Values.users.writer.grants }}</query>
+          </grants>
+        </{{ .Values.users.writer.name }}>
+      </users>
+      <profiles>
+        <reader>
+          {{- range $k, $v := .Values.users.reader.settings }}
+          <{{ $k }}>{{ if kindIs "float64" $v }}{{ int64 $v }}{{ else }}{{ $v }}{{ end }}</{{ $k }}>
+          {{- end }}
+        </reader>
+      </profiles>
+    </clickhouse>

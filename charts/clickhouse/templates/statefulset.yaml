@@ -1,0 +1,111 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "clickhouse.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ include "clickhouse.fullname" . }}
+    app.kubernetes.io/name: clickhouse
+    app.kubernetes.io/component: database
+    {{- include "clickhouse.commonLabels" . | nindent 4 }}
+  annotations:
+    app.openshift.io/custom-icon: {{ .Chart.Icon | quote }}
+spec:
+  serviceName: {{ include "clickhouse.fullname" . }}
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "clickhouse.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "clickhouse.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        # restart on a new configuration or password
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum | trunc 16 }}
+        checksum/secrets: {{ printf "%s%s%s%s" .Values.secrets.type .Values.secrets.adminPassword .Values.secrets.readerPassword .Values.secrets.writerPassword | sha256sum | trunc 16 }}
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - name: clickhouse
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        # the image entrypoint changes users and owners as root; the server needs neither
+        command:
+        - /usr/bin/clickhouse-server
+        args:
+        - --config-file=/etc/clickhouse-server/config.xml
+        env:
+        {{- range $role := list "admin" "reader" "writer" }}
+        - name: CLICKHOUSE_{{ upper $role }}_PASSWORD_SHA256
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "clickhouse.fullname" $ }}-{{ $role }}
+              key: password-sha256
+        {{- end }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          capabilities:
+            drop:
+            - ALL
+          seccompProfile:
+            type: RuntimeDefault
+        ports:
+        - name: http
+          containerPort: 8123
+        - name: native
+          containerPort: 9000
+        # /ping needs no login
+        startupProbe:
+          httpGet:
+            path: /ping
+            port: http
+          periodSeconds: 5
+          timeoutSeconds: 5
+          failureThreshold: 120
+        readinessProbe:
+          httpGet:
+            path: /ping
+            port: http
+          periodSeconds: 10
+          timeoutSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /ping
+            port: http
+          periodSeconds: 20
+          timeoutSeconds: 5
+          failureThreshold: 6
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/clickhouse
+        - name: config
+          mountPath: /etc/clickhouse-server/config.d/chart.xml
+          subPath: config.xml
+        - name: config
+          mountPath: /etc/clickhouse-server/users.d/chart.xml
+          subPath: users.xml
+      volumes:
+      - name: config
+        configMap:
+          name: {{ include "clickhouse.fullname" . }}
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+      labels:
+        {{- include "clickhouse.selectorLabels" . | nindent 8 }}
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: {{ .Values.persistence.size }}
+      {{- with .Values.persistence.storageClass }}
+      storageClassName: {{ . }}
+      {{- end }}

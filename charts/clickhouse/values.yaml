@@ -1,0 +1,124 @@
+# The official ClickHouse server image (long-term support release)
+image:
+  repository: docker.io/clickhouse/clickhouse-server
+  tag: 26.8.36.3
+  pullPolicy: IfNotPresent
+
+persistence:
+  size: 10Gi
+  # Empty: the cluster default StorageClass
+  storageClass: ""
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 2Gi
+  limits:
+    cpu: "2"
+    memory: 4Gi
+
+# Extra pod labels of the server, e.g. sidecar.istio.io/inject: "false" in a mesh namespace
+podLabels: {}
+
+# The three users of the server; each gets the Secret <fullname>-<role>
+users:
+  admin:
+    name: admin
+  # Read-only user of the MCP tools and of reporting clients
+  reader:
+    name: reader
+    grants: GRANT SELECT, SHOW ON *.*
+    # Settings of the reader's profile; readonly 2 keeps it read-only but lets clients
+    # set query settings
+    settings:
+      readonly: 2
+      max_execution_time: 120
+      max_memory_usage: 2147483648
+  # Loading user of an ingestion tool (Airbyte, dbt, an ETL job)
+  writer:
+    name: writer
+    grants: GRANT SELECT, SHOW, INSERT, ALTER, CREATE DATABASE, CREATE TABLE, CREATE VIEW, DROP TABLE, DROP VIEW, DROP DATABASE, TRUNCATE, OPTIMIZE ON *.*
+
+# Database the connection Secrets name; it exists on every server
+database: default
+
+# Server settings for a small memory limit; merged into the default configuration
+config:
+  # Cache of index marks in bytes (server default 5GiB)
+  markCacheSize: 268435456
+  # Drop the system log tables that grow fastest; query_log and part_log stay
+  disableSystemLogs:
+  - metric_log
+  - asynchronous_metric_log
+  - trace_log
+  - text_log
+  - latency_log
+  - processors_profile_log
+  # Further XML inside <clickhouse>, e.g. <max_concurrent_queries>50</max_concurrent_queries>
+  extra: ""
+
+secrets:
+  # kubernetes: Secrets from the values below. externalSecret: from a secret store
+  type: kubernetes
+  # Passwords of the three users. Empty: generated once and kept on upgrade; a tool
+  # that renders without cluster access must set them
+  adminPassword: ""
+  readerPassword: ""
+  writerPassword: ""
+  externalSecret:
+    storeKind: ClusterSecretStore
+    storeName: ""
+    refreshInterval: 1h
+    # Vault items holding each password in their password field; empty:
+    # <fullname>-admin, <fullname>-reader, <fullname>-writer
+    items:
+      admin: ""
+      reader: ""
+      writer: ""
+
+networkPolicy:
+  enabled: true
+  # Namespaces (label selectors) that may connect to the database besides its own
+  ingressNamespaces: []
+
+# Publish the HTTP interface (port 8123) off-cluster. Every client must log in
+route:
+  enabled: false
+  # Empty: the cluster's default host name for the Route
+  host: ""
+  # e.g. cert-manager.io/issuer-kind and cert-manager.io/issuer-name
+  annotations: {}
+
+# Read-only SQL tools for AI agents: the official mcp-clickhouse (run_query,
+# list_databases, list_tables) on streamable HTTP as the reader user, discovered by an
+# MCP gateway
+mcp:
+  enabled: true
+  image:
+    repository: ghcr.io/clickhouse/mcp-clickhouse
+    tag: 0.7.0
+    pullPolicy: IfNotPresent
+  # Not 80, 443, 8080 or 8443 (open to every project)
+  port: 8000
+  path: /mcp
+  # Port appProtocol an MCP gateway discovers; empty leaves it unset
+  appProtocol: agentgateway.dev/mcp
+  # Tool prefix on the gateway (<targetName>_<tool>); empty: the release name
+  targetName: ""
+  # Seconds a tool call's query may run
+  queryTimeout: 60
+  # Further Host header values the server answers for, besides its Service names
+  allowedHosts: []
+  # Further mcp-clickhouse settings as environment variables
+  extraEnv: {}
+  # Extra pod labels, e.g. sidecar.istio.io/inject: "false" in a mesh namespace
+  podLabels: {}
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  # Namespaces (label selectors) that may call the tools besides the own one: the gateway's
+  ingressNamespaces: []
