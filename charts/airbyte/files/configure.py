@@ -98,11 +98,15 @@ def main():
                 defs[kind].setdefault(name, d.get("id"))
 
     # connector versions, by registry name
-    for name, tag in (spec.get("definitionVersions") or {}).items():
-        kind = next((k for k in ("source", "destination") if name in defs[k]), None)
-        if not kind:
-            failed.append(f"definition version {name}: no such connector")
+    for key, tag in (spec.get("definitionVersions") or {}).items():
+        # "destination/ClickHouse": a source and a destination can share a name
+        kind, _, name = key.rpartition("/")
+        kinds = [kind] if kind else [k for k in ("source", "destination") if key in defs[k]]
+        if len(kinds) != 1 or name not in defs.get(kinds[0], {}):
+            failed.append(f"definition version {key}: no single connector of that name;"
+                          " write source/<name> or destination/<name>")
             continue
+        kind = kinds[0]
         # an update fetches the connector spec again, even for the same tag
         if tags.get((kind, name)) == str(tag):
             print(f"{kind} definition {name}: {tag}")
