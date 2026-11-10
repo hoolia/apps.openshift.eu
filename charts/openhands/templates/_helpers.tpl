@@ -79,7 +79,7 @@ the cluster, else a new random one. Takes value, existing (Secret data), key, le
 {{ .check }}
 {{- end }}
 {{- range .Values.vscode.extensions }}
-ls -d /openhands/.openvscode-server/extensions/{{ lower .id }}-{{ .version }}*
+ls -d /openhands/.code-server/lib/vscode/extensions/{{ lower .id }}-{{ .version }}*
 {{- end }}
 {{- end -}}
 

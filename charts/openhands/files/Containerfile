@@ -28,14 +28,17 @@ COPY --from=tools /usr/share/ansible/collections /usr/share/ansible/collections
 {{- end }}
 COPY install-tools.sh verify-tools.sh tools.txt checks.txt vscode-extensions.txt mcp_oauth_redirect.py patch-mcp-icons.py patch-acp-usage.py /tmp/build/
 RUN sh /tmp/build/install-tools.sh
-# editor extensions from Open VSX, checked against their digest
-RUN set -eu; ovs=/openhands/.openvscode-server; \
+# editor extensions from Open VSX, checked against their digest, as code-server built-ins:
+# the agent-server gives code-server a user data directory in the home
+RUN set -eu; cs=/openhands/.code-server; \
     while read -r url sha; do \
       [ -n "$url" ] || continue; \
       curl -fsSL --retry 5 --retry-delay 3 -o /tmp/ext.vsix "$url"; \
       echo "$sha  /tmp/ext.vsix" | sha256sum -c -; \
-      "$ovs/bin/openvscode-server" --install-extension /tmp/ext.vsix --extensions-dir "$ovs/extensions"; \
-      rm -f /tmp/ext.vsix; \
+      "$cs/bin/code-server" --user-data-dir /tmp/ext-data --extensions-dir /tmp/ext \
+        --install-extension /tmp/ext.vsix; \
+      for d in /tmp/ext/*/; do cp -r "$d" "$cs/lib/vscode/extensions/"; done; \
+      rm -rf /tmp/ext /tmp/ext-data /tmp/ext.vsix; \
     done < /tmp/build/vscode-extensions.txt
 # installed MCP server cards show the icon of the server's settings
 RUN python3 /tmp/build/patch-mcp-icons.py

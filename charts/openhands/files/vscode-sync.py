@@ -26,8 +26,10 @@ API = "http://127.0.0.1:18000"
 PROXY = "http://127.0.0.1:{}".format(os.environ.get("TOKEN_PROXY_PORT", "8099"))
 HOME = os.environ.get("HOME", "/home/openhands")
 CONFIG = os.environ.get("CONFIG", os.path.join(HOME, ".continue", "config.yaml"))
-MACHINE = os.environ.get("MACHINE_SETTINGS",
-                         os.path.join(HOME, ".openvscode-server", "data", "Machine", "settings.json"))
+# the agent-server starts code-server with this user data directory, one per editor port
+MACHINE = os.environ.get("MACHINE_SETTINGS", os.path.join(
+    HOME, ".local", "share", "openhands-code-server", os.environ.get("VSCODE_PORT", "8001"),
+    "Machine", "settings.json"))
 INTERVAL = int(os.environ.get("INTERVAL", "60"))
 MODELS = json.loads(os.environ.get("MODELS") or "[]")
 PREFERRED = json.loads(os.environ.get("PREFERRED") or "[]")
