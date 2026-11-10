@@ -185,6 +185,9 @@ metadata:
     helm.sh/hook: pre-install,pre-upgrade
     helm.sh/hook-weight: "-6"
     helm.sh/hook-delete-policy: before-hook-creation
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: HookFailed
+    argocd.argoproj.io/sync-wave: "-6"
   {{- end }}
 spec:
   refreshInterval: {{ $root.Values.secrets.externalSecret.refreshInterval }}
