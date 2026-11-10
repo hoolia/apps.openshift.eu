@@ -34,7 +34,9 @@ build:
   pullSecret: ""
   # Python (uv), npm and pip tools; keep: true leaves the base image's own command
   # in place (agent-canvas starts its automation server with its uvicorn). venv: pip
-  # in /opt/venv/<command>; tarball: args "<url> <sha256>", the member <command>
+  # in /opt/venv/<command>; tarball: args "<url> <sha256>", the member <command>.
+  # npm: the package may run its install scripts, a dependency only when args holds
+  # --allow-scripts=<package>
   tools:
   - {kind: uv, command: mkdocs, args: "mkdocs==1.6.1 --with mkdocs-material", check: "mkdocs --version"}
   - {kind: uv, command: ansible, args: "ansible-core==2.21.5", check: "ansible --version"}
@@ -44,7 +46,8 @@ build:
   - {kind: uv, command: semgrep, args: "semgrep==1.182.0", check: "semgrep --version"}
   - {kind: uv, command: ruff, args: "ruff==0.17.1", check: "ruff --version"}
   - {kind: uv, command: markitdown, args: "markitdown[all]==0.1.9", check: "markitdown --version"}
-  - {kind: npm, command: "@mermaid-js/mermaid-cli@12.0.0", check: "mmdc --version"}
+  # renders with the image's own Chromium; puppeteer's install script skips its download
+  - {kind: npm, command: "@mermaid-js/mermaid-cli@12.0.0", args: "--allow-scripts=puppeteer", check: "printf 'graph TD; A-->B\\n' > /tmp/c.mmd && mmdc -q -i /tmp/c.mmd -o /tmp/c.svg && test -s /tmp/c.svg && rm -f /tmp/c.mmd /tmp/c.svg && echo mermaid renders"}
   - {kind: pip, command: "python-docx==1.2.0", check: "python3 -c 'import docx'"}
   - {kind: pip, command: "docxtpl==0.20.2", check: "python3 -c 'import docxtpl'"}
   - {kind: pip, command: "python-pptx==1.0.2", check: "python3 -c 'import pptx'"}
