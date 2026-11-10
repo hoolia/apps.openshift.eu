@@ -7,7 +7,7 @@ browser. The chart runs Nextcloud on the upstream Nextcloud chart, a MariaDB dat
 through the platform's MariaDB operator, and an OnlyOffice document server. Around that
 it runs Redis, the push server for the clients (notify_push) and the whiteboard backend.
 A Mailu mail server runs in the same project, and every Nextcloud user with an address
-in its mail domain finds a mailbox with that address in the Mail app. Team folders (the app `groupfolders`) are installed at the first start.
+in its mail domain finds a mailbox with that address in the Mail app. Team folders (the app `groupfolders`), Calendar and Contacts are installed at the first start.
 Nextcloud Talk with its signaling, TURN and recording servers, an AI assistant on an
 OpenAI-compatible API, a database backup to object storage and monitoring are optional.
 For the project's agents the chart runs three MCP servers in the same project and publishes
@@ -47,7 +47,7 @@ password:
 | `mailu.upstream.hostnames` | `[mail.example.org]` | Hostnames of the mail server; the first one is its name towards other mail servers and the target of the MX record. Set it to `mail.<mail domain>`. |
 | `mail.enabled` | `true` | With `mailu.enabled`: install the Mail app and give every user with an address in a mail domain a mailbox with that address, see Mail for every user. |
 | `mail.domains` | `[]` | Domains hosted on the mail server. Empty: `mailu.upstream.domain`. Only domains you own, never a public mail provider. |
-| `settings.apps` | `[groupfolders]` | Store apps installed and enabled at every start. `groupfolders` is Team folders. |
+| `settings.apps` | `[groupfolders, calendar, contacts]` | Store apps installed and enabled at every start. `groupfolders` is Team folders. |
 | `hsts.enabled` | `true` | Send the Strict-Transport-Security header `hsts.header` on every hostname of this chart. |
 | `settings.maintenanceWindowStart` | `1` | Hour (UTC) at which the heavy daily jobs start. Empty: not set. |
 | `settings.defaultPhoneRegion` | empty | Country code for phone numbers without one, such as `NL`. Empty: not set. |
