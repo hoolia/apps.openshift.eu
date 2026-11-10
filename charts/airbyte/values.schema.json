@@ -23,8 +23,7 @@
             "storeKind": {"enum": ["SecretStore", "ClusterSecretStore"]},
             "storeName": {"type": "string"},
             "refreshInterval": {"type": "string"},
-            "items": {"type": "object", "properties": {"minio": {"type": "string"}}},
-            "property": {"type": "string"}
+            "items": {"type": "object", "additionalProperties": false, "properties": {"minio": {"type": "string"}, "database": {"type": "string"}}}
           }
         }
       }
@@ -61,6 +60,11 @@
         "enabled": {"type": "boolean"},
         "workspace": {"type": "string"},
         "reconcileSchedule": {"type": "string"},
+        "externalSecrets": {
+          "type": "array",
+          "items": {"type": "object", "required": ["name", "item", "data"], "properties": {"name": {"type": "string"}, "item": {"type": "string"}, "data": {"type": "object", "additionalProperties": {"type": "string"}}}}
+        },
+        "definitionVersions": {"type": "object", "additionalProperties": {"type": ["string", "number"]}},
         "declarativeSources": {
           "type": "array",
           "items": {"type": "object", "required": ["name"], "anyOf": [{"required": ["manifest"]}, {"required": ["file"]}]}

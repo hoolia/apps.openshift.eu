@@ -95,6 +95,19 @@ def main():
             if kind == "source":
                 defs[kind].setdefault(name, d.get("id"))
 
+    # connector versions, by registry name
+    for name, tag in (spec.get("definitionVersions") or {}).items():
+        kind = next((k for k in ("source", "destination") if name in defs[k]), None)
+        if not kind:
+            failed.append(f"definition version {name}: no such connector")
+            continue
+        try:
+            out = api.internal(f"/{kind}_definitions/update", {
+                "workspaceId": wid, f"{kind}DefinitionId": defs[kind][name], "dockerImageTag": str(tag)})
+            print(f"{kind} definition {name}: {out.get('dockerImageTag')}")
+        except ApiError as err:
+            failed.append(f"definition version {name}: {err}")
+
     ids = {"source": {}, "destination": {}}
     for kind, plural in (("destination", "destinations"), ("source", "sources")):
         existing = {x["name"]: x for x in api.pages(f"/{plural}", workspaceIds=wid)}
