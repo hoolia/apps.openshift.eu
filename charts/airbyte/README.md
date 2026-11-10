@@ -33,7 +33,7 @@ are started by the workload launcher in the release namespace.
 | `upstream.postgresql.postgresqlPassword` | `airbyte` | Password of the bundled database. Set it, and `global.database.password` to the same value, at the first install. |
 | `upstream.postgresql.storage.volumeClaimValue` | `5Gi` | Size of the database volume. |
 | `secrets.type` | `kubernetes` | `externalSecret` reads the MinIO password from a secret store. |
-| `secrets.minioRootPassword` | empty | MinIO root password. Empty: generated once and kept. |
+| `secrets.minioRootPassword` | empty | MinIO root password. Empty: an install hook creates the Secret `airbyte-minio-credentials` with a random one, once. |
 | `minio.persistence.size` | `5Gi` | Size of the volume for logs and state. |
 | `global.jobs.resources` | 100m, 256Mi; limit 2 CPU, 2Gi | Requests and limits of each sync, check and discover container. |
 | `upstream.worker.maxSyncWorkers` | upstream | Number of syncs that run at the same time. |
@@ -118,8 +118,13 @@ community edition.
   change. Its data stays on the volume claim `airbyte-volume-db-airbyte-db-0`. A
   `helm uninstall` or Application delete leaves these hook objects behind; delete them by
   hand.
-- A GitOps tool renders without cluster access: pass `secrets.minioRootPassword`, or use
-  `secrets.type=externalSecret`, and pass the database password.
+- The MinIO password and the instance admin's password and API client are generated
+  inside the cluster (Secrets `airbyte-minio-credentials` and `airbyte-auth-secrets`), so
+  a GitOps tool that renders without cluster access never rotates them. Uninstalling
+  leaves both Secrets.
+- The bundled database's password is the value `upstream.postgresql.postgresqlPassword`
+  (with `global.database.password`); the database accepts connections from the project's
+  own pods.
 - Keep `mcp.ingressNamespaces` to the gateway: the MCP server has no login of its own and
   can start syncs.
 - Connector pods download their images from Docker Hub (`airbyte/source-*`).

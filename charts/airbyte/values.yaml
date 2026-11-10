@@ -46,8 +46,8 @@ route:
 secrets:
   # kubernetes: Secret from the values below. externalSecret: from a secret store
   type: kubernetes
-  # Secret key of the MinIO root user. Empty: generated once and kept on upgrade. A
-  # GitOps tool that renders without cluster access must pass it
+  # Secret key of the MinIO root user. Empty: an install hook generates it once inside
+  # the cluster and never changes it, also under a GitOps tool
   minioRootPassword: ""
   externalSecret:
     storeKind: ClusterSecretStore
