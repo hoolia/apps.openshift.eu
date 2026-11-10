@@ -1,0 +1,292 @@
+# Values shared with the upstream chart (below upstream:)
+global:
+  # Address people open, https://<route.host>; empty: http://localhost:8080
+  airbyteUrl: ""
+  # Airbyte's own login (instance admin) in front of the UI and the API
+  auth:
+    enabled: true
+  # Telemetry to Airbyte, Inc.; off
+  tracking:
+    enabled: false
+  database:
+    # Password of the bundled database; set it with upstream.postgresql.postgresqlPassword
+    # to the same value at the first install. Empty: the upstream default
+    password: ""
+  storage:
+    # Logs and state in the chart's own MinIO (minio.enabled)
+    type: minio
+    secretName: airbyte-minio-credentials
+  jobs:
+    # Requests and limits of every container of a sync, check or discover pod
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: "2"
+        memory: 2Gi
+    kube:
+      # Labels and annotations of every sync, check or discover pod
+      labels:
+        sidecar.istio.io/inject: "false"
+      annotations: {}
+
+# The web UI and the API, through a Route. Airbyte's own login protects both
+route:
+  enabled: true
+  # empty: OpenShift assigns a host under the default application domain
+  host: ""
+  # a sync can stream a large log; the router must not cut it short
+  timeout: 300s
+  # used when a host is set; certificate issued by cert-manager
+  annotations:
+    cert-manager.io/issuer-kind: ClusterIssuer
+    cert-manager.io/issuer-name: letsencrypt
+
+secrets:
+  # kubernetes: Secret from the values below. externalSecret: from a secret store
+  type: kubernetes
+  # Secret key of the MinIO root user. Empty: an install hook generates it once inside
+  # the cluster and never changes it, also under a GitOps tool
+  minioRootPassword: ""
+  externalSecret:
+    storeKind: ClusterSecretStore
+    storeName: ""
+    refreshInterval: 1h
+    # vault item whose password field is the MinIO root password
+    items:
+      minio: airbyte-minio
+    # property of the item that holds the password
+    property: login.password
+
+# MinIO for logs and connector state, run by this chart (not as an install hook)
+minio:
+  enabled: true
+  image:
+    repository: docker.io/airbyte/minio
+    tag: RELEASE.2023-11-20T22-40-07Z
+    pullPolicy: IfNotPresent
+  # root user name; the password is secrets.minioRootPassword
+  rootUser: airbyte
+  # bucket Airbyte writes to, as in upstream global.storage.bucket
+  bucket: airbyte-bucket
+  persistence:
+    size: 5Gi
+    # empty: the cluster default
+    storageClass: ""
+  resources:
+    requests:
+      cpu: 20m
+      memory: 256Mi
+    limits:
+      memory: 1Gi
+
+# MCP server for the project's agents: list connections, trigger syncs, read job status.
+# Its Service carries an agentgateway.dev/mcp port, so an MCP gateway that discovers
+# servers by that appProtocol publishes it
+mcp:
+  enabled: true
+  # image with Python 3; the server is files/mcp-server.py, standard library only
+  image:
+    repository: registry.access.redhat.com/ubi9/python-312-minimal
+    tag: "9.8"
+    pullPolicy: IfNotPresent
+  # Not 80, 443, 8080 or 8443 (open to every project)
+  port: 8000
+  path: /mcp
+  # Tool prefix on the gateway; empty: the release name
+  targetName: ""
+  # trigger and cancel syncs; false: read-only tools
+  allowWrite: true
+  # Namespaces (label selectors) that may call the server besides its own, e.g. the gateway's
+  ingressNamespaces: []
+  podLabels:
+    sidecar.istio.io/inject: "false"
+  resources:
+    requests:
+      cpu: 10m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
+
+# Sources, destinations and connections, applied through the Airbyte API by a Job after
+# every install and upgrade. Matched by name: a changed entry is updated, an entry
+# removed here stays in Airbyte. Strings "${secret:<Secret>/<key>}" in a configuration are
+# replaced by that key of a Secret of the namespace; a source or destination whose Secret
+# or key is missing is skipped, and so are its connections
+connections:
+  enabled: false
+  image:
+    repository: registry.access.redhat.com/ubi9/python-312-minimal
+    tag: "9.8"
+    pullPolicy: IfNotPresent
+  # workspace that holds the declared objects; empty: the first workspace
+  workspace: ""
+  # Cron schedule to apply them again, so a credential Secret added later takes effect;
+  # empty: only after install and upgrade
+  reconcileSchedule: ""
+  # Declarative (low-code) connectors: [{name, manifest}] with the manifest as a YAML
+  # object, or [{name, file}] for a manifest of this chart (files/declarative/<file>.yaml:
+  # odoo, Odoo 19 and later through the JSON-2 API)
+  declarativeSources: []
+  # [{name, definition, secretName, configuration}]; definition is the connector name
+  # in the registry (ClickHouse) or of a declarativeSources entry
+  destinations: []
+  # [{name, definition, secretName, configuration}]
+  sources: []
+  # [{name, source, destination, enabled, schedule, namespaceFormat, prefix, streams}];
+  # schedule: a Quartz cron expression, or empty for manual syncs; streams: names to
+  # sync, empty: all with the default sync mode
+  connections: []
+  resources:
+    requests:
+      cpu: 10m
+      memory: 64Mi
+    limits:
+      memory: 256Mi
+
+# Feature flags of the platform, name: value. Socket-mode syncs run as user 1000, which
+# restricted-v2 refuses; stdio mode runs under any user id
+featureFlags:
+  platform.force-run-stdio-mode: true
+
+# Pods of the upstream chart; every container gets OpenShift's own user id
+upstream:
+  serviceAccount:
+    # the chart's own ServiceAccount, Role and RoleBinding; upstream renders them as
+    # install hooks, which a GitOps tool replaces on every sync
+    create: false
+  minio:
+    enabled: false
+  postgresql:
+    enabled: true
+    postgresqlPassword: airbyte
+    podSecurityContext:
+      fsGroup: null
+    containerSecurityContext:
+      runAsUser: null
+      runAsGroup: null
+    storage:
+      volumeClaimValue: 5Gi
+  server:
+    extraVolumes:
+    - name: feature-flags
+      configMap:
+        name: airbyte-feature-flags
+    extraVolumeMounts:
+    - name: feature-flags
+      mountPath: /etc/launchdarkly
+      readOnly: true
+    podSecurityContext:
+      fsGroup: null
+    containerSecurityContext:
+      runAsUser: null
+      runAsGroup: null
+    resources:
+      requests:
+        cpu: 200m
+        memory: 1Gi
+      limits:
+        memory: 2Gi
+  worker:
+    extraVolumes:
+    - name: feature-flags
+      configMap:
+        name: airbyte-feature-flags
+    extraVolumeMounts:
+    - name: feature-flags
+      mountPath: /etc/launchdarkly
+      readOnly: true
+    podSecurityContext:
+      fsGroup: null
+    containerSecurityContext:
+      runAsUser: null
+      runAsGroup: null
+    resources:
+      requests:
+        cpu: 100m
+        memory: 768Mi
+      limits:
+        memory: 2Gi
+  workloadLauncher:
+    extraVolumes:
+    - name: feature-flags
+      configMap:
+        name: airbyte-feature-flags
+    extraVolumeMounts:
+    - name: feature-flags
+      mountPath: /etc/launchdarkly
+      readOnly: true
+    podSecurityContext:
+      fsGroup: null
+    containerSecurityContext:
+      runAsUser: null
+      runAsGroup: null
+    resources:
+      requests:
+        cpu: 100m
+        memory: 512Mi
+      limits:
+        memory: 1Gi
+  workloadApiServer:
+    podSecurityContext:
+      fsGroup: null
+    containerSecurityContext:
+      runAsUser: null
+      runAsGroup: null
+    resources:
+      requests:
+        cpu: 50m
+        memory: 512Mi
+      limits:
+        memory: 1Gi
+  cron:
+    podSecurityContext:
+      fsGroup: null
+    containerSecurityContext:
+      runAsUser: null
+      runAsGroup: null
+    resources:
+      requests:
+        cpu: 50m
+        memory: 512Mi
+      limits:
+        memory: 1Gi
+  manifestServer:
+    podSecurityContext:
+      fsGroup: null
+    containerSecurityContext:
+      runAsUser: null
+      runAsGroup: null
+    resources:
+      requests:
+        cpu: 50m
+        memory: 256Mi
+      limits:
+        memory: 1Gi
+  temporal:
+    podSecurityContext:
+      fsGroup: null
+    containerSecurityContext:
+      runAsUser: null
+      runAsGroup: null
+    resources:
+      requests:
+        cpu: 100m
+        memory: 512Mi
+      limits:
+        memory: 1Gi
+  airbyteBootloader:
+    # account of templates/rbac-bootloader.yaml
+    serviceAccountName: airbyte-bootloader
+    podSecurityContext:
+      fsGroup: null
+    containerSecurityContext:
+      runAsUser: null
+      runAsGroup: null
+    resources:
+      requests:
+        cpu: 100m
+        memory: 512Mi
+      limits:
+        memory: 1Gi

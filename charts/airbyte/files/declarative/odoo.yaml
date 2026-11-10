@@ -1,0 +1,121 @@
+version: 4.3.0
+type: DeclarativeSource
+description: Odoo 19 and later through the JSON-2 API (/json/2), full refresh
+check:
+  type: CheckStream
+  stream_names:
+  - res_partner
+spec:
+  type: Spec
+  connection_specification:
+    $schema: http://json-schema.org/draft-07/schema#
+    type: object
+    required:
+    - url
+    - database
+    - api_key
+    additionalProperties: true
+    properties:
+      url:
+        type: string
+        title: Odoo URL
+        description: Base address, for example https://odoo.example.org
+        order: 0
+      database:
+        type: string
+        title: Database
+        order: 1
+      api_key:
+        type: string
+        title: API key
+        description: API key of a user with read access to the synced models
+        airbyte_secret: true
+        order: 2
+definitions:
+  stream:
+    type: DeclarativeStream
+    primary_key:
+    - id
+    schema_loader:
+      type: InlineSchemaLoader
+      schema:
+        $schema: http://json-schema.org/draft-07/schema#
+        type: object
+        additionalProperties: true
+        properties:
+          id:
+            type: integer
+          write_date:
+            type:
+            - string
+            - "null"
+    retriever:
+      type: SimpleRetriever
+      requester:
+        type: HttpRequester
+        url_base: "{{ config['url'] }}"
+        path: "/json/2/{{ parameters['model'] }}/search_read"
+        http_method: POST
+        authenticator:
+          type: BearerAuthenticator
+          api_token: "{{ config['api_key'] }}"
+        request_headers:
+          X-Odoo-Database: "{{ config['database'] }}"
+        request_body_json:
+          domain: "[]"
+          fields: "{{ parameters['fields'] }}"
+          order: id asc
+      record_selector:
+        type: RecordSelector
+        extractor:
+          type: DpathExtractor
+          field_path: []
+      paginator:
+        type: DefaultPaginator
+        pagination_strategy:
+          type: OffsetIncrement
+          page_size: 500
+        page_size_option:
+          type: RequestOption
+          inject_into: body_json
+          field_name: limit
+        page_token_option:
+          type: RequestOption
+          inject_into: body_json
+          field_name: offset
+streams:
+- $ref: "#/definitions/stream"
+  name: res_partner
+  $parameters:
+    model: res.partner
+    fields: "['id', 'name', 'display_name', 'is_company', 'parent_id', 'email', 'phone', 'website', 'city', 'zip', 'country_id', 'industry_id', 'customer_rank', 'supplier_rank', 'user_id', 'category_id', 'create_date', 'write_date']"
+- $ref: "#/definitions/stream"
+  name: crm_lead
+  $parameters:
+    model: crm.lead
+    fields: "['id', 'name', 'type', 'active', 'partner_id', 'partner_name', 'contact_name', 'email_from', 'stage_id', 'user_id', 'team_id', 'campaign_id', 'source_id', 'medium_id', 'expected_revenue', 'probability', 'date_open', 'date_closed', 'date_deadline', 'lost_reason_id', 'tag_ids', 'create_date', 'write_date']"
+- $ref: "#/definitions/stream"
+  name: crm_stage
+  $parameters:
+    model: crm.stage
+    fields: "['id', 'name', 'sequence', 'is_won', 'create_date', 'write_date']"
+- $ref: "#/definitions/stream"
+  name: sale_order
+  $parameters:
+    model: sale.order
+    fields: "['id', 'name', 'state', 'partner_id', 'user_id', 'team_id', 'campaign_id', 'source_id', 'medium_id', 'date_order', 'amount_untaxed', 'amount_total', 'currency_id', 'opportunity_id', 'create_date', 'write_date']"
+- $ref: "#/definitions/stream"
+  name: utm_campaign
+  $parameters:
+    model: utm.campaign
+    fields: "['id', 'name', 'title', 'stage_id', 'user_id', 'create_date', 'write_date']"
+- $ref: "#/definitions/stream"
+  name: utm_source
+  $parameters:
+    model: utm.source
+    fields: "['id', 'name', 'create_date', 'write_date']"
+- $ref: "#/definitions/stream"
+  name: utm_medium
+  $parameters:
+    model: utm.medium
+    fields: "['id', 'name', 'active', 'create_date', 'write_date']"

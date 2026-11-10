@@ -1,0 +1,85 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "global": {"type": "object"},
+    "route": {
+      "type": "object",
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "host": {"type": "string"},
+        "timeout": {"type": "string"},
+        "annotations": {"type": "object"}
+      }
+    },
+    "secrets": {
+      "type": "object",
+      "properties": {
+        "type": {"enum": ["kubernetes", "externalSecret"]},
+        "minioRootPassword": {"type": "string"},
+        "externalSecret": {
+          "type": "object",
+          "properties": {
+            "storeKind": {"enum": ["SecretStore", "ClusterSecretStore"]},
+            "storeName": {"type": "string"},
+            "refreshInterval": {"type": "string"},
+            "items": {"type": "object", "properties": {"minio": {"type": "string"}}},
+            "property": {"type": "string"}
+          }
+        }
+      }
+    },
+    "minio": {
+      "type": "object",
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "rootUser": {"type": "string", "minLength": 3},
+        "bucket": {"type": "string", "minLength": 3},
+        "persistence": {
+          "type": "object",
+          "properties": {
+            "size": {"type": "string", "pattern": "^[0-9]+(Mi|Gi|Ti)$"},
+            "storageClass": {"type": "string"}
+          }
+        }
+      }
+    },
+    "mcp": {
+      "type": "object",
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "port": {"type": "integer", "not": {"enum": [80, 443, 8080, 8443]}},
+        "path": {"type": "string", "pattern": "^/"},
+        "targetName": {"type": "string"},
+        "allowWrite": {"type": "boolean"},
+        "ingressNamespaces": {"type": "array", "items": {"type": "object"}}
+      }
+    },
+    "connections": {
+      "type": "object",
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "workspace": {"type": "string"},
+        "reconcileSchedule": {"type": "string"},
+        "declarativeSources": {
+          "type": "array",
+          "items": {"type": "object", "required": ["name"], "anyOf": [{"required": ["manifest"]}, {"required": ["file"]}]}
+        },
+        "destinations": {
+          "type": "array",
+          "items": {"type": "object", "required": ["name", "definition"]}
+        },
+        "sources": {
+          "type": "array",
+          "items": {"type": "object", "required": ["name", "definition"]}
+        },
+        "connections": {
+          "type": "array",
+          "items": {"type": "object", "required": ["name", "source", "destination"]}
+        }
+      }
+    },
+    "featureFlags": {"type": "object"},
+    "upstream": {"type": "object"}
+  }
+}

@@ -1,0 +1,137 @@
+{{- if .Values.mcp.enabled }}
+{{- $name := include "wrapper.mcpName" . }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: airbyte-mcp
+    app.kubernetes.io/name: airbyte-mcp
+    app.kubernetes.io/component: server
+    {{- include "airbyte.commonLabels" $ | nindent 4 }}
+  annotations:
+    agentgateway.dev/mcp-path: {{ .Values.mcp.path | quote }}
+    agentgateway.dev/mcp-target-name: {{ .Values.mcp.targetName | default .Release.Name | quote }}
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: airbyte-mcp
+    app.kubernetes.io/instance: {{ .Release.Name | quote }}
+  ports:
+  - name: mcp
+    port: {{ .Values.mcp.port }}
+    targetPort: mcp
+    protocol: TCP
+    appProtocol: agentgateway.dev/mcp
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: airbyte-mcp
+    app.kubernetes.io/name: airbyte-mcp
+    app.kubernetes.io/component: server
+    app.openshift.io/runtime: python
+    {{- include "airbyte.commonLabels" $ | nindent 4 }}
+  annotations:
+    app.openshift.io/connects-to: '[{"apiVersion":"apps/v1","kind":"Deployment","name":"airbyte-server"}]'
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: airbyte-mcp
+      app.kubernetes.io/instance: {{ .Release.Name | quote }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: airbyte-mcp
+        app.kubernetes.io/instance: {{ .Release.Name | quote }}
+        {{- with .Values.mcp.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/scripts: {{ include (print $.Template.BasePath "/configmap-scripts.yaml") . | sha256sum }}
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - name: mcp
+        image: "{{ .Values.mcp.image.repository }}:{{ .Values.mcp.image.tag }}"
+        imagePullPolicy: {{ .Values.mcp.image.pullPolicy }}
+        command:
+        - python3
+        - /app/mcp-server.py
+        env:
+        - name: MCP_PORT
+          value: {{ .Values.mcp.port | quote }}
+        - name: MCP_PATH
+          value: {{ .Values.mcp.path | quote }}
+        - name: MCP_ALLOW_WRITE
+          value: {{ .Values.mcp.allowWrite | quote }}
+        - name: AIRBYTE_VERSION
+          value: {{ .Chart.AppVersion | quote }}
+        - name: AIRBYTE_URL
+          value: {{ printf "http://%s.%s.svc:8001" (include "wrapper.serverService" .) .Release.Namespace | quote }}
+        - name: AIRBYTE_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "wrapper.authSecret" . }}
+              key: instance-admin-client-id
+        - name: AIRBYTE_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "wrapper.authSecret" . }}
+              key: instance-admin-client-secret
+        ports:
+        - name: mcp
+          containerPort: {{ .Values.mcp.port }}
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: mcp
+          periodSeconds: 10
+        volumeMounts:
+        - name: scripts
+          mountPath: /app
+          readOnly: true
+        resources:
+          {{- toYaml .Values.mcp.resources | nindent 10 }}
+        securityContext:
+          {{- include "wrapper.containerSecurityContext" . | nindent 10 }}
+      volumes:
+      - name: scripts
+        configMap:
+          name: {{ .Release.Name }}-scripts
+---
+# Callers: the own project and the listed namespaces (an MCP gateway)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: airbyte-mcp
+    app.kubernetes.io/name: airbyte-mcp
+    app.kubernetes.io/component: server
+    {{- include "airbyte.commonLabels" $ | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: airbyte-mcp
+      app.kubernetes.io/instance: {{ .Release.Name | quote }}
+  policyTypes:
+  - Ingress
+  ingress:
+  - ports:
+    - protocol: TCP
+      port: {{ .Values.mcp.port }}
+    from:
+    - podSelector: {}
+    {{- range .Values.mcp.ingressNamespaces }}
+    - namespaceSelector:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+{{- end }}

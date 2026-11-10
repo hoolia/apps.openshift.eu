@@ -1,0 +1,31 @@
+apiVersion: v2
+name: airbyte
+description: Airbyte data integration with declared sources and connections and an MCP server for agents
+type: application
+version: 0.1.0
+appVersion: "2.5.0"
+home: https://apps.openshift.eu
+icon: https://avatars.githubusercontent.com/u/59758427?s=200
+keywords:
+- etl
+- elt
+- data-integration
+- connectors
+- mcp
+sources:
+- https://github.com/airbytehq/airbyte
+- https://github.com/airbytehq/charts
+- https://github.com/hoolia/apps.openshift.eu
+maintainers:
+- name: GRN.CLOUD B.V.
+  url: https://apps.openshift.eu
+annotations:
+  charts.openshift.io/name: Airbyte
+  charts.openshift.io/provider: GRN.CLOUD B.V.
+  apps.openshift.eu/category: data
+  apps.openshift.eu/vendor: Airbyte, Inc.
+dependencies:
+- name: airbyte
+  alias: upstream
+  version: 2.5.0
+  repository: https://airbytehq.github.io/charts

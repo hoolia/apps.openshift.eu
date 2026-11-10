@@ -1,0 +1,32 @@
+{{- if .Values.route.enabled }}
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: airbyte
+    app.kubernetes.io/name: airbyte
+    app.kubernetes.io/component: route
+    {{- include "airbyte.commonLabels" $ | nindent 4 }}
+  annotations:
+    haproxy.router.openshift.io/timeout: {{ .Values.route.timeout }}
+    {{- if and .Values.route.host .Values.route.annotations }}
+    {{- toYaml .Values.route.annotations | nindent 4 }}
+    {{- end }}
+spec:
+  {{- with .Values.route.host }}
+  host: {{ . }}
+  {{- end }}
+  path: /
+  to:
+    kind: Service
+    name: {{ include "wrapper.serverService" . }}
+    weight: 100
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+  wildcardPolicy: None
+{{- end }}
