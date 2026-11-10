@@ -162,8 +162,9 @@ connections:
   # [{name, item, data: {<secret key>: <item property>}}], for example
   # {name: google-ads, item: my-google-ads, data: {client-id: login.username}}
   externalSecrets: []
-  # Connector versions, registry name: image tag, for example ClickHouse: 2.1.34 (a fix
-  # newer than the platform's default). Applies to the whole instance
+  # Connector versions, <source|destination>/<registry name>: image tag, for example
+  # destination/ClickHouse: 2.1.34 (a fix newer than the platform's default). Applies to
+  # the whole instance
   definitionVersions: {}
   # Declarative (low-code) connectors: [{name, manifest}] with the manifest as a YAML
   # object, or [{name, file}] for a manifest of this chart (files/declarative/<file>.yaml:

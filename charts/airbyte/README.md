@@ -43,7 +43,7 @@ are started by the workload launcher in the release namespace.
 | `mcp.ingressNamespaces` | empty | Label selectors of the namespaces that may call the MCP server, for example an MCP gateway's. |
 | `connections.enabled` | `false` | Apply `connections.*` through the Airbyte API after every install and upgrade. |
 | `connections.externalSecrets` | `[]` | Connector credential Secrets from the secret store: `{name, item, data: {<key>: <item property>}}`. |
-| `connections.definitionVersions` | `{}` | Connector versions by registry name, for example `ClickHouse: 2.1.34`. |
+| `connections.definitionVersions` | `{}` | Connector versions as `<source|destination>/<registry name>: <tag>`, for example `destination/ClickHouse: 2.1.34`. |
 | `featureFlags` | stdio mode | Platform feature flags. |
 
 Platform pods request about 0.75 CPU and 4.5Gi of memory; each running sync adds one pod
@@ -127,7 +127,7 @@ community edition.
   `airbyte-minio-credentials` and `airbyte-auth-secrets`), so a GitOps tool that renders
   without cluster access never rotates them. Uninstalling leaves the three Secrets.
 - ClickHouse 26.8 and later need destination ClickHouse 2.1.33 or later
-  (`connections.definitionVersions`).
+  (`connections.definitionVersions`, key `destination/ClickHouse`).
 - Keep `mcp.ingressNamespaces` to the gateway: the MCP server has no login of its own and
   can start syncs.
 - Connector pods download their images from Docker Hub (`airbyte/source-*`).
