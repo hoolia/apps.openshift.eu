@@ -106,8 +106,9 @@ spec:
 {{/* Names of the Secrets the declared connectors read */}}
 {{- define "wrapper.connectorSecrets" -}}
 {{- $names := list -}}
-{{- range concat .Values.connections.sources .Values.connections.destinations -}}
-{{- if .secretName }}{{ $names = append $names .secretName }}{{ end -}}
+{{- $text := concat .Values.connections.sources .Values.connections.destinations | toJson -}}
+{{- range regexFindAll "\\$\\{secret(list)?:[a-z0-9.-]+/" $text -1 -}}
+{{- $names = append $names (regexReplaceAll "^\\$\\{secret(list)?:([a-z0-9.-]+)/$" . "${2}") -}}
 {{- end -}}
-{{- $names | uniq | toJson -}}
+{{- $names | uniq | sortAlpha | toJson -}}
 {{- end -}}

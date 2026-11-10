@@ -81,7 +81,7 @@ per connector with `global.jobs.resources`.
 - `connections.reconcileSchedule` (a cron schedule) applies the declarations again, so a
   credential Secret created later takes effect without an upgrade.
 - `${secret:<Secret>/<key>}` is replaced by that key of a Secret in the release
-  namespace. A source or destination whose Secret or key does not exist is skipped, and so
+  namespace, `${secretlist:<Secret>/<key>}` by its comma-separated items as a list. A source or destination whose Secret or key does not exist is skipped, and so
   are its connections; add the Secret and upgrade, or rerun the job.
 - Objects are matched by name. An entry removed from values stays in Airbyte; delete it
   in the UI.
