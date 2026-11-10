@@ -152,6 +152,9 @@ featureFlags:
 
 # Pods of the upstream chart; every container gets OpenShift's own user id
 upstream:
+  # helm test pod; upstream's airbyte/utils has no tag of this version
+  testWebapp:
+    image: registry.access.redhat.com/ubi9/ubi-minimal:9.8
   serviceAccount:
     # the chart's own ServiceAccount, Role and RoleBinding; upstream renders them as
     # install hooks, which a GitOps tool replaces on every sync
