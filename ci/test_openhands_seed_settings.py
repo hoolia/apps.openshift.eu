@@ -84,5 +84,59 @@ class ProfileDefaults(unittest.TestCase):
         self.assertFalse(self.api.profiles["glm-5.3-flash"]["stream"])
 
 
+class FakeAgentApi:
+    def __init__(self, llm_profiles, active, agents):
+        self.llm_profiles, self.active, self.agents = llm_profiles, active, agents
+        self.posted = []
+
+    def request(self, method, path, body=None):
+        if path == "/api/profiles":
+            return 200, {"profiles": [{"name": n} for n in self.llm_profiles], "active_profile": self.active}
+        if path == "/api/agent-profiles":
+            return 200, {"profiles": [dict(a) for a in self.agents.values()]}
+        name = path.rsplit("/", 1)[-1]
+        if method == "GET" and path.startswith("/api/agent-profiles/"):
+            return 200, {"name": name, "profile": dict(self.agents[name])}
+        if method == "POST" and path.startswith("/api/agent-profiles/"):
+            self.posted.append(name)
+            self.agents[name] = dict(body)
+            return 200, None
+        return 404, None
+
+
+class AgentLlmRefs(unittest.TestCase):
+    def use(self, api):
+        ss.request = api.request
+        ss.call = lambda method, path, body=None: api.request(method, path, body)[0]
+
+    def test_dangling_ref_moves_to_active(self):
+        api = FakeAgentApi(["glm-5.3-flash"], "glm-5.3-flash", {
+            "default": {"name": "default", "agent_kind": "openhands", "llm_profile_ref": "default", "revision": 1},
+            "claude-code": {"name": "claude-code", "agent_kind": "acp", "llm_profile_ref": None},
+        })
+        self.use(api)
+        ss.repair_agent_llm_refs()
+        self.assertEqual(api.agents["default"]["llm_profile_ref"], "glm-5.3-flash")
+        self.assertEqual(api.agents["default"]["revision"], 1)
+        self.assertEqual(api.posted, ["default"])
+
+    def test_valid_ref_stays(self):
+        api = FakeAgentApi(["glm-5.3-flash", "claude-opus-5-5"], "claude-opus-5-5", {
+            "default": {"name": "default", "agent_kind": "openhands", "llm_profile_ref": "glm-5.3-flash"},
+        })
+        self.use(api)
+        ss.repair_agent_llm_refs()
+        self.assertEqual(api.agents["default"]["llm_profile_ref"], "glm-5.3-flash")
+        self.assertEqual(api.posted, [])
+
+    def test_no_active_profile_changes_nothing(self):
+        api = FakeAgentApi([], None, {
+            "default": {"name": "default", "agent_kind": "openhands", "llm_profile_ref": "default"},
+        })
+        self.use(api)
+        ss.repair_agent_llm_refs()
+        self.assertEqual(api.posted, [])
+
+
 if __name__ == "__main__":
     unittest.main()
