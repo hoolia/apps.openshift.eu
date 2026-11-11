@@ -2,11 +2,22 @@
 
 route:
   annotations:
-    # certificate of both hostnames, issued by cert-manager
-    cert-manager.io/issuer-kind: ClusterIssuer
-    cert-manager.io/issuer-name: letsencrypt
     # large uploads and long document sessions
     haproxy.router.openshift.io/timeout: 3600s
+  # Certificate of the host: a cert-manager Certificate of this chart, which the Route
+  # reads from its Secret (spec.tls.externalCertificate). A changed host gets a new
+  # certificate by itself. Off: the Route carries no certificate of its own.
+  certificate:
+    enabled: true
+    issuerKind: ClusterIssuer
+    issuerName: letsencrypt
+    # the router reads the Secret; OpenShift's default router
+    router:
+      namespace: openshift-ingress
+      serviceAccount: router
+    # a pre-install/pre-upgrade Job writes a self-signed certificate into the Secret
+    # when it does not exist yet: OpenShift refuses a Route whose Secret is missing
+    placeholder: true
 
 # Settings the setup script applies at every start of Nextcloud
 settings:
@@ -280,12 +291,25 @@ oidc:
   groupsRegex: ""
   # API and WebDAV calls with a Bearer token of the provider; the user is created on first call
   bearer: true
+  # with sso.enabled: text of the login button, {name} is the identifier, for example
+  # "Login with Example". Empty: Nextcloud's "Login with <identifier>". The Secret key
+  # sso-login-label wins over it
+  loginLabel: ""
+  # with sso.enabled: keep the user's provider tokens after login (user_oidc "Store login
+  # tokens"), so apps can call other services of the provider as that user
+  storeLoginToken: true
+  # with sso.enabled: users kept in the Nextcloud group admin: the members of these groups
+  # (group id or display name) and the users with these email addresses. The Secret keys
+  # sso-admin-groups and sso-admin-emails (space separated) add to them. Only users this
+  # chart made administrator lose it again when they no longer match
+  adminGroups: []
+  adminEmails: []
 
 # Login through a client the platform makes: a platform that watches a label on Deployment
 # nextcloud (nextcloud.deploymentLabels) answers with Secret public-nextcloud (<realm>-<Deployment>)
 # in this namespace
 # (keys sso-client-id, sso-client-secret, sso-discovery-uri, sso-issuer-url,
-# sso-groups-regex). Within a minute Nextcloud sets up provider oidc.identifier from it with
+# sso-groups-regex, optional sso-login-label, sso-admin-groups, sso-admin-emails). Within a minute Nextcloud sets up provider oidc.identifier from it with
 # the claims of oidc, and webmail (mailRoute.sso) logs in with it. Switched off, or the
 # Secret removed, the provider goes. Without the Secret it does nothing
 sso:
@@ -370,7 +394,7 @@ mailu:
     front:
       # a chart upgrade reloads mail-prefix.conf; equals the chart version (templates/validate.yaml)
       podAnnotations:
-        chart-version: 0.17.5
+        chart-version: 0.17.6
       extraVolumes:
       - name: dovecot-override
         configMap:
@@ -574,7 +598,7 @@ nextcloud:
   # a chart upgrade restarts Nextcloud so its start-up setup runs again; equals the chart
   # version (templates/validate.yaml refuses a render where it does not)
   podAnnotations:
-    chart-version: 0.17.5
+    chart-version: 0.17.6
   nextcloud:
     host: nextcloud.example.org
     existingSecret:
