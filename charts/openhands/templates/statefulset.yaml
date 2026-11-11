@@ -411,6 +411,8 @@ spec:
           value: {{ .Values.tokenProxy.port | quote }}
         - name: INTERVAL
           value: {{ int .Values.vscode.chat.interval | quote }}
+        - name: MODELS_INTERVAL
+          value: {{ int .Values.vscode.chat.modelsInterval | quote }}
         - name: MODELS
           value: {{ toJson .Values.vscode.chat.models | quote }}
         - name: PREFERRED
