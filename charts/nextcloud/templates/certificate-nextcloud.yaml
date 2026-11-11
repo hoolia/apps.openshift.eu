@@ -59,12 +59,15 @@ subjects:
   name: {{ $c.router.serviceAccount }}
   namespace: {{ $c.router.namespace }}
 {{- if $c.placeholder }}
-{{- $hook := dict "helm.sh/hook" "pre-install,pre-upgrade" "helm.sh/hook-delete-policy" "before-hook-creation,hook-succeeded" }}
+{{- $image := include "wrapper.nextcloudImage" . }}
 ---
 # The Route is refused while Secret nextcloud-tls does not exist, and cert-manager writes
 # it only once the certificate is issued (never, while DNS is not set up). Before the
-# Route is applied, this Job writes a self-signed certificate of the host into a missing
-# Secret; cert-manager replaces it with the issued one.
+# Route is applied (Argo CD sync waves), this Job writes a self-signed certificate of the
+# host into a missing Secret; cert-manager replaces it with the issued one. Not a Helm
+# hook: Argo CD runs a hook at every sync, and one that fails blocks every later sync. The
+# Job is named after host and image, so it runs once per host and image and a completed
+# one is left alone; Argo CD prunes the previous one.
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -72,7 +75,7 @@ metadata:
   labels:
     {{- include "wrapper.certificateLabels" (dict "root" $ "name" "nextcloud-tls-placeholder" "component" "certificate") | nindent 4 }}
   annotations:
-    {{- toYaml (merge (dict "helm.sh/hook-weight" "-10") $hook) | nindent 4 }}
+    argocd.argoproj.io/sync-wave: "-2"
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -81,7 +84,7 @@ metadata:
   labels:
     {{- include "wrapper.certificateLabels" (dict "root" $ "name" "nextcloud-tls-placeholder" "component" "certificate") | nindent 4 }}
   annotations:
-    {{- toYaml (merge (dict "helm.sh/hook-weight" "-10") $hook) | nindent 4 }}
+    argocd.argoproj.io/sync-wave: "-2"
 rules:
 - apiGroups: [""]
   resources: ["secrets"]
@@ -98,7 +101,7 @@ metadata:
   labels:
     {{- include "wrapper.certificateLabels" (dict "root" $ "name" "nextcloud-tls-placeholder" "component" "certificate") | nindent 4 }}
   annotations:
-    {{- toYaml (merge (dict "helm.sh/hook-weight" "-10") $hook) | nindent 4 }}
+    argocd.argoproj.io/sync-wave: "-2"
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
@@ -110,12 +113,12 @@ subjects:
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: nextcloud-tls-placeholder
+  name: nextcloud-tls-placeholder-{{ printf "%s %s" $host $image | sha256sum | trunc 8 }}
   labels:
     {{- include "wrapper.certificateLabels" (dict "root" $ "name" "nextcloud-tls-placeholder" "component" "certificate") | nindent 4 }}
     app.openshift.io/runtime: php
   annotations:
-    {{- toYaml (merge (dict "helm.sh/hook-weight" "-5") $hook) | nindent 4 }}
+    argocd.argoproj.io/sync-wave: "-1"
 spec:
   backoffLimit: 3
   activeDeadlineSeconds: 300
@@ -128,7 +131,7 @@ spec:
       restartPolicy: Never
       containers:
       - name: placeholder
-        image: {{ include "wrapper.nextcloudImage" . }}
+        image: {{ $image }}
         command: ["php", "-r"]
         args:
         - |
