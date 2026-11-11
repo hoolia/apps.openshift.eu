@@ -228,13 +228,16 @@ data:
     exec /cron.sh
   {{- if .Values.sso.enabled }}
   {{- $o := .Values.oidc }}
-  # sets up provider {{ $o.identifier }} from the platform's Secret public-nextcloud when its
-  # content changed since the last run; nothing to do while the Secret is not there
+  # sets up provider {{ $o.identifier }}, its login button text and token storage from the
+  # platform's Secret public-nextcloud when they changed since the last run, and keeps the
+  # administrators (oidc.adminGroups, oidc.adminEmails, Secret keys sso-admin-groups and
+  # sso-admin-emails) in group admin on every run; nothing to do while the Secret is not there
   sso.sh: |
     #!/bin/sh
     cd /var/www/html
     s=/run/secrets/setup
-    state="$(php occ config:system:get datadirectory)/.chart-sso"
+    data=$(php occ config:system:get datadirectory)
+    state="$data/.chart-sso"
     for k in client-id client-secret discovery-uri; do
       [ -s "$s/sso-$k" ] && continue
       # the platform withdrew the client: so goes the provider
@@ -243,26 +246,85 @@ data:
       fi
       exit 0
     done
-    sum=$(cat "$s/sso-client-id" "$s/sso-client-secret" "$s/sso-discovery-uri" "$s/sso-groups-regex" 2>/dev/null | sha256sum)
-    [ "$(cat "$state" 2>/dev/null)" = "$sum" ] && exit 0
-    php occ app:install user_oidc >/dev/null 2>&1 || php occ app:enable user_oidc >/dev/null 2>&1
-    php occ config:app:set user_oidc allow_multiple_user_backends --value=1 >/dev/null 2>&1
-    set -- --clientid="$(cat "$s/sso-client-id")" --clientsecret=@SECRET@ \
-      --discoveryuri="$(cat "$s/sso-discovery-uri")" --scope={{ $o.scope | quote }} --unique-uid=0 \
-      --mapping-uid={{ $o.uidClaim | quote }} --mapping-display-name=name --mapping-email=email \
-      --mapping-groups={{ $o.groupsClaim | quote }} --group-provisioning=1 \
-      --check-bearer={{ ternary 1 0 $o.bearer }} --bearer-provisioning={{ ternary 1 0 $o.bearer }} \
-      --send-id-token-hint=1
-    regex=$(cat "$s/sso-groups-regex" 2>/dev/null)
-    if [ -n "$regex" ]; then
-      set -- "$@" --group-whitelist-regex="/$regex/" --group-restrict-login-to-whitelist=1
+    label=$(cat "$s/sso-login-label" 2>/dev/null)
+    [ -n "$label" ] || label={{ $o.loginLabel | quote }}
+    token={{ ternary 1 0 $o.storeLoginToken }}
+    sum=$({ cat "$s/sso-client-id" "$s/sso-client-secret" "$s/sso-discovery-uri" "$s/sso-groups-regex" 2>/dev/null
+      printf '\n%s\n%s\n' "$label" "$token"; } | sha256sum)
+    if [ "$(cat "$state" 2>/dev/null)" != "$sum" ]; then
+      php occ app:install user_oidc >/dev/null 2>&1 || php occ app:enable user_oidc >/dev/null 2>&1
+      php occ config:app:set user_oidc allow_multiple_user_backends --value=1 >/dev/null 2>&1
+      set -- --clientid="$(cat "$s/sso-client-id")" --clientsecret=@SECRET@ \
+        --discoveryuri="$(cat "$s/sso-discovery-uri")" --scope={{ $o.scope | quote }} --unique-uid=0 \
+        --mapping-uid={{ $o.uidClaim | quote }} --mapping-display-name=name --mapping-email=email \
+        --mapping-groups={{ $o.groupsClaim | quote }} --group-provisioning=1 \
+        --check-bearer={{ ternary 1 0 $o.bearer }} --bearer-provisioning={{ ternary 1 0 $o.bearer }} \
+        --send-id-token-hint=1
+      regex=$(cat "$s/sso-groups-regex" 2>/dev/null)
+      if [ -n "$regex" ]; then
+        set -- "$@" --group-whitelist-regex="/$regex/" --group-restrict-login-to-whitelist=1
+      fi
+      ok=1
+      if timeout -k 5 60 php /opt/nextcloud-chart/occ-secret.php "$s/sso-client-secret" user_oidc:provider {{ $o.identifier | quote }} "$@" >/dev/null; then
+        echo "sso: provider {{ $o.identifier }} set up for client $(cat "$s/sso-client-id")"
+      else
+        echo "sso: provider {{ $o.identifier }} not set up, exit $?"; ok=0
+      fi
+      # the login button: user_oidc reads system config user_oidc.login_label ({name}: identifier)
+      if [ -n "$label" ]; then
+        php occ config:system:set user_oidc login_label --value="$label" >/dev/null || ok=0
+      else
+        php occ config:system:delete user_oidc login_label >/dev/null 2>&1
+      fi
+      php occ config:app:set user_oidc store_login_token --value="$token" --lazy >/dev/null || ok=0
+      if [ "$ok" = 1 ]; then
+        echo "$sum" > "$state"
+        echo "sso: login button '${label:-Login with {{ $o.identifier }}}', store login tokens $token"
+      fi
     fi
-    if timeout -k 5 60 php /opt/nextcloud-chart/occ-secret.php "$s/sso-client-secret" user_oidc:provider {{ $o.identifier | quote }} "$@" >/dev/null; then
-      echo "$sum" > "$state"
-      echo "sso: provider {{ $o.identifier }} set up for client $(cat "$s/sso-client-id")"
+    # administrators: members of the admin groups (id or display name) and the users with an
+    # admin email address join group admin; only users added here leave it when they no
+    # longer match. Users appear at their first login, so this runs every time
+    groups={{ join " " $o.adminGroups | quote }}; groups="$groups $(cat "$s/sso-admin-groups" 2>/dev/null)"
+    emails={{ join " " $o.adminEmails | quote }}; emails="$emails $(cat "$s/sso-admin-emails" 2>/dev/null)"
+    [ -z "$(echo $groups $emails)" ] && [ ! -s "$data/.chart-admins" ] && exit 0
+    tmp=$(mktemp -d) && trap 'rm -rf "$tmp"' EXIT
+    php occ group:list --info --output=json --limit=100000 > "$tmp/groups" || exit 0
+    if [ -n "$(echo $emails)" ]; then
+      php occ user:list --info --output=json --limit=100000 > "$tmp/users" || exit 0
     else
-      echo "sso: provider {{ $o.identifier }} not set up, exit $?"
+      echo '{}' > "$tmp/users"
     fi
+    GROUPS_="$groups" EMAILS_="$emails" php -r '
+      $want = []; $names = preg_split("/\s+/", strtolower(trim(getenv("GROUPS_"))), -1, PREG_SPLIT_NO_EMPTY);
+      $mails = preg_split("/\s+/", strtolower(trim(getenv("EMAILS_"))), -1, PREG_SPLIT_NO_EMPTY);
+      $groups = json_decode(file_get_contents($argv[1]), true) ?: [];
+      foreach ($groups as $gid => $g) {
+        if ($gid !== "admin" && (in_array(strtolower($gid), $names, true) || in_array(strtolower($g["displayName"] ?? ""), $names, true))) {
+          foreach ($g["users"] ?? [] as $u) { $want[(string) $u] = true; }
+        }
+      }
+      foreach (json_decode(file_get_contents($argv[2]), true) ?: [] as $u => $i) {
+        if (in_array(strtolower(trim($i["email"] ?? "")), $mails, true)) { $want[(string) $u] = true; }
+      }
+      $admins = array_map("strval", $groups["admin"]["users"] ?? []);
+      $added = is_file($argv[3]) ? array_filter(array_map("trim", file($argv[3]))) : [];
+      $keep = [];
+      foreach (array_keys($want) as $u) {
+        if (!in_array($u, $admins, true)) { echo "add\t$u\n"; $keep[] = $u; }
+        elseif (in_array($u, $added, true)) { $keep[] = $u; }
+      }
+      foreach ($added as $u) { if (!isset($want[$u]) && in_array($u, $admins, true)) { echo "remove\t$u\n"; } }
+      file_put_contents($argv[4], implode("\n", $keep) . ($keep ? "\n" : ""));
+    ' "$tmp/groups" "$tmp/users" "$data/.chart-admins" "$tmp/added" > "$tmp/todo" || exit 0
+    while IFS="$(printf '\t')" read -r what uid; do
+      if [ "$what" = add ]; then
+        php occ group:adduser admin "$uid" >/dev/null && echo "sso: $uid is administrator"
+      else
+        php occ group:removeuser admin "$uid" >/dev/null && echo "sso: $uid is no longer administrator"
+      fi
+    done < "$tmp/todo"
+    cp "$tmp/added" "$data/.chart-admins"
   {{- end }}
   {{- if include "wrapper.mailActive" . }}
   {{- $mailu := .Values.mailu.upstream }}

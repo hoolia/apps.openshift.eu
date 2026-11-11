@@ -19,6 +19,11 @@ spec:
   tls:
     termination: edge
     insecureEdgeTerminationPolicy: Redirect
+    {{- if .Values.route.certificate.enabled }}
+    # issued by Certificate nextcloud-cert, templates/certificate-nextcloud.yaml
+    externalCertificate:
+      name: nextcloud-tls
+    {{- end }}
   to:
     kind: Service
     name: nextcloud

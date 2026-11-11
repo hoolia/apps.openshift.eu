@@ -234,3 +234,12 @@ metallb.io/loadBalancerIPs: {{ . | quote }}
 {{- range .Values.onlyoffice.editFormats }}{{ $_ := set $f (toString .) true }}{{ end -}}
 {{- toJson $f -}}
 {{- end -}}
+
+{{/* Labels of the objects of the host certificate; name and component as given. */}}
+{{- define "wrapper.certificateLabels" -}}
+app: nextcloud
+app.kubernetes.io/name: {{ .name }}
+app.kubernetes.io/component: {{ .component }}
+app.kubernetes.io/part-of: nextcloud
+{{ include "nextcloud.commonLabels" .root }}
+{{- end -}}

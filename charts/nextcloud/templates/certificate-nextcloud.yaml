@@ -1,0 +1,179 @@
+{{- $c := .Values.route.certificate }}
+{{- if $c.enabled }}
+{{- $host := include "wrapper.host" . }}
+{{- /*
+The certificate of the Nextcloud host. Route nextcloud reads it from Secret nextcloud-tls
+(spec.tls.externalCertificate); the path Routes on the host share it, the router picks a
+certificate by host. Names nextcloud-cert and nextcloud-tls are the ones cert-manager's
+Route controller used before, so an existing certificate is kept, not issued again.
+*/}}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: nextcloud-cert
+  labels:
+    {{- include "wrapper.certificateLabels" (dict "root" $ "name" "nextcloud" "component" "certificate") | nindent 4 }}
+  annotations:
+    # a host whose DNS is not set up yet must not hold the app at Progressing
+    argocd.argoproj.io/ignore-healthcheck: "true"
+spec:
+  secretName: nextcloud-tls
+  dnsNames:
+  - {{ $host }}
+  duration: 2160h0m0s
+  issuerRef:
+    kind: {{ $c.issuerKind }}
+    name: {{ $c.issuerName }}
+  privateKey:
+    algorithm: RSA
+  usages:
+  - server auth
+  - digital signature
+  - key encipherment
+---
+# OpenShift admits a Route with an external certificate only when the router may read it
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: nextcloud-tls-router
+  labels:
+    {{- include "wrapper.certificateLabels" (dict "root" $ "name" "nextcloud" "component" "certificate") | nindent 4 }}
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  resourceNames: ["nextcloud-tls"]
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: nextcloud-tls-router
+  labels:
+    {{- include "wrapper.certificateLabels" (dict "root" $ "name" "nextcloud" "component" "certificate") | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: nextcloud-tls-router
+subjects:
+- kind: ServiceAccount
+  name: {{ $c.router.serviceAccount }}
+  namespace: {{ $c.router.namespace }}
+{{- if $c.placeholder }}
+{{- $hook := dict "helm.sh/hook" "pre-install,pre-upgrade" "helm.sh/hook-delete-policy" "before-hook-creation,hook-succeeded" }}
+---
+# The Route is refused while Secret nextcloud-tls does not exist, and cert-manager writes
+# it only once the certificate is issued (never, while DNS is not set up). Before the
+# Route is applied, this Job writes a self-signed certificate of the host into a missing
+# Secret; cert-manager replaces it with the issued one.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nextcloud-tls-placeholder
+  labels:
+    {{- include "wrapper.certificateLabels" (dict "root" $ "name" "nextcloud-tls-placeholder" "component" "certificate") | nindent 4 }}
+  annotations:
+    {{- toYaml (merge (dict "helm.sh/hook-weight" "-10") $hook) | nindent 4 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: nextcloud-tls-placeholder
+  labels:
+    {{- include "wrapper.certificateLabels" (dict "root" $ "name" "nextcloud-tls-placeholder" "component" "certificate") | nindent 4 }}
+  annotations:
+    {{- toYaml (merge (dict "helm.sh/hook-weight" "-10") $hook) | nindent 4 }}
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  resourceNames: ["nextcloud-tls"]
+  verbs: ["get"]
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: nextcloud-tls-placeholder
+  labels:
+    {{- include "wrapper.certificateLabels" (dict "root" $ "name" "nextcloud-tls-placeholder" "component" "certificate") | nindent 4 }}
+  annotations:
+    {{- toYaml (merge (dict "helm.sh/hook-weight" "-10") $hook) | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: nextcloud-tls-placeholder
+subjects:
+- kind: ServiceAccount
+  name: nextcloud-tls-placeholder
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: nextcloud-tls-placeholder
+  labels:
+    {{- include "wrapper.certificateLabels" (dict "root" $ "name" "nextcloud-tls-placeholder" "component" "certificate") | nindent 4 }}
+    app.openshift.io/runtime: php
+  annotations:
+    {{- toYaml (merge (dict "helm.sh/hook-weight" "-5") $hook) | nindent 4 }}
+spec:
+  backoffLimit: 3
+  activeDeadlineSeconds: 300
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: nextcloud-tls-placeholder
+    spec:
+      serviceAccountName: nextcloud-tls-placeholder
+      restartPolicy: Never
+      containers:
+      - name: placeholder
+        image: {{ include "wrapper.nextcloudImage" . }}
+        command: ["php", "-r"]
+        args:
+        - |
+          $sa = '/var/run/secrets/kubernetes.io/serviceaccount';
+          $ns = trim(file_get_contents("$sa/namespace"));
+          $url = "https://kubernetes.default.svc/api/v1/namespaces/$ns/secrets";
+          $call = function (string $method, string $to, ?string $body = null) use ($sa): int {
+              $h = curl_init($to);
+              curl_setopt_array($h, [CURLOPT_CUSTOMREQUEST => $method, CURLOPT_RETURNTRANSFER => true,
+                  CURLOPT_CAINFO => "$sa/ca.crt", CURLOPT_TIMEOUT => 30,
+                  CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . trim(file_get_contents("$sa/token")),
+                      'Content-Type: application/json']]);
+              if ($body !== null) curl_setopt($h, CURLOPT_POSTFIELDS, $body);
+              curl_exec($h);
+              return (int) curl_getinfo($h, CURLINFO_RESPONSE_CODE);
+          };
+          $got = $call('GET', "$url/nextcloud-tls");
+          if ($got === 200) { echo "Secret nextcloud-tls exists\n"; exit(0); }
+          if ($got !== 404) { fwrite(STDERR, "reading Secret nextcloud-tls: HTTP $got\n"); exit(1); }
+          $host = {{ $host | quote }};
+          $cnf = tempnam(sys_get_temp_dir(), 'cnf');
+          file_put_contents($cnf, "[req]\ndistinguished_name=dn\n[dn]\n[ext]\nsubjectAltName=DNS:$host\nbasicConstraints=CA:FALSE\n");
+          $opt = ['config' => $cnf, 'digest_alg' => 'sha256', 'x509_extensions' => 'ext'];
+          $key = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA, 'config' => $cnf]);
+          $crt = openssl_csr_sign(openssl_csr_new(['commonName' => $host], $key, $opt), null, $key, 30, $opt);
+          openssl_x509_export($crt, $pem);
+          openssl_pkey_export($key, $keyPem, null, ['config' => $cnf]);
+          $made = $call('POST', $url, json_encode(['apiVersion' => 'v1', 'kind' => 'Secret', 'type' => 'kubernetes.io/tls',
+              'metadata' => ['name' => 'nextcloud-tls'],
+              'data' => ['tls.crt' => base64_encode($pem), 'tls.key' => base64_encode($keyPem)]]));
+          if ($made !== 201 && $made !== 409) { fwrite(STDERR, "creating Secret nextcloud-tls: HTTP $made\n"); exit(1); }
+          echo "Secret nextcloud-tls: self-signed certificate of $host until cert-manager issues one\n";
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+          limits:
+            cpu: 200m
+            memory: 128Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
+{{- end }}
+{{- end }}
