@@ -4,7 +4,9 @@ import json
 import os
 import stat
 import tempfile
+import types
 import unittest
+from unittest import mock
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TMP = tempfile.mkdtemp(prefix="vscode-sync-tests-")
@@ -59,6 +61,51 @@ class Models(unittest.TestCase):
     def test_without_gateway_models(self):
         vs.GATEWAY_MODELS = False
         self.assertEqual([m["model"] for m in vs.models(LISTED)], ["z-ai/glm-5.3-flash"])
+
+
+class Listing(unittest.TestCase):
+    def setUp(self):
+        self.asked, self.now, self.answer = 0, 5000.0, (200, {"data": LISTED})
+        vs._listed, vs._listed_at, vs.MODELS_INTERVAL = [], 0.0, 3600
+        clock = types.SimpleNamespace(monotonic=lambda: self.now)
+        for patch in (mock.patch.object(vs, "get", self.get), mock.patch.object(vs, "time", clock)):
+            patch.start()
+            self.addCleanup(patch.stop)
+
+    def get(self, url, headers):
+        self.assertEqual(url, "http://127.0.0.1:8099/v1/models")
+        self.asked += 1
+        return self.answer
+
+    def test_gateway_asked_once_per_models_interval(self):
+        for _ in range(60):
+            self.assertEqual(vs.gateway_models(), LISTED)
+            self.now += 60
+        self.assertEqual(self.asked, 1)
+        self.answer = (200, {"data": LISTED[:2]})
+        self.assertEqual(vs.gateway_models(), LISTED[:2])
+        self.assertEqual(self.asked, 2)
+
+    def test_failed_read_keeps_the_last_answer_and_asks_again(self):
+        vs.gateway_models()
+        self.now += 3600
+        for answer in ((0, None), (503, None), (200, {"data": []})):
+            self.answer = answer
+            self.assertEqual(vs.gateway_models(), LISTED)
+        self.assertEqual(self.asked, 4)
+        self.answer = (200, {"data": LISTED[:1]})
+        self.assertEqual(vs.gateway_models(), LISTED[:1])
+
+    def test_without_an_answer_every_pass_asks(self):
+        self.answer = (0, None)
+        self.assertEqual([vs.gateway_models(), vs.gateway_models()], [[], []])
+        self.assertEqual(self.asked, 2)
+
+    def test_zero_interval_asks_on_every_pass(self):
+        vs.MODELS_INTERVAL = 0
+        vs.gateway_models()
+        vs.gateway_models()
+        self.assertEqual(self.asked, 2)
 
 
 class Mcp(unittest.TestCase):

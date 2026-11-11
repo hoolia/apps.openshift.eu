@@ -12,6 +12,10 @@ logs in with OAuth is left out, because its login lives in the agent-server. The
 JSON, which YAML reads, and is written only when its content changes. A file without the
 MARKER line belongs to the user and is left alone.
 
+The gateway is asked for its models once per MODELS_INTERVAL, not on every pass: one
+listing makes the gateway ask every provider behind it. A pass in between uses the last
+answer, and so does a pass whose read failed.
+
 SETTINGS, a JSON map, is merged into the editor's machine settings once per change of a
 key. Never exits on an error.
 """
@@ -31,6 +35,7 @@ MACHINE = os.environ.get("MACHINE_SETTINGS", os.path.join(
     HOME, ".local", "share", "openhands-code-server", os.environ.get("VSCODE_PORT", "8001"),
     "Machine", "settings.json"))
 INTERVAL = int(os.environ.get("INTERVAL", "60"))
+MODELS_INTERVAL = int(os.environ.get("MODELS_INTERVAL", "3600"))
 MODELS = json.loads(os.environ.get("MODELS") or "[]")
 PREFERRED = json.loads(os.environ.get("PREFERRED") or "[]")
 GATEWAY_MODELS = os.environ.get("GATEWAY_MODELS", "true") == "true"
@@ -51,11 +56,23 @@ def get(url: str, headers: dict) -> tuple[int, object]:
         return 0, None
 
 
+# the gateway's last answer and when it came
+_listed: list[dict] = []
+_listed_at = 0.0
+
+
 def gateway_models() -> list[dict]:
+    """The gateway's models, read again MODELS_INTERVAL seconds after the last answer."""
+    global _listed, _listed_at
+    if _listed and time.monotonic() - _listed_at < MODELS_INTERVAL:
+        return _listed
     status, listing = get(PROXY + "/v1/models", {"Authorization": "Bearer token-proxy"})
-    if status != 200 or not isinstance(listing, dict):
-        return []
-    return [m for m in listing.get("data", []) if m.get("id")]
+    if status == 200 and isinstance(listing, dict):
+        found = [m for m in listing.get("data", []) if m.get("id")]
+        if found:
+            _listed, _listed_at = found, time.monotonic()
+    # a read without models keeps the last answer and is tried again on the next pass
+    return _listed
 
 
 def agent_mcp() -> dict | None:

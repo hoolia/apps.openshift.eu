@@ -226,6 +226,8 @@ vscode:
     gatewayModels: true
     # seconds between passes
     interval: 60
+    # seconds one model list of the gateway is used before it is read again
+    modelsInterval: 3600
     resources:
       requests:
         cpu: 5m
