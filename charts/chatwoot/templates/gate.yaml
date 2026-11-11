@@ -1,0 +1,186 @@
+{{- if .Values.sso.enabled }}
+{{- /*
+The only way in with sso.enabled: the Route points here. oauth2-proxy asks for a login
+at the OIDC provider for every path except the public ones, and sends /app/login to the
+login bridge, which listens on 127.0.0.1 in this pod only and so receives its trusted
+X-Forwarded-Email header from this oauth2-proxy alone.
+*/}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chatwoot-gate
+  labels:
+    app: chatwoot-gate
+    app.kubernetes.io/name: oauth2-proxy
+    app.kubernetes.io/component: proxy
+    {{- include "chatwoot.commonLabels" $ | nindent 4 }}
+    app.openshift.io/runtime: golang
+  annotations:
+    app.openshift.io/vcs-uri: https://github.com/oauth2-proxy/oauth2-proxy
+    app.openshift.io/connects-to: '[{"apiVersion":"apps/v1","kind":"Deployment","name":"chatwoot-web"}]'
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: chatwoot-gate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: chatwoot-gate
+      annotations:
+        checksum/scripts: {{ include (print $.Template.BasePath "/configmap-scripts.yaml") (merge (dict "checksum" true) .) | sha256sum }}
+    spec:
+      {{- include "wrapper.serviceAccount" . | nindent 6 }}
+      securityContext:
+        {{- include "wrapper.podSecurity" . | nindent 8 }}
+      initContainers:
+      {{- include "wrapper.routeHostInit" . | nindent 6 }}
+      containers:
+      - name: oauth2-proxy
+        image: {{ .Values.sso.image }}
+        args:
+        - --config=/run/chatwoot/oauth2-proxy.cfg
+        - --provider=oidc
+        - --oidc-issuer-url={{ .Values.sso.issuerUrl }}
+        {{- with .Values.sso.clientId }}
+        - --client-id={{ . }}
+        {{- end }}
+        - --code-challenge-method=S256
+        - --scope={{ .Values.sso.scope }}
+        - --oidc-groups-claim={{ .Values.sso.groupsClaim }}
+        {{- range .Values.sso.allowedGroups }}
+        - --allowed-group={{ . }}
+        {{- end }}
+        {{- range .Values.sso.emailDomains }}
+        - --email-domain={{ . }}
+        {{- end }}
+        - --http-address=0.0.0.0:4180
+        - --reverse-proxy=true
+        - --upstream=http://chatwoot-web:3000/
+        # the dashboard's login page goes to the bridge
+        - --upstream=http://127.0.0.1:8081/app/login
+        - --proxy-websockets=true
+        - --pass-user-headers=true
+        - --pass-access-token=false
+        - --pass-authorization-header=false
+        - --set-xauthrequest=false
+        # a public path never carries user headers a visitor wrote
+        - --skip-auth-strip-headers=true
+        {{- range (include "wrapper.publicRoutes" . | fromJsonArray) }}
+        - --skip-auth-route={{ . }}
+        {{- end }}
+        - --skip-provider-button=true
+        - --cookie-name=_chatwoot_sso
+        - --cookie-secure=true
+        - --cookie-samesite=lax
+        - --cookie-httponly=true
+        # the groups are checked on every request against the session, which a refresh
+        # renews from the provider: a user removed from the group is refused from then on
+        - --cookie-refresh={{ .Values.sso.session.refresh }}
+        - --cookie-expire={{ .Values.sso.session.expire }}
+        - --silence-ping-logging=true
+        {{- range .Values.sso.extraArgs }}
+        - {{ . }}
+        {{- end }}
+        env:
+        - name: OAUTH2_PROXY_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: chatwoot-oauth
+              key: client-secret
+        - name: OAUTH2_PROXY_COOKIE_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: chatwoot-oauth
+              key: cookie-secret
+        ports:
+        - name: proxy
+          containerPort: 4180
+        securityContext:
+          {{- include "wrapper.restricted" . | nindent 10 }}
+        volumeMounts:
+        - name: run
+          mountPath: /run/chatwoot
+          readOnly: true
+        readinessProbe:
+          httpGet:
+            path: /ping
+            port: proxy
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /ping
+            port: proxy
+          periodSeconds: 30
+        resources:
+          {{- toYaml .Values.sso.resources | nindent 10 }}
+      - name: login-bridge
+        image: {{ .Values.loginBridge.image }}
+        command: ["python3", "/scripts/login_bridge.py"]
+        env:
+        - name: CHATWOOT_URL
+          value: http://chatwoot-web:3000
+        - name: FRONTEND_URL_FILE
+          value: /run/chatwoot/frontend-url
+        - name: ACCOUNT_ID
+          value: {{ .Values.account.id | quote }}
+        - name: ALLOWED_GROUPS
+          value: {{ join "," .Values.sso.allowedGroups | quote }}
+        - name: ADMIN_GROUPS
+          value: {{ join "," .Values.sso.adminGroups | quote }}
+        # never a login link for the break-glass super admin
+        - name: RESERVED_EMAILS
+          value: {{ include "wrapper.adminEmail" . | quote }}
+        - name: PLATFORM_TOKEN_FILE
+          value: /etc/chatwoot-platform/platform-token
+        - name: LISTEN_PORT
+          value: "8081"
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        # no ports: it listens on 127.0.0.1 only
+        securityContext:
+          {{- include "wrapper.restricted" . | nindent 10 }}
+        volumeMounts:
+        - name: scripts
+          mountPath: /scripts
+        - name: run
+          mountPath: /run/chatwoot
+          readOnly: true
+        - name: platform
+          mountPath: /etc/chatwoot-platform
+          readOnly: true
+        readinessProbe:
+          exec:
+            command: ["python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8081/healthz', timeout=3)"]
+          periodSeconds: 15
+        resources:
+          {{- toYaml .Values.loginBridge.resources | nindent 10 }}
+      volumes:
+      - name: scripts
+        configMap:
+          name: chatwoot-scripts
+      - name: run
+        emptyDir: {}
+      - name: platform
+        secret:
+          secretName: chatwoot-platform
+          # readable by the pod's fsGroup: the random user id owns no file
+          defaultMode: 0440
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: chatwoot-gate
+  labels:
+    app: chatwoot-gate
+    app.kubernetes.io/name: oauth2-proxy
+    app.kubernetes.io/component: proxy
+    {{- include "chatwoot.commonLabels" $ | nindent 4 }}
+spec:
+  selector:
+    app.kubernetes.io/name: chatwoot-gate
+  ports:
+  - name: http
+    port: 4180
+    targetPort: proxy
+{{- end }}

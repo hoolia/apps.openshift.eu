@@ -1,0 +1,94 @@
+{{- if .Values.networkPolicy.enabled }}
+{{- /*
+Policies add up: a platform policy that admits the namespace's own tenant stays in
+force, so these close nothing that one opens. They admit the paths between the
+components and keep everyone else out. The database pods are left alone: the
+CloudNativePG operator in its own namespace must reach them.
+*/}}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: chatwoot-web
+  labels:
+    app: chatwoot-web
+    app.kubernetes.io/name: chatwoot
+    app.kubernetes.io/component: network
+    {{- include "chatwoot.commonLabels" $ | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: chatwoot-web
+  policyTypes:
+  - Ingress
+  ingress:
+  - ports:
+    - protocol: TCP
+      port: 3000
+    from:
+    {{- if .Values.sso.enabled }}
+    # the way in: oauth2-proxy and its login bridge
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: chatwoot-gate
+    {{- else }}
+    - namespaceSelector:
+        matchLabels:
+          policy-group.network.openshift.io/ingress: ""
+    {{- end }}
+    {{- with .Values.networkPolicy.webIngressFrom }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+{{- if .Values.sso.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: chatwoot-gate
+  labels:
+    app: chatwoot-gate
+    app.kubernetes.io/name: oauth2-proxy
+    app.kubernetes.io/component: network
+    {{- include "chatwoot.commonLabels" $ | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: chatwoot-gate
+  policyTypes:
+  - Ingress
+  ingress:
+  # the router only; the login bridge has no port on the network at all
+  - ports:
+    - protocol: TCP
+      port: 4180
+    from:
+    - namespaceSelector:
+        matchLabels:
+          policy-group.network.openshift.io/ingress: ""
+{{- end }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: chatwoot-redis
+  labels:
+    app: chatwoot-redis
+    app.kubernetes.io/name: valkey
+    app.kubernetes.io/component: network
+    {{- include "chatwoot.commonLabels" $ | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: chatwoot-redis
+  policyTypes:
+  - Ingress
+  ingress:
+  - ports:
+    - protocol: TCP
+      port: 6379
+    from:
+    - podSelector:
+        matchExpressions:
+        - key: app.kubernetes.io/name
+          operator: In
+          values: [chatwoot-web, chatwoot-worker, chatwoot-prepare]
+{{- end }}

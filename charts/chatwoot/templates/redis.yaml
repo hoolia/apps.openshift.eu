@@ -1,0 +1,96 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: chatwoot-redis
+  labels:
+    app: chatwoot-redis
+    app.kubernetes.io/name: valkey
+    app.kubernetes.io/component: cache
+    {{- include "chatwoot.commonLabels" $ | nindent 4 }}
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.redis.size }}
+  {{- if .Values.redis.storageClassName }}
+  storageClassName: {{ .Values.redis.storageClassName }}
+  {{- end }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chatwoot-redis
+  labels:
+    app: chatwoot-redis
+    app.kubernetes.io/name: valkey
+    app.kubernetes.io/component: cache
+    {{- include "chatwoot.commonLabels" $ | nindent 4 }}
+    app.openshift.io/runtime: redis
+  annotations:
+    app.openshift.io/vcs-uri: https://github.com/valkey-io/valkey
+spec:
+  replicas: 1
+  # one volume, written by one server
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: chatwoot-redis
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: chatwoot-redis
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        {{- include "wrapper.podSecurity" . | nindent 8 }}
+      containers:
+      - name: valkey
+        image: {{ .Values.redis.image }}
+        command: ["/bin/sh", "-c"]
+        # the password from the environment, so it is not in the pod spec
+        args:
+        - exec valkey-server --requirepass "$REDIS_PASSWORD" --dir /data --appendonly yes --save "" --protected-mode no
+        env:
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: chatwoot-credentials
+              key: redis-password
+        ports:
+        - name: redis
+          containerPort: 6379
+        securityContext:
+          {{- include "wrapper.restricted" . | nindent 10 }}
+        volumeMounts:
+        - name: data
+          mountPath: /data
+        readinessProbe:
+          exec:
+            # REDISCLI_AUTH keeps the password out of the process list
+            command: ["/bin/sh", "-c", "REDISCLI_AUTH=\"$REDIS_PASSWORD\" valkey-cli ping | grep -q PONG"]
+          periodSeconds: 10
+        resources:
+          {{- toYaml .Values.redis.resources | nindent 10 }}
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: chatwoot-redis
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: chatwoot-redis
+  labels:
+    app: chatwoot-redis
+    app.kubernetes.io/name: valkey
+    app.kubernetes.io/component: cache
+    {{- include "chatwoot.commonLabels" $ | nindent 4 }}
+spec:
+  selector:
+    app.kubernetes.io/name: chatwoot-redis
+  ports:
+  - name: redis
+    port: 6379
+    targetPort: redis

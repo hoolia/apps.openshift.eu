@@ -1,0 +1,40 @@
+{{- if eq .Values.attachments.storage "objectBucketClaim" }}
+apiVersion: objectbucket.io/v1alpha1
+kind: ObjectBucketClaim
+metadata:
+  name: chatwoot-attachments
+  labels:
+    app: chatwoot-attachments
+    app.kubernetes.io/name: chatwoot
+    app.kubernetes.io/component: storage
+    {{- include "chatwoot.commonLabels" $ | nindent 4 }}
+  annotations:
+    # files of customers: uninstalling the chart keeps the bucket
+    helm.sh/resource-policy: keep
+spec:
+  generateBucketName: chatwoot-attachments
+  storageClassName: {{ .Values.attachments.objectBucketClaim.storageClassName }}
+{{- else }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: chatwoot-storage
+  labels:
+    app: chatwoot-storage
+    app.kubernetes.io/name: chatwoot
+    app.kubernetes.io/component: storage
+    {{- include "chatwoot.commonLabels" $ | nindent 4 }}
+  annotations:
+    # files of customers: uninstalling the chart keeps the volume
+    helm.sh/resource-policy: keep
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.attachments.volume.size }}
+  {{- if .Values.attachments.volume.storageClassName }}
+  storageClassName: {{ .Values.attachments.volume.storageClassName }}
+  {{- end }}
+{{- end }}

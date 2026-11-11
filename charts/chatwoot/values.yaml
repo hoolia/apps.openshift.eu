@@ -1,0 +1,219 @@
+# Chatwoot web and worker image
+image:
+  repository: docker.io/chatwoot/chatwoot
+  # empty: v<appVersion>-ce, the Community Edition build without the enterprise/ folder
+  tag: ""
+  pullPolicy: IfNotPresent
+
+route:
+  # empty: OpenShift assigns a host under the default application domain
+  hostname: ""
+  # labels of the Route, for example the label of a platform that registers an OIDC client
+  # for the Route host
+  labels: {}
+  # annotations of the Route; the cert-manager ones issue its certificate
+  annotations:
+    cert-manager.io/issuer-kind: ClusterIssuer
+    cert-manager.io/issuer-name: letsencrypt
+
+# the Chatwoot account and its super admin, created on the first install
+account:
+  # name of the account
+  name: Support
+  # id of the account: 1 on a new database; a mismatch stops the install
+  id: 1
+  # email of the break-glass super admin, under the reserved domain .invalid, so that no
+  # login at the OIDC provider can ever match it; empty: superadmin@chatwoot.invalid.
+  # Its password is the key super-admin-password of Secret chatwoot-credentials
+  adminEmail: ""
+
+# the web server: dashboard, widget and API
+web:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 200m
+      memory: 768Mi
+    limits:
+      cpu: "2"
+      memory: 1536Mi
+
+# the Sidekiq worker: mail, webhooks, notifications and other background jobs
+worker:
+  replicas: 1
+  # jobs one worker runs at the same time
+  concurrency: 10
+  resources:
+    requests:
+      cpu: 200m
+      memory: 768Mi
+    limits:
+      cpu: "2"
+      memory: 1536Mi
+
+# the Job that migrates the database and sets up the account on every install and upgrade
+prepare:
+  resources:
+    requests:
+      cpu: 200m
+      memory: 768Mi
+    limits:
+      cpu: "2"
+      memory: 1536Mi
+
+# further Chatwoot settings as environment variables, given to web, worker and the Job
+extraEnv: []
+
+# PostgreSQL cluster of the CloudNativePG operator
+database:
+  instances: 1
+  size: 5Gi
+  # empty: the default StorageClass of the cluster
+  storageClassName: ""
+  # a PostgreSQL image with pgvector, which Chatwoot requires: the standard images of
+  # CloudNativePG carry it
+  imageName: ghcr.io/cloudnative-pg/postgresql:17.11-standard-trixie
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+# Valkey store of the job queue, the live updates and the one-time login tokens; kept on a
+# volume, because a lost store loses the queued jobs
+redis:
+  image: docker.io/valkey/valkey:8.1.11-alpine
+  size: 1Gi
+  # empty: the default StorageClass of the cluster
+  storageClassName: ""
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+# where uploaded files and avatars are kept
+attachments:
+  # volume: a ReadWriteOnce volume that web and worker share, so both run on one node.
+  # objectBucketClaim: a bucket of the storage class below; Chatwoot serves the files
+  storage: volume
+  volume:
+    size: 10Gi
+    # empty: the default StorageClass of the cluster
+    storageClassName: ""
+  objectBucketClaim:
+    # storage class of the ObjectBucketClaim; required with storage objectBucketClaim
+    storageClassName: ""
+    # region given to the S3 client
+    region: us-east-1
+    # ConfigMap of the release namespace whose certificates the S3 client trusts, for an
+    # endpoint signed by the cluster; empty: the system certificates only
+    caConfigMap: openshift-service-ca.crt
+
+# Staff log in at an OIDC provider through oauth2-proxy; a login bridge turns that login
+# into a Chatwoot session, so nobody uses a Chatwoot password. Off: Chatwoot's own login
+sso:
+  enabled: false
+  # OIDC issuer, for example https://login.example.com/realms/example
+  issuerUrl: ""
+  # empty: the Route host, for a provider whose client is named after the host
+  clientId: ""
+  scope: openid email profile
+  # token claim that lists the groups of the user
+  groupsClaim: groups
+  # a user needs one of these groups; empty: every user of the issuer
+  allowedGroups: []
+  # members of these groups become administrators of the account, others agents; empty:
+  # new users are agents and roles set in Chatwoot stay
+  adminGroups: []
+  emailDomains:
+  - "*"
+  image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.5
+  # how long access lasts after a user leaves the allowed groups
+  session:
+    # oauth2-proxy asks the OIDC provider again this often; a user no longer in an allowed
+    # group is refused from then on
+    refresh: 5m
+    # an oauth2-proxy session ends after this, also without a refresh
+    expire: 12h
+    # a Chatwoot dashboard session ends after this many hours; the next one needs a login
+    # at the OIDC provider. 25 to 720: the dashboard keeps its session cookie for whole
+    # days rounded down, so below 25 the cookie expires at once and every login loops
+    chatwootHours: 36
+  # further oauth2-proxy flags
+  extraArgs: []
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+  # paths of the host that website visitors reach without a login; everything else needs one
+  public:
+    # the live chat widget: its script, page, API, live updates and attachments
+    widget: true
+    # the public API of API channel inboxes, for a client app of your own
+    inboxApi: false
+    # satisfaction surveys sent to customers
+    surveys: false
+    # help center portals
+    helpCenter: false
+
+# the login bridge next to oauth2-proxy, with sso.enabled
+loginBridge:
+  image: registry.access.redhat.com/ubi9/python-312-minimal:9.8-1793637445
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+networkPolicy:
+  # NetworkPolicies that admit only what the components need between them
+  enabled: true
+  # further peers (NetworkPolicyPeer) that may reach Chatwoot web on port 3000, for
+  # example an integration in another namespace
+  webIngressFrom: []
+
+# integration with Odoo (bridge and side panel): not part of this version, must stay false
+odoo:
+  enabled: false
+
+# AI drafts as private notes: not part of this version, must stay false
+draftAgent:
+  enabled: false
+
+secrets:
+  # kubernetes: Secrets from the values below. externalSecret: from a secret store
+  type: kubernetes
+  # key of Rails sessions and signed ids; empty: generated once and kept
+  secretKeyBase: ""
+  # password of the Valkey store; empty: generated once and kept
+  redisPassword: ""
+  # password of the super admin; empty: generated once and kept
+  superAdminPassword: ""
+  # access token of the login bridge's Platform App, with sso.enabled; empty: generated
+  platformToken: ""
+  # secret of the OIDC client, with sso.enabled; empty: generated
+  oauthClientSecret: ""
+  # cookie secret of oauth2-proxy, with sso.enabled; empty: generated
+  oauthCookieSecret: ""
+  externalSecret:
+    storeKind: ClusterSecretStore
+    storeName: ""
+    refreshInterval: 1h
+    # vault item per key; the value is read from the item's password
+    items:
+      secret-key-base: chatwoot-secret-key-base
+      redis-password: chatwoot-redis
+      super-admin-password: chatwoot-super-admin
+      platform-token: chatwoot-platform-token
+      client-secret: chatwoot-oidc-client
+      cookie-secret: chatwoot-oauth-cookie

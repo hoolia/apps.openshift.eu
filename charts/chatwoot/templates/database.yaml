@@ -1,0 +1,39 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: chatwoot-db
+  labels:
+    app: chatwoot-db
+    app.kubernetes.io/name: postgresql
+    app.kubernetes.io/component: database
+    {{- include "chatwoot.commonLabels" $ | nindent 4 }}
+    app.openshift.io/runtime: postgresql
+  annotations:
+    app.openshift.io/vcs-uri: https://github.com/postgres/postgres
+spec:
+  instances: {{ .Values.database.instances }}
+  imageName: {{ .Values.database.imageName }}
+  # a disruption budget on a single instance would block every node drain
+  enablePDB: {{ gt (int .Values.database.instances) 1 }}
+  bootstrap:
+    initdb:
+      database: chatwoot
+      owner: chatwoot
+      # these need a superuser, which the chatwoot owner is not; Chatwoot's own
+      # CREATE EXTENSION IF NOT EXISTS then finds them in place
+      postInitApplicationSQL:
+      - CREATE EXTENSION IF NOT EXISTS vector
+      - CREATE EXTENSION IF NOT EXISTS pg_stat_statements
+      - CREATE EXTENSION IF NOT EXISTS pg_trgm
+      - CREATE EXTENSION IF NOT EXISTS pgcrypto
+  postgresql:
+    parameters:
+      pg_stat_statements.max: "10000"
+      pg_stat_statements.track: "all"
+  storage:
+    size: {{ .Values.database.size }}
+    {{- if .Values.database.storageClassName }}
+    storageClass: {{ .Values.database.storageClassName }}
+    {{- end }}
+  resources:
+    {{- toYaml .Values.database.resources | nindent 4 }}
