@@ -15,8 +15,9 @@ route:
     router:
       namespace: openshift-ingress
       serviceAccount: router
-    # a pre-install/pre-upgrade Job writes a self-signed certificate into the Secret
-    # when it does not exist yet: OpenShift refuses a Route whose Secret is missing
+    # a Job (Argo CD sync wave -1, once per host and image) writes a self-signed
+    # certificate into the Secret when it does not exist yet: OpenShift refuses a Route
+    # whose Secret is missing
     placeholder: true
 
 # Settings the setup script applies at every start of Nextcloud

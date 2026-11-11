@@ -288,6 +288,11 @@ data:
     groups={{ join " " $o.adminGroups | quote }}; groups="$groups $(cat "$s/sso-admin-groups" 2>/dev/null)"
     emails={{ join " " $o.adminEmails | quote }}; emails="$emails $(cat "$s/sso-admin-emails" 2>/dev/null)"
     [ -z "$(echo $groups $emails)" ] && [ ! -s "$data/.chart-admins" ] && exit 0
+    # an admin email grants admin: users must not set their own email address to it
+    # (the single sign-on provider writes it at every login)
+    if [ -n "$(echo $emails)" ]; then
+      php occ config:system:set allow_user_to_change_email --type=boolean --value=false >/dev/null || exit 0
+    fi
     tmp=$(mktemp -d) && trap 'rm -rf "$tmp"' EXIT
     php occ group:list --info --output=json --limit=100000 > "$tmp/groups" || exit 0
     if [ -n "$(echo $emails)" ]; then
@@ -310,7 +315,8 @@ data:
       $admins = array_map("strval", $groups["admin"]["users"] ?? []);
       $added = is_file($argv[3]) ? array_filter(array_map("trim", file($argv[3]))) : [];
       $keep = [];
-      foreach (array_keys($want) as $u) {
+      // PHP turns a numeric array key into an integer: compare user ids as strings
+      foreach (array_map("strval", array_keys($want)) as $u) {
         if (!in_array($u, $admins, true)) { echo "add\t$u\n"; $keep[] = $u; }
         elseif (in_array($u, $added, true)) { $keep[] = $u; }
       }
@@ -320,8 +326,11 @@ data:
     while IFS="$(printf '\t')" read -r what uid; do
       if [ "$what" = add ]; then
         php occ group:adduser admin "$uid" >/dev/null && echo "sso: $uid is administrator"
+      elif php occ group:removeuser admin "$uid" >/dev/null; then
+        echo "sso: $uid is no longer administrator"
       else
-        php occ group:removeuser admin "$uid" >/dev/null && echo "sso: $uid is no longer administrator"
+        # stays on the list, so the next run removes it again
+        echo "$uid" >> "$tmp/added"; echo "sso: removing $uid as administrator failed"
       fi
     done < "$tmp/todo"
     cp "$tmp/added" "$data/.chart-admins"
