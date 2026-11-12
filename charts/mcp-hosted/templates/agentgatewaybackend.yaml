@@ -1,0 +1,62 @@
+{{- if include "mcp-hosted.ready" . }}
+{{- $name := include "mcp-hosted.name" . }}
+{{- $d := .Values.mcp.labelDomain }}
+{{- $e := .Values.endpoint }}
+{{- $a := .Values.auth }}
+# the platform's MCP gateway serves it as /mcp/<namespace>/<name>; agents carry only their
+# own identity, the gateway adds the key
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayBackend
+metadata:
+  name: {{ $name }}
+  namespace: {{ include "mcp-hosted.namespace" . }}
+  labels:
+    {{- include "mcp-hosted.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+    {{ $d }}/server: {{ .Values.mcp.server }}
+    {{- with .Values.mcp.bundle }}
+    {{ $d }}/bundle: {{ . }}
+    {{- end }}
+    {{- with .Values.mcp.category }}
+    {{ $d }}/category: {{ . }}
+    {{- end }}
+    {{- with .Values.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- if or .Values.mcp.description .Values.mcp.icon }}
+  annotations:
+    {{- with .Values.mcp.description }}
+    {{ $d }}/description: {{ . | quote }}
+    {{- end }}
+    {{- with .Values.mcp.icon }}
+    {{ $d }}/icon: {{ . }}
+    {{- end }}
+  {{- end }}
+spec:
+  mcp:
+    targets:
+    - name: {{ $name }}
+      static:
+        host: {{ $e.host }}
+        port: {{ $e.port }}
+        path: {{ $e.path }}
+        protocol: {{ $e.protocol }}
+        policies:
+          auth:
+            secretRef:
+              name: {{ include "mcp-hosted.secret" . }}
+              key: {{ include "mcp-hosted.secretKey" . }}
+            location:
+              {{- if $a.queryParameter }}
+              queryParameter:
+                name: {{ $a.queryParameter }}
+              {{- else }}
+              header:
+                name: {{ $a.header }}
+                {{- with $a.prefix }}
+                prefix: {{ . | quote }}
+                {{- end }}
+              {{- end }}
+          tls:
+            sni: {{ $e.host }}
+{{- end }}

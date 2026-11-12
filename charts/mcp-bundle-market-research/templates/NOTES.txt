@@ -1,0 +1,2 @@
+Market research MCP servers switched on: {{ range $s := list "semrush" "similarweb" "serpapi" }}{{ if (index $.Values $s).enabled }}{{ $s }} {{ end }}{{ end }}
+Each is served by the project's MCP gateway as /mcp/{{ .Release.Namespace }}/<server> once its API key exists.

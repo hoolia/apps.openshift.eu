@@ -11,3 +11,8 @@ googleWorkspace:
 # microsoft.tenantId, secrets)
 microsoft365:
   enabled: false
+
+# mcp-bundle-market-research: Semrush, Similarweb, SerpApi (Google Search and Trends); each
+# server takes its own API key
+marketResearch:
+  enabled: false

@@ -1,0 +1,57 @@
+# switch of this bundle when mcp-all includes it
+enabled: true
+
+# The servers; each takes the values of chart mcp-hosted. Switch on the vendors you have a
+# plan with and give each its own API key in secrets (apiKey, or externalSecret.storeName
+# and item with secrets.type: externalSecret)
+
+# Semrush: keywords, search demand, competitor domains and backlinks. Key: Subscription
+# info > API units; needs an SEO Pro, Guru or Business plan with API units
+semrush:
+  enabled: false
+  endpoint:
+    host: mcp.semrush.com
+    path: /v2/mcp
+  auth:
+    header: Authorization
+    prefix: "Apikey "
+  mcp:
+    server: semrush
+    bundle: market-research
+    category: marketing
+    description: "Semrush: keyword research, search demand, competitor domain and backlink reports"
+    icon: https://cdn.simpleicons.org/semrush
+
+# Similarweb: estimated competitor traffic, audience, traffic sources and keywords. Key:
+# Similarweb account > API; needs an API plan with data credits
+similarweb:
+  enabled: false
+  endpoint:
+    host: mcp.similarweb.com
+    path: /
+  auth:
+    header: api-key
+    prefix: ""
+  mcp:
+    server: similarweb
+    bundle: market-research
+    category: marketing
+    description: "Similarweb: estimated website traffic, engagement, audience and traffic sources of any domain"
+    icon: https://cdn.simpleicons.org/similarweb
+
+# SerpApi: live Google Search, Google Trends and other search engines (engine parameter).
+# Key: serpapi.com > Your account; the free plan holds 250 searches a month
+serpapi:
+  enabled: false
+  endpoint:
+    host: mcp.serpapi.com
+    path: /mcp
+  auth:
+    header: Authorization
+    prefix: "Bearer "
+  mcp:
+    server: serpapi
+    bundle: market-research
+    category: marketing
+    description: "SerpApi: live Google Search and Google Trends results, and other search engines"
+    icon: https://cdn.simpleicons.org/google

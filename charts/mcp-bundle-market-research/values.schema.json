@@ -1,0 +1,22 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "global": {
+      "type": "object"
+    },
+    "enabled": {
+      "type": "boolean"
+    },
+    "semrush": {
+      "type": "object"
+    },
+    "similarweb": {
+      "type": "object"
+    },
+    "serpapi": {
+      "type": "object"
+    }
+  }
+}

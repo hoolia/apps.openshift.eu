@@ -24,6 +24,14 @@
           "type": "boolean"
         }
       }
+    },
+    "marketResearch": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        }
+      }
     }
   }
 }
