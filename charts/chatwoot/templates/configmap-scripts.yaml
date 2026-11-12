@@ -1,0 +1,28 @@
+{{- include "wrapper.validate" . }}
+{{- /* .checksum: rendered for the pod checksum, which leaves the labels out */}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: chatwoot-scripts
+  {{- if not .checksum }}
+  labels:
+    app: chatwoot
+    app.kubernetes.io/name: chatwoot
+    app.kubernetes.io/component: config
+    {{- include "chatwoot.commonLabels" $ | nindent 4 }}
+  {{- end }}
+data:
+  start.sh: |
+    {{- .Files.Get "files/start.sh" | nindent 4 }}
+  route_host.py: |
+    {{- .Files.Get "files/route_host.py" | nindent 4 }}
+  wait_ready.rb: |
+    {{- .Files.Get "files/wait_ready.rb" | nindent 4 }}
+  bootstrap.rb: |
+    {{- .Files.Get "files/bootstrap.rb" | nindent 4 }}
+  chart_initializer.rb: |
+    {{- .Files.Get "files/chart_initializer.rb" | nindent 4 }}
+  {{- if .Values.sso.enabled }}
+  login_bridge.py: |
+    {{- .Files.Get "files/login_bridge.py" | nindent 4 }}
+  {{- end }}

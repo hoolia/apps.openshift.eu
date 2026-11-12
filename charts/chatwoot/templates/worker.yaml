@@ -1,0 +1,82 @@
+{{- $volume := eq .Values.attachments.storage "volume" }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chatwoot-worker
+  labels:
+    app: chatwoot-worker
+    app.kubernetes.io/name: chatwoot
+    app.kubernetes.io/component: worker
+    {{- include "chatwoot.commonLabels" $ | nindent 4 }}
+  annotations:
+    app.openshift.io/custom-icon: {{ .Chart.Icon }}
+    app.openshift.io/vcs-uri: https://github.com/chatwoot/chatwoot
+    app.openshift.io/connects-to: '[{"apiVersion":"postgresql.cnpg.io/v1","kind":"Cluster","name":"chatwoot-db"},{"apiVersion":"apps/v1","kind":"Deployment","name":"chatwoot-redis"}]'
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  replicas: {{ .Values.worker.replicas }}
+  {{- if $volume }}
+  strategy:
+    type: Recreate
+  {{- end }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: chatwoot-worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: chatwoot-worker
+      annotations:
+        checksum/scripts: {{ include (print $.Template.BasePath "/configmap-scripts.yaml") (merge (dict "checksum" true) .) | sha256sum }}
+    spec:
+      {{- include "wrapper.serviceAccount" . | nindent 6 }}
+      securityContext:
+        {{- include "wrapper.podSecurity" . | nindent 8 }}
+      {{- if $volume }}
+      # the ReadWriteOnce attachments volume is mounted on the node of the web pod
+      affinity:
+        podAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchLabels:
+                app.kubernetes.io/name: chatwoot-web
+            topologyKey: kubernetes.io/hostname
+      {{- end }}
+      initContainers:
+      {{- if not .Values.route.hostname }}
+      {{- include "wrapper.routeHostInit" . | nindent 6 }}
+      {{- end }}
+      - name: wait-database
+        image: {{ include "wrapper.image" . }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command: {{ include "wrapper.start" (list "bundle" "exec" "rails" "runner" "/scripts/wait_ready.rb") }}
+        env:
+        {{- include "wrapper.env" . | nindent 8 }}
+        securityContext:
+          {{- include "wrapper.restricted" . | nindent 10 }}
+        volumeMounts:
+        {{- include "wrapper.volumeMounts" . | nindent 8 }}
+        resources:
+          {{- toYaml .Values.worker.resources | nindent 10 }}
+      containers:
+      - name: worker
+        image: {{ include "wrapper.image" . }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command: {{ include "wrapper.start" (list "bundle" "exec" "sidekiq" "-C" "config/sidekiq.yml") }}
+        env:
+        {{- include "wrapper.env" . | nindent 8 }}
+        - name: SIDEKIQ_CONCURRENCY
+          value: {{ .Values.worker.concurrency | quote }}
+        securityContext:
+          {{- include "wrapper.restricted" . | nindent 10 }}
+        volumeMounts:
+        {{- include "wrapper.volumeMounts" . | nindent 8 }}
+        # Sidekiq serves no port; the process running is what can be checked
+        readinessProbe:
+          exec:
+            command: ["/bin/sh", "-c", "grep -qs sidekiq /proc/1/cmdline"]
+          periodSeconds: 30
+        resources:
+          {{- toYaml .Values.worker.resources | nindent 10 }}
+      volumes:
+      {{- include "wrapper.volumes" . | nindent 6 }}

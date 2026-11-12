@@ -1,0 +1,31 @@
+{{- /* the one Route of the instance: to oauth2-proxy with sso.enabled, else to Chatwoot web */}}
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: chatwoot
+  labels:
+    app: chatwoot
+    app.kubernetes.io/name: chatwoot
+    app.kubernetes.io/component: route
+    {{- include "chatwoot.commonLabels" $ | nindent 4 }}
+    {{- with .Values.route.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .Values.route.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.route.hostname }}
+  host: {{ .Values.route.hostname }}
+  {{- end }}
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+  to:
+    kind: Service
+    name: {{ ternary "chatwoot-gate" "chatwoot-web" .Values.sso.enabled }}
+    weight: 100
+  wildcardPolicy: None

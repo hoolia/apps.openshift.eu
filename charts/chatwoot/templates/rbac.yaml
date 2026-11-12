@@ -1,0 +1,44 @@
+{{- if not .Values.route.hostname }}
+{{- /* without a hostname the pods read the host OpenShift gave the Route: this Route only */}}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: chatwoot-route
+  labels:
+    app: chatwoot
+    app.kubernetes.io/name: chatwoot
+    app.kubernetes.io/component: rbac
+    {{- include "chatwoot.commonLabels" $ | nindent 4 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: chatwoot-route
+  labels:
+    app: chatwoot
+    app.kubernetes.io/name: chatwoot
+    app.kubernetes.io/component: rbac
+    {{- include "chatwoot.commonLabels" $ | nindent 4 }}
+rules:
+- apiGroups: ["route.openshift.io"]
+  resources: ["routes"]
+  resourceNames: ["chatwoot"]
+  verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: chatwoot-route
+  labels:
+    app: chatwoot
+    app.kubernetes.io/name: chatwoot
+    app.kubernetes.io/component: rbac
+    {{- include "chatwoot.commonLabels" $ | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: chatwoot-route
+subjects:
+- kind: ServiceAccount
+  name: chatwoot-route
+{{- end }}

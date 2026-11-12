@@ -48,6 +48,12 @@ jobs:
       run: ci/test-hermes.sh
     - name: Test hermes private skill repositories
       run: python3 -m unittest ci/test_hermes_seed_config.py
+    - name: Test chatwoot chart
+      run: ci/test-chatwoot.sh
+    - name: Test chatwoot login bridge
+      run: python3 -m unittest ci/test_chatwoot_login_bridge.py ci/test_chatwoot_route_host.py ci/test_chatwoot_start.py
+    - name: Test chatwoot initializer
+      run: ruby ci/test_chatwoot_initializer.rb
     - name: Test the GitLab API exporter
       run: python3 -m unittest ci/test_gitlab_api_exporter.py
     - name: Test the website catalog
