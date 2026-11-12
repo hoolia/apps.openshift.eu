@@ -141,3 +141,38 @@ bucket.
   `secrets.externalSecret.items` in your vault collection with the value in the password
   field, and set `secrets.externalSecret.storeName` to your store. The super admin
   password needs an upper and a lower case letter, a digit and a sign.
+
+## Why not the official Chatwoot Helm chart?
+
+The [official chart](https://github.com/chatwoot/charts) (`chatwoot` 2.0.27, Chatwoot
+v4.18.0) runs the standard Chatwoot web server and Sidekiq worker. An external database
+and Redis, the image tag, resources of web and worker, and an extra environment Secret are
+values there, and the database, the store, the bucket, the Route, single sign-on and the
+NetworkPolicies could be added next to it. What this chart needs beyond that requires
+changes to the official chart's templates:
+
+- **Container security context**: its `securityContext` value is set on the pod only, so
+  the containers cannot drop all capabilities and forbid privilege escalation as the
+  `restricted-v2` security context constraints expect of a chart here.
+- **Volumes and mounts**: web and worker take no extra volumes. This chart mounts a Rails
+  initializer (attachments streamed by Chatwoot from an in-cluster bucket, the dashboard
+  session length, no super admin through the Platform API) and the database CA for
+  verified TLS.
+- **Environment from other objects**: apart from the database and Redis passwords,
+  settings come from values or one Secret as a whole. The bucket's host and name are in
+  the ObjectBucketClaim's ConfigMap and its keys in its Secret, which this chart reads
+  variable by variable.
+- **Order of a deployment by Argo CD**: migrations run as a Helm hook, which Argo CD runs
+  before every other object or after all of them. This chart migrates in a sync wave
+  between the database and the web and worker.
+- **Initialization**: no value adds an init container or a start command. This chart
+  sets up the account, its super admin and the login bridge's Platform App before
+  web serves, so the page that makes the first visitor super admin never opens, and web
+  and worker wait until no migration is pending.
+
+This chart covers these points and has been tested on OpenShift, single sign-on included.
+The official chart becomes the base again once its templates offer these extension points;
+open pull requests there add container and pod security contexts
+([#196](https://github.com/chatwoot/charts/pull/196),
+[#150](https://github.com/chatwoot/charts/pull/150)) and extra volumes for web and worker
+([#197](https://github.com/chatwoot/charts/pull/197)).
