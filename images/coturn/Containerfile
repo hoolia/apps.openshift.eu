@@ -1,0 +1,9 @@
+# AlmaLinux 10.2-20261027 minimal
+FROM quay.io/almalinuxorg/10-minimal@sha256:8ba381e5f1fab2b0f9561007ea8211567a0ab0b43ae27c8946f2a79095d2a13f
+COPY epel.repo /etc/yum.repos.d/epel.repo
+RUN microdnf -y upgrade \
+    && microdnf -y --setopt=install_weak_deps=0 install coturn-4.18.0-1.el10_3 \
+    && microdnf clean all \
+    && rm -rf /var/cache/yum /var/lib/dnf/repos
+USER 1001
+ENTRYPOINT ["/usr/bin/turnserver"]
