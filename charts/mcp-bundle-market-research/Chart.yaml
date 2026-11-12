@@ -1,0 +1,52 @@
+apiVersion: v2
+name: mcp-bundle-market-research
+description: Market research MCP servers (Semrush, Similarweb, Google Search and Google Trends through SerpApi) for the agents of a project, each reached with the team's own API key
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+home: https://apps.openshift.eu
+icon: https://cdn.simpleicons.org/semrush
+keywords:
+- ai
+- mcp
+- mcp-bundle
+- api-key
+- marketing
+- market-research
+- seo
+- semrush
+- similarweb
+- serpapi
+- google-search
+- google-trends
+sources:
+- https://github.com/hoolia/apps.openshift.eu
+- https://developer.semrush.com/api/v4/introduction/semrush-mcp/
+- https://docs.similarweb.com/api-v5/similarweb-mcp/mcp-setup
+- https://serpapi.com/integrations/mcp
+maintainers:
+- name: GRN.CLOUD B.V.
+  url: https://apps.openshift.eu
+annotations:
+  charts.openshift.io/name: Market research MCP bundle
+  charts.openshift.io/provider: GRN.CLOUD B.V.
+  apps.openshift.eu/vendor: GRN.CLOUD B.V.
+  mcp.openshift.eu/bundle: market-research
+  mcp.openshift.eu/category: marketing
+  mcp.openshift.eu/auth: api-key
+dependencies:
+- name: mcp-hosted
+  version: 0.1.0
+  repository: file://../mcp-hosted
+  alias: semrush
+  condition: semrush.enabled
+- name: mcp-hosted
+  version: 0.1.0
+  repository: file://../mcp-hosted
+  alias: similarweb
+  condition: similarweb.enabled
+- name: mcp-hosted
+  version: 0.1.0
+  repository: file://../mcp-hosted
+  alias: serpapi
+  condition: serpapi.enabled

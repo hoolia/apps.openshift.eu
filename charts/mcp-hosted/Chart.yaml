@@ -1,0 +1,26 @@
+apiVersion: v2
+name: mcp-hosted
+description: A vendor-hosted MCP server for the agents of a project, reached through the project's MCP gateway with the team's API key; the key never reaches an agent
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+home: https://apps.openshift.eu
+icon: https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/main/docs/logo/light.svg
+keywords:
+- ai
+- mcp
+- mcp-server
+- api-key
+- agentgateway
+sources:
+- https://github.com/hoolia/apps.openshift.eu
+- https://agentgateway.dev/docs/kubernetes/latest/mcp/
+maintainers:
+- name: GRN.CLOUD B.V.
+  url: https://apps.openshift.eu
+annotations:
+  charts.openshift.io/name: Hosted MCP server
+  charts.openshift.io/provider: GRN.CLOUD B.V.
+  apps.openshift.eu/category: ai
+  apps.openshift.eu/vendor: GRN.CLOUD B.V.
+  mcp.openshift.eu/auth: api-key

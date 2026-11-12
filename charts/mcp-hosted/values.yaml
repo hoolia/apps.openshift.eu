@@ -1,0 +1,62 @@
+# Team of the tenant the server serves: the chart puts every object into <tenant>-<team>, a
+# namespace the team already has. Empty: the release namespace
+team: ""
+# Tenant the server belongs to; required with team
+tenant: ""
+
+# switch of this server when a bundle chart includes it
+enabled: true
+
+# name of the server: the AgentgatewayBackend, the gateway path /mcp/<namespace>/<name> and
+# the server in the agent UI. Empty: mcp.server
+nameOverride: ""
+
+# the vendor's hosted MCP endpoint; nothing is rendered while host is empty
+endpoint:
+  host: ""
+  port: 443
+  path: /mcp
+  # StreamableHTTP or SSE
+  protocol: StreamableHTTP
+
+# where the gateway puts the API key on every request to the vendor
+auth:
+  # request header and the text in front of the key
+  header: Authorization
+  prefix: "Bearer "
+  # query parameter instead of a header; empty: the header above
+  queryParameter: ""
+
+mcp:
+  # prefix of the selection labels on the backend
+  labelDomain: mcp.openshift.eu
+  # <labelDomain>/server: the server name; also the default object name. Required
+  server: ""
+  # <labelDomain>/bundle: the bundle the server belongs to; empty: no label
+  bundle: ""
+  # <labelDomain>/category: the kind of tool, for catalogs and filters
+  category: ""
+  # what the server offers, on the backend annotation for catalogs
+  description: ""
+  # image URL of the server's card
+  icon: ""
+
+# extra labels on the backend, for example the gateway's exposure label of the platform
+labels: {}
+
+secrets:
+  # kubernetes: the key Secret from apiKey (empty: nothing is rendered). externalSecret:
+  # from a secret store
+  type: kubernetes
+  apiKey: ""
+  # existing Secret with the key in existingSecretKey; overrides type
+  existingSecret: ""
+  existingSecretKey: api-key
+  externalSecret:
+    storeKind: ClusterSecretStore
+    storeName: ""
+    refreshInterval: 1h
+    # vault item that holds the key. Empty: <release>-<server>
+    item: ""
+    # field of the item with the key
+    property: login.password
