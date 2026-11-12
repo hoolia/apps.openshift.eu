@@ -231,6 +231,8 @@ spec:
         - --cookie-secure=true
         - --cookie-samesite=lax
         - --skip-provider-button=true
+        # ui-proxy answers it with a self-removing worker; see files/ui-proxy.py
+        - --skip-auth-regex=^/sw\.js$
         env:
         - name: OAUTH2_PROXY_COOKIE_SECRET
           valueFrom:

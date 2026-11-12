@@ -7,6 +7,11 @@ oauth-proxy sends the signed-in person as the Basic user. This proxy listens on
 "opencode:<server password>", keeps the Host header (OpenCode compares it with
 Origin for terminals), streams responses as they arrive (SSE) and tunnels
 WebSocket upgrades. The password is read from PASSWORD_FILE on every request.
+
+/sw.js is answered here with a service worker that removes itself: OpenCode's own
+worker serves its cached page for every navigation, also for oauth-proxy's
+/oauth/ paths, so a browser whose login expired could never log in again.
+oauth-proxy lets /sw.js through without a login, so a stuck browser picks it up.
 """
 from __future__ import annotations
 
@@ -27,6 +32,23 @@ HOP_BY_HOP = frozenset({
     "connection", "transfer-encoding", "keep-alive", "te", "trailer", "upgrade",
     "proxy-authenticate", "proxy-authorization", "proxy-connection",
 })
+
+
+SERVICE_WORKER_PATH = "/sw.js"
+# Clears the old worker's caches and unregisters; reloads only when it removed one,
+# so a page that registers it again does not reload in a loop
+SERVICE_WORKER = b"""self.addEventListener("install", () => self.skipWaiting())
+self.addEventListener("activate", (event) => {
+  event.waitUntil((async () => {
+    const keys = (await caches.keys()).filter((key) => key.startsWith("workbox-"))
+    await Promise.all(keys.map((key) => caches.delete(key)))
+    await self.registration.unregister()
+    if (keys.length) {
+      for (const client of await self.clients.matchAll({ type: "window" })) client.navigate(client.url)
+    }
+  })())
+})
+"""
 
 
 class PasswordError(Exception):
@@ -92,7 +114,20 @@ class Handler(BaseHTTPRequestHandler):
     def _is_upgrade(self) -> bool:
         return "upgrade" in self.headers.get("Connection", "").lower() and bool(self.headers.get("Upgrade"))
 
+    def _service_worker(self) -> None:
+        self.send_response(200)
+        self.send_header("Content-Type", "text/javascript")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", str(len(SERVICE_WORKER)))
+        self.end_headers()
+        if self.command != "HEAD":
+            self.wfile.write(SERVICE_WORKER)
+
     def _forward(self) -> None:
+        if urllib.parse.urlsplit(self.path).path == SERVICE_WORKER_PATH and self.command in ("GET", "HEAD"):
+            self._read_body()
+            self._service_worker()
+            return
         if self.path == "/healthz":
             if self._auth():
                 self._error(200, "ok")
