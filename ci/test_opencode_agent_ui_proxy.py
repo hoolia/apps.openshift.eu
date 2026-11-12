@@ -146,6 +146,16 @@ class UiProxyTest(unittest.TestCase):
     def test_healthz_checks_the_password(self):
         self.assertEqual(self.get("/healthz"), (200, b"ok"))
 
+    def test_service_worker_removes_itself_without_upstream(self):
+        # OpenCode's worker would serve its cached page for oauth-proxy's /oauth/ paths
+        req = urllib.request.Request(f"http://127.0.0.1:{self.port}/sw.js?v=2")
+        with urllib.request.urlopen(req, timeout=5) as r:
+            self.assertEqual(r.headers["Cache-Control"], "no-store")
+            self.assertTrue(r.headers["Content-Type"].startswith("text/javascript"))
+            body = r.read()
+        self.assertIn(b"registration.unregister()", body)
+        self.assertEqual(Upstream.seen, [])
+
 
 if __name__ == "__main__":
     unittest.main()
