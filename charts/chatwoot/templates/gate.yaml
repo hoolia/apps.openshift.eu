@@ -128,9 +128,9 @@ spec:
           value: {{ join "," .Values.sso.allowedGroups | quote }}
         - name: ADMIN_GROUPS
           value: {{ join "," .Values.sso.adminGroups | quote }}
-        # never a login link for the break-glass super admin
+        # never a login link for the break-glass super admin or a denied address
         - name: RESERVED_EMAILS
-          value: {{ include "wrapper.adminEmail" . | quote }}
+          value: {{ prepend .Values.sso.deniedEmails (include "wrapper.adminEmail" .) | join "," | lower | quote }}
         - name: PLATFORM_TOKEN_FILE
           value: /etc/chatwoot-platform/platform-token
         - name: LISTEN_PORT

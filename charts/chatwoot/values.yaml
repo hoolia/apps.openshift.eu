@@ -132,6 +132,9 @@ sso:
   adminGroups: []
   emailDomains:
   - "*"
+  # addresses that never log in, such as shared accounts of the issuer; exact address, any
+  # case. A Chatwoot user the address already has stays: delete it first
+  deniedEmails: []
   image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.5
   # how long access lasts after a user leaves the allowed groups
   session:
