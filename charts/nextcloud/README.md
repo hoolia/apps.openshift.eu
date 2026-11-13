@@ -57,6 +57,7 @@ password:
 | `settings.setupTimeout` | `300` | Seconds the setup script may take at a start. A step that fails or does not finish is skipped and logged as `setup: skipped`; it runs again at the next start. |
 | `cache.enabled` | `true` | Redis for file locking and cache. Always runs when notify_push, the whiteboard or the worker is on. |
 | `notifyPush.enabled` | `true` | Push server for the desktop and mobile clients, under `/push`. |
+| `notifyPush.image` | `ghcr.io/nextcloud/notify_push:v1.4.2@sha256:…` | Image of the push server. Keep it on the version of the notify_push app. |
 | `whiteboard.enabled` | `true` | Backend of the whiteboard app, under `/whiteboard`. |
 | `mcp.route.enabled` | `true` | Publish each MCP server on the Nextcloud host at `/mcp/<server>`, see MCP servers on the Nextcloud host. |
 | `mcp.route.timeout` | `300s` | Longest wait of the router for an MCP server's response. |

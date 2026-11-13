@@ -28,20 +28,18 @@ spec:
         {{- include "wrapper.labels" "nextcloud-notify-push" | nindent 8 }}
     spec:
       automountServiceAccountToken: false
-      affinity:
-        {{- include "wrapper.sameNode" . | nindent 8 }}
       containers:
       - name: notify-push
-        image: {{ include "wrapper.nextcloudImage" . }}
+        image: {{ .Values.notifyPush.image }}
         imagePullPolicy: IfNotPresent
+        # its own image, not the Nextcloud volume: a pod sharing that ReadWriteOnce volume
+        # holds it on one node and keeps Nextcloud from starting on another
         command:
-        - sh
-        - -c
-        # the binary arrives when Nextcloud has installed the notify_push app
-        - |
-          bin=/custom_apps/notify_push/bin/$(uname -m)/notify_push
-          until [ -x "$bin" ]; do echo "waiting for $bin"; sleep 10; done
-          exec "$bin" --port 7867 --metrics-port 9867
+        - /notify_push
+        - --port
+        - "7867"
+        - --metrics-port
+        - "9867"
         env:
         - name: DATABASE_USER
           valueFrom:
@@ -88,20 +86,8 @@ spec:
           failureThreshold: 3
         resources:
           {{- toYaml .Values.notifyPush.resources | nindent 10 }}
-        # the UID of the files of Nextcloud
         securityContext:
-          runAsUser: 33
-          runAsGroup: 33
           {{- include "wrapper.restricted" . | nindent 10 }}
-        volumeMounts:
-        - name: nextcloud-main
-          mountPath: /custom_apps
-          subPath: custom_apps
-          readOnly: true
-      volumes:
-      - name: nextcloud-main
-        persistentVolumeClaim:
-          claimName: nextcloud-nextcloud
 ---
 apiVersion: v1
 kind: Service
