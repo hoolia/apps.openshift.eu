@@ -1,0 +1,28 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: postiz
+  labels:
+    app: postiz
+    app.kubernetes.io/name: postiz
+    app.kubernetes.io/component: route
+    {{- include "postiz.commonLabels" . | nindent 4 }}
+    {{- with .Values.route.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .Values.route.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  host: {{ include "wrapper.hostname" . }}
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+  to:
+    kind: Service
+    name: postiz
+    weight: 100
+  wildcardPolicy: None

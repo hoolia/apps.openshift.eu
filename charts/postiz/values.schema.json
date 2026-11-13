@@ -1,0 +1,114 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "image": {
+      "type": "object",
+      "properties": {
+        "repository": {"type": "string"},
+        "tag": {"type": "string"},
+        "pullPolicy": {"type": "string", "enum": ["Always", "IfNotPresent", "Never"]}
+      }
+    },
+    "prismaVersion": {"type": "string"},
+    "route": {
+      "type": "object",
+      "properties": {
+        "hostname": {"type": "string", "title": "Hostname", "description": "Hostname of the web interface; Postiz builds its OAuth callbacks from it"},
+        "labels": {"type": "object", "additionalProperties": {"type": "string"}},
+        "annotations": {"type": "object", "additionalProperties": {"type": "string"}}
+      }
+    },
+    "disableRegistration": {"type": "boolean", "title": "Close signup after the first account"},
+    "providers": {
+      "type": "object",
+      "properties": {
+        "existingSecret": {"type": "string", "title": "Secret with developer app credentials"},
+        "externalSecret": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["key"],
+            "properties": {"key": {"type": "string"}, "property": {"type": "string"}}
+          }
+        }
+      }
+    },
+    "backend": {"$ref": "#/definitions/component"},
+    "frontend": {"$ref": "#/definitions/component"},
+    "orchestrator": {"$ref": "#/definitions/component"},
+    "proxy": {
+      "type": "object",
+      "properties": {"image": {"type": "string"}, "resources": {"type": "object"}}
+    },
+    "uploads": {"$ref": "#/definitions/volume"},
+    "extraEnv": {"type": "array"},
+    "database": {
+      "type": "object",
+      "properties": {
+        "instances": {"type": "integer", "minimum": 1, "title": "Database instances"},
+        "size": {"type": "string", "title": "Database volume size"},
+        "storageClassName": {"type": "string"},
+        "imageName": {"type": "string"},
+        "resources": {"type": "object"}
+      }
+    },
+    "redis": {
+      "type": "object",
+      "properties": {
+        "image": {"type": "string"},
+        "size": {"type": "string"},
+        "storageClassName": {"type": "string"},
+        "resources": {"type": "object"}
+      }
+    },
+    "temporal": {
+      "type": "object",
+      "properties": {
+        "image": {"type": "string"},
+        "size": {"type": "string"},
+        "storageClassName": {"type": "string"},
+        "resources": {"type": "object"}
+      }
+    },
+    "mcp": {
+      "type": "object",
+      "properties": {
+        "service": {"type": "boolean"},
+        "appProtocol": {"type": "string"},
+        "targetName": {"type": "string"}
+      }
+    },
+    "networkPolicy": {
+      "type": "object",
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "mcpIngressFrom": {"type": "array"}
+      }
+    },
+    "secrets": {
+      "type": "object",
+      "properties": {
+        "type": {"type": "string", "enum": ["kubernetes", "externalSecret"]},
+        "jwtSecret": {"type": "string"},
+        "redisPassword": {"type": "string"},
+        "externalSecret": {
+          "type": "object",
+          "properties": {
+            "storeKind": {"type": "string", "enum": ["SecretStore", "ClusterSecretStore"]},
+            "storeName": {"type": "string"},
+            "refreshInterval": {"type": "string"},
+            "items": {"type": "object", "additionalProperties": {"type": "string"}}
+          }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "component": {"type": "object", "properties": {"resources": {"type": "object"}}},
+    "volume": {
+      "type": "object",
+      "properties": {"size": {"type": "string"}, "storageClassName": {"type": "string"}}
+    }
+  }
+}
