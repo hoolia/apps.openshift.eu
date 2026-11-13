@@ -1,0 +1,137 @@
+{{- if not .Values.odoo.url }}{{ fail "odoo.url is required" }}{{ end }}
+{{- if not .Values.credentials.existingSecret }}{{ fail "credentials.existingSecret is required" }}{{ end }}
+{{- if not (has (toString .Values.odoo.yolo) (list "off" "read" "true")) }}{{ fail "odoo.yolo is off, read or true" }}{{ end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ include "mcp-odoo.namespace" . }}
+  labels:
+    app: {{ .Release.Name }}
+    app.kubernetes.io/name: mcp-odoo
+    app.kubernetes.io/component: server
+    app.kubernetes.io/instance: {{ .Release.Name | quote }}
+    app.kubernetes.io/part-of: {{ .Release.Name | quote }}
+    app.kubernetes.io/version: {{ .Values.image.tag | default .Chart.AppVersion | quote }}
+    {{- include "mcp-odoo.catalogLabels" . | nindent 4 }}
+  annotations:
+    app.openshift.io/custom-icon: https://cdn.simpleicons.org/odoo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "mcp-odoo.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "mcp-odoo.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      # the server needs no Kubernetes API access
+      automountServiceAccountToken: false
+      containers:
+      - name: server
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        args:
+        - --transport
+        - streamable-http
+        # with auth.enabled only the token check in the same pod reaches the server
+        - --host
+        - {{ include "mcp-auth.serverHost" . }}
+        - --port
+        - {{ include "mcp-auth.serverPort" (dict "root" . "port" .Values.port) | quote }}
+        env:
+        - name: HOME
+          value: /tmp
+        - name: ODOO_URL
+          value: {{ .Values.odoo.url | quote }}
+        {{- with .Values.odoo.db }}
+        - name: ODOO_DB
+          value: {{ . | quote }}
+        {{- end }}
+        {{- with .Values.odoo.user }}
+        - name: ODOO_USER
+          value: {{ . | quote }}
+        {{- end }}
+        - name: ODOO_YOLO
+          value: {{ .Values.odoo.yolo | toString | quote }}
+        {{- with .Values.odoo.allowedCompanies }}
+        - name: ODOO_ALLOWED_COMPANIES
+          value: {{ . | toString | quote }}
+        {{- end }}
+        {{- with .Values.odoo.locale }}
+        - name: ODOO_LOCALE
+          value: {{ . | quote }}
+        {{- end }}
+        {{- with .Values.odoo.sessionIdleTimeout }}
+        - name: ODOO_MCP_SESSION_IDLE_TIMEOUT
+          value: {{ . | toString | quote }}
+        {{- end }}
+        {{- range $k, $v := .Values.env }}
+        - name: {{ $k }}
+          value: {{ $v | toString | quote }}
+        {{- end }}
+        envFrom:
+        - secretRef:
+            name: {{ .Values.credentials.existingSecret }}
+        {{- if .Values.auth.enabled }}
+        # the server listens on localhost only and has no health path
+        readinessProbe:
+          exec:
+            command:
+            - python3
+            - -c
+            - import socket; socket.create_connection(("127.0.0.1", {{ .Values.auth.upstreamPort }}), 2)
+          periodSeconds: 10
+        livenessProbe:
+          exec:
+            command:
+            - python3
+            - -c
+            - import socket; socket.create_connection(("127.0.0.1", {{ .Values.auth.upstreamPort }}), 2)
+          initialDelaySeconds: 20
+          periodSeconds: 30
+        {{- else }}
+        ports:
+        - name: mcp
+          containerPort: {{ .Values.port }}
+          protocol: TCP
+        readinessProbe:
+          tcpSocket:
+            port: mcp
+          periodSeconds: 10
+        livenessProbe:
+          tcpSocket:
+            port: mcp
+          initialDelaySeconds: 20
+          periodSeconds: 30
+        {{- end }}
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+      {{- if .Values.auth.enabled }}
+      {{- include "mcp-auth.container" (dict "root" . "name" .Release.Name "port" .Values.port) | nindent 6 }}
+      {{- end }}
+      volumes:
+      - name: tmp
+        emptyDir: {}
+      {{- with include "mcp-auth.volumes" (dict "root" . "name" .Release.Name) }}
+      {{- . | nindent 6 }}
+      {{- end }}
