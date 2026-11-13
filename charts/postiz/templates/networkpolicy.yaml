@@ -1,0 +1,63 @@
+{{- if .Values.networkPolicy.enabled }}
+{{- /*
+Policies add up: a platform policy that admits the namespace's own tenant stays in
+force, so these close nothing that one opens. The database pods are left alone: the
+CloudNativePG operator in its own namespace must reach them.
+*/}}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: postiz
+  labels:
+    app: postiz
+    app.kubernetes.io/name: postiz
+    app.kubernetes.io/component: network
+    {{- include "postiz.commonLabels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: postiz
+  policyTypes:
+  - Ingress
+  ingress:
+  - ports:
+    - protocol: TCP
+      port: 8080
+    from:
+    - namespaceSelector:
+        matchLabels:
+          policy-group.network.openshift.io/ingress: ""
+  {{- with .Values.networkPolicy.mcpIngressFrom }}
+  - ports:
+    - protocol: TCP
+      port: 3000
+    from:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- range $c := list (dict "name" "postiz-redis" "port" 6379 "app" "valkey") (dict "name" "postiz-temporal" "port" 7233 "app" "temporal") }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $c.name }}
+  labels:
+    app: {{ $c.name }}
+    app.kubernetes.io/name: {{ $c.app }}
+    app.kubernetes.io/component: network
+    {{- include "postiz.commonLabels" $ | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: {{ $c.name }}
+  policyTypes:
+  - Ingress
+  ingress:
+  - ports:
+    - protocol: TCP
+      port: {{ $c.port }}
+    from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: postiz
+{{- end }}
+{{- end }}

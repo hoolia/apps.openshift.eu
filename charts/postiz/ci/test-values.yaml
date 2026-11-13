@@ -1,0 +1,14 @@
+route:
+  hostname: postiz.example.com
+networkPolicy:
+  mcpIngressFrom:
+  - namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: gateway
+providers:
+  externalSecret:
+    LINKEDIN_CLIENT_ID:
+      key: postiz-linkedin
+      property: login.username
+    LINKEDIN_CLIENT_SECRET:
+      key: postiz-linkedin

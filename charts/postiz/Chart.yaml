@@ -1,0 +1,24 @@
+apiVersion: v2
+name: postiz
+description: Postiz social media scheduler (LinkedIn, Facebook, Instagram, Reddit, X, Threads, Bluesky and more) with its MCP server for AI agents, a PostgreSQL database, a Valkey store and a Temporal workflow server
+type: application
+version: 0.1.0
+appVersion: "2.25.3"
+home: https://apps.openshift.eu
+icon: https://raw.githubusercontent.com/gitroomhq/postiz-app/main/apps/frontend/public/postiz.svg
+keywords:
+- social-media
+- scheduler
+- marketing
+- mcp
+sources:
+- https://github.com/gitroomhq/postiz-app
+- https://github.com/hoolia/apps.openshift.eu
+maintainers:
+- name: GRN.CLOUD B.V.
+  url: https://apps.openshift.eu
+annotations:
+  charts.openshift.io/name: Postiz
+  charts.openshift.io/provider: GRN.CLOUD B.V.
+  apps.openshift.eu/category: marketing
+  apps.openshift.eu/vendor: Gitroom Ltd.

@@ -1,0 +1,151 @@
+# Postiz image: frontend, backend and orchestrator run from it as three containers
+image:
+  repository: ghcr.io/gitroomhq/postiz-app
+  # empty: v<appVersion>
+  tag: ""
+  pullPolicy: IfNotPresent
+
+# Prisma CLI that creates the database schema; the version upstream's package.json pins
+prismaVersion: 6.5.0
+
+route:
+  # hostname of the Postiz web interface; required: Postiz builds its OAuth callback URLs
+  # and its MCP address from it
+  hostname: ""
+  labels: {}
+  # annotations of the Route; the cert-manager ones issue its certificate
+  annotations:
+    cert-manager.io/issuer-kind: ClusterIssuer
+    cert-manager.io/issuer-name: letsencrypt
+
+# true: only the first account can sign up, it owns the organisation and invites the rest
+disableRegistration: true
+
+# client ids and secrets of the developer apps that let Postiz post to a platform, as
+# environment variables (LINKEDIN_CLIENT_ID, FACEBOOK_APP_ID, REDDIT_CLIENT_ID, ...)
+providers:
+  # Secret of the release namespace with those variables as keys; empty: none
+  existingSecret: ""
+  # with secrets.type externalSecret: variable name to vault item and property, for
+  # example LINKEDIN_CLIENT_ID: {key: postiz-linkedin, property: login.username}
+  externalSecret: {}
+
+# the three Postiz processes in one pod: they share the uploads volume
+backend:
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1536Mi
+frontend:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+orchestrator:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 384Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+# nginx in front of frontend and backend, and the server of the uploaded media
+proxy:
+  image: docker.io/nginxinc/nginx-unprivileged:1.31.7-alpine
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 500m
+      memory: 128Mi
+
+# the volume of uploaded media; ReadWriteOnce, so the pod is replaced, not rolled
+uploads:
+  size: 10Gi
+  # empty: the default StorageClass of the cluster
+  storageClassName: ""
+
+# further Postiz settings as environment variables, for example EMAIL_* or OPENAI_API_KEY
+extraEnv: []
+
+# PostgreSQL cluster of the CloudNativePG operator
+database:
+  instances: 1
+  size: 5Gi
+  # empty: the default StorageClass of the cluster
+  storageClassName: ""
+  imageName: ghcr.io/cloudnative-pg/postgresql:17.11-standard-trixie
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+# Valkey store of the queues and the caches
+redis:
+  image: docker.io/valkey/valkey:8.1.11-alpine
+  size: 1Gi
+  storageClassName: ""
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+# Temporal server that runs the scheduled posts: the single-binary server of the Temporal
+# CLI with its state in a SQLite file on a volume
+temporal:
+  image: docker.io/temporalio/temporal:1.10.0
+  size: 2Gi
+  storageClassName: ""
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+# MCP server of Postiz for AI agents: the backend answers at /mcp with an API key of the
+# organisation (Settings, Public API) as Bearer token
+mcp:
+  # a Service postiz-mcp for an MCP gateway in the cluster
+  service: true
+  # port appProtocol an MCP gateway discovers; empty leaves it unset
+  appProtocol: ""
+  # tool prefix on the gateway; empty: the release name
+  targetName: ""
+
+networkPolicy:
+  enabled: true
+  # further peers (NetworkPolicyPeer) that may reach the MCP server on port 3000, for
+  # example the namespace of an MCP gateway
+  mcpIngressFrom: []
+
+secrets:
+  # kubernetes: Secrets from the values below. externalSecret: from a secret store
+  type: kubernetes
+  # key that signs the login tokens; empty: generated once and kept
+  jwtSecret: ""
+  # password of the Valkey store; empty: generated once and kept
+  redisPassword: ""
+  externalSecret:
+    storeKind: ClusterSecretStore
+    storeName: ""
+    refreshInterval: 1h
+    # vault item per key; the value is read from the item's password
+    items:
+      jwt-secret: postiz-jwt-secret
+      redis-password: postiz-redis

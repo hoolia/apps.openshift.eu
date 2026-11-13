@@ -1,0 +1,26 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: postiz-db
+  labels:
+    app: postiz-db
+    app.kubernetes.io/name: postgresql
+    app.kubernetes.io/component: database
+    {{- include "postiz.commonLabels" . | nindent 4 }}
+    app.openshift.io/runtime: postgresql
+spec:
+  instances: {{ .Values.database.instances }}
+  imageName: {{ .Values.database.imageName }}
+  # a disruption budget on a single instance would block every node drain
+  enablePDB: {{ gt (int .Values.database.instances) 1 }}
+  bootstrap:
+    initdb:
+      database: postiz
+      owner: postiz
+  storage:
+    size: {{ .Values.database.size }}
+    {{- if .Values.database.storageClassName }}
+    storageClass: {{ .Values.database.storageClassName }}
+    {{- end }}
+  resources:
+    {{- toYaml .Values.database.resources | nindent 4 }}
