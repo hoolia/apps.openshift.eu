@@ -1,4 +1,5 @@
-{{- if include "wrapper.agentBridge" . }}
+{{- $standalone := include "wrapper.standalone" . }}
+{{- if include "wrapper.asksAgent" . }}
 {{- /*
 The identity the agent sees for the bot and the panel: a token of this ServiceAccount, for
 agent.auth.audience, when agent.auth.type is not none.
@@ -14,11 +15,12 @@ metadata:
     {{- include "chatwoot.commonLabels" $ | nindent 4 }}
 automountServiceAccountToken: false
 {{- end }}
-{{- if .Values.agentBot.enabled }}
+{{- if or (include "wrapper.bridgeHere" .) $standalone }}
 ---
 {{- /*
-The Agent Bot: Chatwoot's worker sends the bot's webhooks here, signed with the webhook
-secret; the bridge asks the agent and answers with the bot's access token.
+The bridge: Chatwoot's worker sends the bot's webhooks here, signed with the webhook
+secret; the bridge asks the agent and answers with the bot's access token. Standalone, it
+also answers panel requests that carry a staff member's access token.
 */}}
 apiVersion: apps/v1
 kind: Deployment
@@ -31,7 +33,9 @@ metadata:
     {{- include "chatwoot.commonLabels" $ | nindent 4 }}
     app.openshift.io/runtime: python
   annotations:
+    {{- if not $standalone }}
     app.openshift.io/connects-to: '[{"apiVersion":"apps/v1","kind":"Deployment","name":"chatwoot-web"}]'
+    {{- end }}
     argocd.argoproj.io/sync-wave: "2"
 spec:
   replicas: 1
@@ -56,13 +60,14 @@ spec:
         env:
         {{- include "wrapper.agentEnv" . | nindent 8 }}
         - name: CHATWOOT_URL
-          value: http://chatwoot-web:3000
+          value: {{ ternary .Values.agentBridge.standalone.chatwootUrl "http://chatwoot-web:3000" (not (empty $standalone)) | trimSuffix "/" | quote }}
+        - name: LISTEN_PORT
+          value: "8080"
+        {{- if .Values.agentBot.enabled }}
         - name: BOT_TOKEN_FILE
           value: /etc/chatwoot-agent-bot/bot-token
         - name: WEBHOOK_SECRET_FILE
           value: /etc/chatwoot-agent-bot/webhook-secret
-        - name: LISTEN_PORT
-          value: "8080"
         - name: INSTRUCTIONS
           value: {{ .Values.agentBot.instructions | quote }}
         - name: HANDOFF_KEYWORDS
@@ -73,6 +78,19 @@ spec:
           value: {{ .Values.agentBot.handoff.message | quote }}
         - name: FAILURE_MESSAGE
           value: {{ .Values.agentBot.failureMessage | quote }}
+        {{- end }}
+        {{- if and $standalone .Values.copilotPanel.enabled }}
+        {{- $s := .Values.agentBridge.standalone.staff }}
+        # panel requests carry a staff member's access token of this issuer and client
+        - name: STAFF_ISSUER
+          value: {{ $s.issuerUrl | quote }}
+        - name: STAFF_CLIENTS
+          value: {{ join "," $s.clientIds | quote }}
+        - name: STAFF_GROUPS
+          value: {{ join "," $s.allowedGroups | quote }}
+        - name: STAFF_GROUPS_CLAIM
+          value: {{ $s.groupsClaim | quote }}
+        {{- end }}
         ports:
         - name: webhook
           containerPort: 8080
@@ -81,9 +99,11 @@ spec:
         volumeMounts:
         - name: scripts
           mountPath: /scripts
+        {{- if .Values.agentBot.enabled }}
         - name: bot
           mountPath: /etc/chatwoot-agent-bot
           readOnly: true
+        {{- end }}
         {{- include "wrapper.agentTokenMount" . | nindent 8 }}
         readinessProbe:
           httpGet:
@@ -101,11 +121,13 @@ spec:
       - name: scripts
         configMap:
           name: chatwoot-scripts
+      {{- if .Values.agentBot.enabled }}
       - name: bot
         secret:
           secretName: chatwoot-agent-bot
           # readable by the pod's fsGroup: the random user id owns no file
           defaultMode: 0440
+      {{- end }}
       {{- include "wrapper.agentTokenVolume" . | nindent 6 }}
 ---
 apiVersion: v1
@@ -124,4 +146,36 @@ spec:
   - name: webhook
     port: 8080
     targetPort: webhook
+{{- end }}
+{{- if $standalone }}
+---
+{{- /* the way in for a Chatwoot elsewhere: its webhooks and its panel requests */}}
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: chatwoot-agent-bridge
+  labels:
+    app: chatwoot-agent-bridge
+    app.kubernetes.io/name: chatwoot-agent-bridge
+    app.kubernetes.io/component: route
+    {{- include "chatwoot.commonLabels" $ | nindent 4 }}
+  annotations:
+    {{- with .Values.agentBridge.standalone.route.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    # an answer of the agent to the panel may take minutes
+    haproxy.router.openshift.io/timeout: 330s
+spec:
+  {{- with .Values.agentBridge.standalone.route.hostname }}
+  host: {{ . }}
+  {{- end }}
+  path: /
+  to:
+    kind: Service
+    name: chatwoot-agent-bridge
+  port:
+    targetPort: webhook
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
 {{- end }}

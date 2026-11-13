@@ -334,5 +334,140 @@ class PanelTest(Base):
         self.assertEqual((status, body), (502, {"error": "the agent did not answer"}))
 
 
+def _prime(bits):
+    import secrets
+    while True:
+        p = secrets.randbits(bits) | (1 << bits - 1) | 1
+        if all(pow(a, p - 1, p) == 1 for a in (2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37)):
+            return p
+
+
+class RsaKey:
+    """A throwaway RS256 key, made at test time: no key material in the repository."""
+
+    def __init__(self, kid="k1"):
+        self.e = 65537
+        while True:
+            p, q = _prime(1024), _prime(1024)
+            phi = (p - 1) * (q - 1)
+            if p != q and phi % self.e:
+                break
+        self.n, self.d, self.kid = p * q, pow(self.e, -1, phi), kid
+
+    def jwk(self):
+        def enc(i):
+            return agent_bot.base64.urlsafe_b64encode(i.to_bytes((i.bit_length() + 7) // 8, "big")).rstrip(b"=").decode()
+        return {"kty": "RSA", "use": "sig", "kid": self.kid, "n": enc(self.n), "e": enc(self.e)}
+
+    def token(self, claims, alg="RS256", kid=None):
+        enc = lambda b: agent_bot.base64.urlsafe_b64encode(b).rstrip(b"=").decode()
+        signing = enc(json.dumps({"alg": alg, "kid": kid or self.kid}).encode()) + "." + enc(json.dumps(claims).encode())
+        k = (self.n.bit_length() + 7) // 8
+        digest = agent_bot.SHA256_PREFIX + hashlib.sha256(signing.encode()).digest()
+        em = b"\x00\x01" + b"\xff" * (k - len(digest) - 3) + b"\x00" + digest
+        sig = pow(int.from_bytes(em, "big"), self.d, self.n).to_bytes(k, "big")
+        return signing + "." + enc(sig)
+
+
+ISSUER = "https://login.example.com/realms/acme"
+KEY = RsaKey()
+OTHER = RsaKey("k1")
+
+
+def staff_claims(**kw):
+    c = {"iss": ISSUER, "exp": time.time() + 300, "azp": "cw.example.com", "groups": ["support"],
+         "email": "sam@example.com"}
+    c.update(kw)
+    return c
+
+
+class StaffTokenTest(unittest.TestCase):
+    def setUp(self):
+        self.fetches = []
+
+        def fetch(url):
+            self.fetches.append(url)
+            if url.endswith("/.well-known/openid-configuration"):
+                return {"jwks_uri": ISSUER + "/certs"}
+            return {"keys": [KEY.jwk()]}
+        self.staff = agent_bot.StaffTokens(ISSUER, ["cw.example.com"], ["support", "admins"], fetch=fetch)
+
+    def test_valid(self):
+        self.assertEqual(self.staff.check(KEY.token(staff_claims()))["email"], "sam@example.com")
+        self.assertEqual(self.staff.check(KEY.token(staff_claims(groups=["/admins"])))["email"], "sam@example.com")
+
+    def test_refused(self):
+        for token in (KEY.token(staff_claims(iss="https://evil.example.org")),
+                      KEY.token(staff_claims(exp=time.time() - 3600)),
+                      KEY.token(staff_claims(azp="other-client")),
+                      KEY.token(staff_claims(groups=["sales"])),
+                      KEY.token(staff_claims(), alg="HS256"),
+                      KEY.token(staff_claims(), kid="unknown"),
+                      OTHER.token(staff_claims()),
+                      KEY.token(staff_claims())[:-4] + "AAAA",
+                      "not-a-token", ""):
+            with self.assertRaises(ValueError, msg=token[:40]):
+                self.staff.check(token)
+
+    def test_keys_cached(self):
+        for _ in range(3):
+            self.staff.check(KEY.token(staff_claims()))
+        self.assertEqual(len(self.fetches), 2)
+
+
+class RemotePanelTest(Base):
+    """The bridge next to the agent answers panel requests that carry a staff token."""
+
+    def setUp(self):
+        super().setUp()
+        self.bot_ = self.bot()
+        staff = agent_bot.StaffTokens(ISSUER, ["cw.example.com"], ["support"],
+                                      fetch=lambda u: {"jwks_uri": "x"} if "well-known" in u else {"keys": [KEY.jwk()]})
+        self.pool = ThreadPoolExecutor(max_workers=1)
+        self.hook = http.server.ThreadingHTTPServer(("127.0.0.1", 0), agent_bot.make_handler(self.bot_, self.pool, staff))
+        threading.Thread(target=self.hook.serve_forever, daemon=True).start()
+        # the chatwoot side: the panel next to oauth2-proxy forwards to the bridge
+        self.gate = http.server.ThreadingHTTPServer(("127.0.0.1", 0), agent_bot.make_panel_handler(
+            None, b"<html>", f"http://127.0.0.1:{self.hook.server_port}/agent-panel/api"))
+        threading.Thread(target=self.gate.serve_forever, daemon=True).start()
+
+    def tearDown(self):
+        for s in (self.hook, self.gate):
+            s.shutdown()
+            s.server_close()
+        self.pool.shutdown(wait=True)
+        super().tearDown()
+
+    def post(self, port, headers):
+        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=20)
+        body = {"action": "summarize", "conversation": {"id": 4, "messages": [{"content": "Hi", "message_type": 0}]}}
+        conn.request("POST", "/agent-panel/api", json.dumps(body), {"Content-Type": "application/json", **headers})
+        r = conn.getresponse()
+        out = (r.status, r.read())
+        conn.close()
+        return out
+
+    def test_bridge_checks_token(self):
+        self.assertEqual(self.post(self.hook.server_port, {})[0], 401)
+        self.assertEqual(self.post(self.hook.server_port, {"Authorization": "Bearer " + KEY.token(staff_claims(groups=[]))})[0], 401)
+        status, body = self.post(self.hook.server_port, {"Authorization": "Bearer " + KEY.token(staff_claims())})
+        self.assertEqual((status, json.loads(body)), (200, {"text": "Tomorrow."}))
+        self.assertEqual(self.state["a2a"][-1][0]["params"]["message"]["metadata"]["chatwoot"]["staff"], "sam@example.com")
+        self.assertEqual(self.state["chatwoot"], [])
+
+    def test_gate_forwards_the_staff_token(self):
+        h = {"X-Forwarded-Email": "sam@example.com", "Host": "cw.example.com"}
+        self.assertEqual(self.post(self.gate.server_port, h)[0], 401)
+        status, body = self.post(self.gate.server_port, {**h, "X-Forwarded-Access-Token": KEY.token(staff_claims())})
+        self.assertEqual((status, json.loads(body)), (200, {"text": "Tomorrow."}))
+        status, _ = self.post(self.gate.server_port, {**h, "X-Forwarded-Access-Token": OTHER.token(staff_claims())})
+        self.assertEqual(status, 401)
+
+    def test_webhook_still_signed(self):
+        conn = http.client.HTTPConnection("127.0.0.1", self.hook.server_port, timeout=10)
+        conn.request("POST", "/webhook", b"{}", {"Content-Type": "application/json"})
+        self.assertEqual(conn.getresponse().status, 401)
+
+
 if __name__ == "__main__":
     unittest.main()

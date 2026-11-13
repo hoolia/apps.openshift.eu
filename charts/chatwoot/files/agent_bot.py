@@ -12,6 +12,9 @@ With PANEL_PORT it serves the agent panel instead or as well, a Chatwoot Dashboa
 the conversation sidebar: staff ask the same agent to summarise the conversation, suggest a
 reply or answer a question. It listens on 127.0.0.1 next to oauth2-proxy, so only a request
 after the staff login arrives; its answers go back to the panel, never to the customer.
+With PANEL_FORWARD_URL that panel asks nobody itself: it hands each request to a bridge in
+the agent's cluster, with the staff member's access token from oauth2-proxy, and that
+bridge (STAFF_ISSUER set) checks the token's signature, issuer, client and group.
 
 Standard library only; prints no credential.
 """
@@ -323,7 +326,87 @@ def panel_request(bot, body, email):
     return reply
 
 
-def make_panel_handler(bot, page):
+def b64url(text):
+    return base64.urlsafe_b64decode(text + "=" * (-len(text) % 4))
+
+
+# DER prefix of a SHA-256 DigestInfo (PKCS#1 v1.5 signatures)
+SHA256_PREFIX = bytes.fromhex("3031300d060960864801650304020105000420")
+
+
+def rsa_verify(n, e, message, signature):
+    """RS256 (RSASSA-PKCS1-v1_5 with SHA-256) with the standard library alone."""
+    k = (n.bit_length() + 7) // 8
+    if len(signature) != k:
+        return False
+    em = pow(int.from_bytes(signature, "big"), e, n).to_bytes(k, "big")
+    digest = SHA256_PREFIX + hashlib.sha256(message).digest()
+    expected = b"\x00\x01" + b"\xff" * (k - len(digest) - 3) + b"\x00" + digest
+    return hmac.compare_digest(em, expected)
+
+
+class StaffTokens:
+    """Checks a staff member's OIDC access token: signature, issuer, expiry, client, group."""
+
+    def __init__(self, issuer, clients, groups, groups_claim="groups", fetch=None):
+        self.issuer = issuer.rstrip("/")
+        self.clients = {c for c in clients if c}
+        self.groups = {g for g in groups if g}
+        self.groups_claim = groups_claim
+        self.fetch = fetch or (lambda url: http_json(url, timeout=10))
+        self.keys = {}
+        self.fetched = 0.0
+        self.lock = threading.Lock()
+
+    def key(self, kid):
+        with self.lock:
+            age = time.time() - self.fetched
+            # every 10 minutes, and for an unknown key at most every 30 seconds
+            if not self.fetched or age > 600 or (kid not in self.keys and age > 30):
+                jwks_uri = self.fetch(self.issuer + "/.well-known/openid-configuration")["jwks_uri"]
+                self.keys = {k["kid"]: k for k in self.fetch(jwks_uri).get("keys", [])
+                             if k.get("kty") == "RSA" and k.get("use", "sig") == "sig"}
+                self.fetched = time.time()
+            return self.keys.get(kid)
+
+    def check(self, token, now=None):
+        """The claims of a valid token; ValueError otherwise."""
+        try:
+            head64, body64, sig64 = token.split(".")
+            head, claims = json.loads(b64url(head64)), json.loads(b64url(body64))
+        except (ValueError, TypeError):
+            raise ValueError("not a JWT")
+        if head.get("alg") != "RS256":
+            raise ValueError("algorithm is not RS256")
+        jwk = self.key(head.get("kid"))
+        if not jwk or not rsa_verify(int.from_bytes(b64url(jwk["n"]), "big"), int.from_bytes(b64url(jwk["e"]), "big"),
+                                     (head64 + "." + body64).encode(), b64url(sig64)):
+            raise ValueError("bad signature")
+        now = now or time.time()
+        if claims.get("iss") != self.issuer:
+            raise ValueError("other issuer")
+        if not isinstance(claims.get("exp"), (int, float)) or claims["exp"] < now - 60:
+            raise ValueError("expired")
+        if self.clients and claims.get("azp") not in self.clients:
+            raise ValueError("other client")
+        groups = claims.get(self.groups_claim) or []
+        if self.groups and not self.groups & {str(g).lstrip("/") for g in groups}:
+            raise ValueError("not in an allowed group")
+        return claims
+
+
+def forward_panel(url, body, token):
+    """Hands a panel request to a bridge elsewhere, with the staff member's own token."""
+    req = urllib.request.Request(url, data=body, method="POST", headers={
+        "Content-Type": "application/json", "Authorization": "Bearer " + token})
+    try:
+        with urllib.request.urlopen(req, timeout=330) as resp:
+            return resp.status, resp.read()
+    except urllib.error.HTTPError as e:
+        return e.code, e.read()
+
+
+def make_panel_handler(bot, page, forward_url=""):
     class Handler(http.server.BaseHTTPRequestHandler):
         def log_message(self, *args):
             pass
@@ -360,6 +443,17 @@ def make_panel_handler(bot, page):
             length = int(self.headers.get("Content-Length") or 0)
             if length <= 0 or length > MAX_BODY:
                 return self.send(413 if length > MAX_BODY else 400)
+            if forward_url:
+                # the bridge next to the agent checks the staff member's token itself
+                token = self.headers.get("X-Forwarded-Access-Token", "")
+                if not token:
+                    return self.send(401)
+                try:
+                    status, out = forward_panel(forward_url, self.rfile.read(length), token)
+                except (urllib.error.URLError, OSError) as e:
+                    LOG.warning("panel %s: bridge unreachable: %s", email, e)
+                    return self.send(502, json.dumps({"error": "the agent did not answer"}).encode())
+                return self.send(status, out)
             try:
                 body = json.loads(self.rfile.read(length))
                 reply = panel_request(bot, body, email)
@@ -374,26 +468,52 @@ def make_panel_handler(bot, page):
     return Handler
 
 
-def make_handler(bot, pool):
+def make_handler(bot, pool, staff=None):
+    """Webhooks of the bot; with staff (StaffTokens) also panel requests from elsewhere."""
     class Handler(http.server.BaseHTTPRequestHandler):
         def log_message(self, *args):
             pass
 
-        def reply(self, status):
+        def reply(self, status, body=b""):
             self.send_response(status)
-            self.send_header("Content-Length", "0")
+            if body:
+                self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
             self.end_headers()
+            self.wfile.write(body)
 
         def do_GET(self):
             self.reply(200 if self.path == "/healthz" else 404)
 
+        def panel(self, raw):
+            auth = self.headers.get("Authorization", "")
+            try:
+                claims = staff.check(auth[len("Bearer "):] if auth.startswith("Bearer ") else "")
+            except ValueError as e:
+                LOG.warning("panel refused: %s", e)
+                return self.reply(401)
+            email = claims.get("email") or claims.get("preferred_username") or claims.get("sub", "")
+            try:
+                body = json.loads(raw)
+                text = panel_request(bot, body, email)
+            except ValueError as e:
+                return self.reply(400, json.dumps({"error": str(e)}).encode())
+            except Exception as e:  # the agent failed
+                LOG.warning("panel %s: agent failed: %s", email, e)
+                return self.reply(502, json.dumps({"error": "the agent did not answer"}).encode())
+            LOG.info("panel %s: %s", email, body.get("action"))
+            self.reply(200, json.dumps({"text": text}).encode())
+
         def do_POST(self):
-            if self.path != "/webhook":
+            if self.path not in ("/webhook", "/agent-panel/api") or (self.path == "/webhook" and not bot.config.bot_enabled) \
+                    or (self.path == "/agent-panel/api" and staff is None):
                 return self.reply(404)
             length = int(self.headers.get("Content-Length") or 0)
             if length <= 0 or length > MAX_BODY:
                 return self.reply(413 if length > MAX_BODY else 400)
             body = self.rfile.read(length)
+            if self.path == "/agent-panel/api":
+                return self.panel(body)
             secret = read_file(bot.config.webhook_secret_file)
             if not verify(secret, self.headers.get("X-Chatwoot-Timestamp"),
                           self.headers.get("X-Chatwoot-Signature"), body):
@@ -414,21 +534,27 @@ def main():
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     # as process 1 Python ignores SIGTERM: stop at once when the pod stops
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
-    config = Config()
-    bot = Bot(config)
-    if os.environ.get("PANEL_PORT"):
-        with open(os.environ["PANEL_PAGE"], "rb") as f:
+    env = os.environ
+    forward_url = env.get("PANEL_FORWARD_URL", "")
+    # forwarding the panel only: no agent of its own
+    bot = None if forward_url and not env.get("A2A_URL") else Bot(Config())
+    if env.get("PANEL_PORT"):
+        with open(env["PANEL_PAGE"], "rb") as f:
             page = f.read()
         # 127.0.0.1: next to oauth2-proxy in its pod, so only a logged-in request arrives
-        panel = http.server.ThreadingHTTPServer((os.environ.get("PANEL_HOST", "127.0.0.1"),
-                                                 int(os.environ["PANEL_PORT"])),
-                                                make_panel_handler(bot, page))
+        panel = http.server.ThreadingHTTPServer((env.get("PANEL_HOST", "127.0.0.1"), int(env["PANEL_PORT"])),
+                                                make_panel_handler(bot, page, forward_url))
         threading.Thread(target=panel.serve_forever, daemon=True).start()
-        LOG.info("agent panel listening on %s", os.environ["PANEL_PORT"])
-    if config.bot_enabled:
+        LOG.info("agent panel listening on %s%s", env["PANEL_PORT"], " for " + forward_url if forward_url else "")
+    staff = None
+    if env.get("STAFF_ISSUER"):
+        staff = StaffTokens(env["STAFF_ISSUER"], env.get("STAFF_CLIENTS", "").split(","),
+                            env.get("STAFF_GROUPS", "").split(","), env.get("STAFF_GROUPS_CLAIM", "groups"))
+    if bot and (bot.config.bot_enabled or staff):
         pool = ThreadPoolExecutor(max_workers=8)
-        server = http.server.ThreadingHTTPServer(("0.0.0.0", config.port), make_handler(bot, pool))
-        LOG.info("agent bot listening on %s, agent %s, auth %s", config.port, config.a2a_url, config.auth)
+        server = http.server.ThreadingHTTPServer(("0.0.0.0", bot.config.port), make_handler(bot, pool, staff))
+        LOG.info("agent bridge listening on %s, agent %s, auth %s, bot %s, panel %s", bot.config.port,
+                 bot.config.a2a_url, bot.config.auth, bot.config.bot_enabled, staff is not None)
         server.serve_forever()
     else:
         threading.Event().wait()

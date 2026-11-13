@@ -1,3 +1,4 @@
+{{- if not (include "wrapper.standalone" .) }}
 {{- if .Values.sso.enabled }}
 {{- /*
 The only way in with sso.enabled: the Route points here. oauth2-proxy asks for a login
@@ -30,7 +31,7 @@ spec:
       annotations:
         checksum/scripts: {{ include (print $.Template.BasePath "/configmap-scripts.yaml") (merge (dict "checksum" true) .) | sha256sum }}
     spec:
-      {{- if and .Values.copilotPanel.enabled (ne .Values.agent.auth.type "none") }}
+      {{- if and .Values.copilotPanel.enabled (not .Values.agentBridge.remoteUrl) (ne .Values.agent.auth.type "none") }}
       # the panel asks the agent as chatwoot-agent-bridge; route-host reads the Route with it
       serviceAccountName: chatwoot-agent-bridge
       automountServiceAccountToken: {{ not .Values.route.hostname }}
@@ -68,10 +69,17 @@ spec:
         {{- if .Values.copilotPanel.enabled }}
         # the agent panel in the conversation sidebar, behind the same login
         - --upstream=http://127.0.0.1:8082/agent-panel/
+        # an answer of the agent may take minutes
+        - --upstream-timeout=330s
         {{- end }}
         - --proxy-websockets=true
         - --pass-user-headers=true
+        {{- if and .Values.copilotPanel.enabled .Values.agentBridge.remoteUrl }}
+        # the panel hands the staff member's own token to the remote bridge
+        - --pass-access-token=true
+        {{- else }}
         - --pass-access-token=false
+        {{- end }}
         - --pass-authorization-header=false
         - --set-xauthrequest=false
         # a public path never carries user headers a visitor wrote
@@ -170,7 +178,14 @@ spec:
         image: {{ .Values.agentBridge.image }}
         command: ["python3", "/scripts/agent_bot.py"]
         env:
+        {{- if .Values.agentBridge.remoteUrl }}
+        - name: PANEL_FORWARD_URL
+          value: {{ include "wrapper.agentBotUrl" . }}agent-panel/api
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        {{- else }}
         {{- include "wrapper.agentEnv" . | nindent 8 }}
+        {{- end }}
         - name: PANEL_HOST
           value: 127.0.0.1
         - name: PANEL_PORT
@@ -183,7 +198,9 @@ spec:
         volumeMounts:
         - name: scripts
           mountPath: /scripts
+        {{- if not .Values.agentBridge.remoteUrl }}
         {{- include "wrapper.agentTokenMount" . | nindent 8 }}
+        {{- end }}
         readinessProbe:
           exec:
             command: ["python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8082/healthz', timeout=3)"]
@@ -192,7 +209,7 @@ spec:
           {{- toYaml .Values.agentBridge.resources | nindent 10 }}
       {{- end }}
       volumes:
-      {{- if .Values.copilotPanel.enabled }}
+      {{- if and .Values.copilotPanel.enabled (not .Values.agentBridge.remoteUrl) }}
       {{- include "wrapper.agentTokenVolume" . | nindent 6 }}
       {{- end }}
       - name: scripts
@@ -222,4 +239,5 @@ spec:
   - name: http
     port: 4180
     targetPort: proxy
+{{- end }}
 {{- end }}

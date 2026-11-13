@@ -250,6 +250,33 @@ copilotPanel:
 
 # the pod of the agent bot and the panel
 agentBridge:
+  # https address of a bridge outside this release, for example a standalone release next
+  # to the agent in another cluster. Chatwoot sends the bot's webhooks there, the panel
+  # forwards each request there with the staff member's own access token, and the bridge
+  # posts the bot's answers to the public address of Chatwoot. Empty: the bridge runs here
+  remoteUrl: ""
+  # a release of the bridge alone, next to the agent: no Chatwoot, only the bridge with a
+  # Route that a Chatwoot release elsewhere names in agentBridge.remoteUrl. agentBot and
+  # copilotPanel say what it serves; agent is the agent it asks
+  standalone:
+    enabled: false
+    # public https address of that Chatwoot, for the bot's answers; required
+    chatwootUrl: ""
+    route:
+      # empty: OpenShift assigns a host under the default application domain
+      hostname: ""
+      annotations:
+        cert-manager.io/issuer-kind: ClusterIssuer
+        cert-manager.io/issuer-name: letsencrypt
+    # the access tokens of staff that panel requests carry (the staff login of that Chatwoot)
+    staff:
+      # OIDC issuer of the tokens; required with copilotPanel.enabled
+      issuerUrl: ""
+      # a token's azp (the OIDC client of that Chatwoot's login) must be one of these
+      clientIds: []
+      # a token's groups must hold one of these; empty: any member of the issuer
+      allowedGroups: []
+      groupsClaim: groups
   image: registry.access.redhat.com/ubi9/python-312-minimal:9.8-1793637445
   resources:
     requests:

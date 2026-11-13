@@ -57,6 +57,8 @@ a super admin.
 | `agentBot.inboxes` | empty | Inbox names the bot answers in; `*` is every inbox. |
 | `agentBot.handoff.keywords` | `human`, `person`, `agent`, `staff` | A customer message that is exactly one of these hands the conversation to a person. |
 | `copilotPanel.enabled` | `false` | A panel in the conversation sidebar where staff ask the agent; needs `sso.enabled`. |
+| `agentBridge.remoteUrl` | empty | https address of a standalone bridge elsewhere. Empty: the bridge runs in this release. |
+| `agentBridge.standalone.enabled` | `false` | A release of the bridge alone, next to the agent; needs `standalone.chatwootUrl`, and for the panel `standalone.staff.issuerUrl` and `standalone.staff.clientIds`. |
 
 ### Single sign-on
 
@@ -143,6 +145,40 @@ messages, private notes marked as such, and the staff member's address. A sugges
 goes into the reply box (or the clipboard) for staff to edit and send; nothing the panel
 returns is sent to the customer. The panel runs in the oauth2-proxy pod on 127.0.0.1, so
 it is reachable only after the staff login.
+
+### Bridge next to the agent
+
+When the agent trusts identities of its own cluster only, the bridge runs there, in a
+release of this chart with `agentBridge.standalone.enabled` (no Chatwoot, only the bridge
+and a Route), and the Chatwoot release names that Route in `agentBridge.remoteUrl`:
+
+```mermaid
+flowchart LR
+    subgraph c["Chatwoot cluster"]
+        W["worker"]
+        G["oauth2-proxy + panel"]
+        R["Chatwoot Route"]
+    end
+    subgraph a["agent cluster"]
+        B["chatwoot-agent-bridge<br/>standalone release"]
+        A["agent"]
+    end
+    W -->|"signed webhook"| B
+    G -->|"panel request<br/>staff access token"| B
+    B -->|"ServiceAccount token"| A
+    B -->|"bot answer, bot access token"| R
+```
+
+| Path | Checked by |
+|---|---|
+| Webhook, Chatwoot to bridge | the webhook secret (`X-Chatwoot-Signature`), the same vault item in both releases |
+| Panel request, Chatwoot to bridge | the staff member's own access token, passed by oauth2-proxy: signature, issuer, client (`staff.clientIds`, the `azp` claim) and group (`staff.allowedGroups`) |
+| Bridge to agent | `agent.auth` of the standalone release |
+| Bridge to Chatwoot | the bot's access token; the Chatwoot release lets `POST` to a conversation's `messages`, `toggle_status` and `custom_attributes` pass oauth2-proxy without a login, and Chatwoot checks the token |
+
+Those three `POST` paths then accept any Chatwoot access token without the staff login, a
+user's as well as the bot's. The bot's access token and webhook secret are in both
+releases (`secrets.externalSecret.items` naming the same vault items).
 
 ### Agent credentials
 

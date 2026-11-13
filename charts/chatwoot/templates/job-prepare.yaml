@@ -1,3 +1,4 @@
+{{- if not (include "wrapper.standalone" .) }}
 {{- /*
 Migrates the database and sets up the account, the super admin and the login bridge's
 Platform App, on every install and upgrade; web and worker wait in their init container
@@ -111,3 +112,4 @@ spec:
           {{- toYaml .Values.prepare.resources | nindent 10 }}
       volumes:
       {{- include "wrapper.volumes" (merge (dict "job" true) .) | nindent 6 }}
+{{- end }}

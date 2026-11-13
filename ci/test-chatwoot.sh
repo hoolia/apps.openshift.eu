@@ -185,6 +185,30 @@ OUT=$(render "${SSO[@]}" "${AGENT[@]}" --set copilotPanel.enabled=true --set rou
 check "panel without hostname reads the Route" 'pod("chatwoot-gate")["automountServiceAccountToken"] is True and {"kind": "ServiceAccount", "name": "chatwoot-agent-bridge"} in obj("RoleBinding", "chatwoot-route")["subjects"]'
 OUT=$(render "${SSO[@]}" --set agentBot.enabled=true --set agent.url=http://agent.acme.svc:8080/ --set secrets.type=externalSecret --set secrets.externalSecret.storeName=vault)
 check "bot secrets from a store" 'obj("ExternalSecret", "chatwoot-agent-bot")["spec"]["data"][0]["remoteRef"]["key"] == "chatwoot-agent-bot-token" and not obj("Deployment", "chatwoot-gate").get("spec", {}).get("template", {}).get("spec", {}).get("volumes", [{}])[0].get("projected")'
+# --- bridge in another release (Chatwoot side) and the standalone bridge
+REMOTE=(--set agentBridge.remoteUrl=https://bridge.example.org --set agentBot.enabled=true --set copilotPanel.enabled=true)
+OUT=$(render "${SSO[@]}" "${REMOTE[@]}")
+check "remote: no bridge here" 'not obj("Deployment", "chatwoot-agent-bridge") and not obj("ServiceAccount", "chatwoot-agent-bridge") and obj("Secret", "chatwoot-agent-bot")'
+check "remote: webhook to the remote bridge" 'env("chatwoot-prepare-1", "prepare")["CHATWOOT_AGENT_BOT_URL"] == "https://bridge.example.org/webhook" and "CHART_AGENT_BOT_URL" not in env("chatwoot-worker", "worker")'
+check "remote: bot answers through the login" 'public("POST", "/api/v1/accounts/1/conversations/12/messages") and public("POST", "/api/v1/accounts/1/conversations/12/toggle_status") and not public("GET", "/api/v1/accounts/1/conversations/12/messages") and not public("POST", "/api/v1/accounts/1/contacts")'
+check "remote: panel forwards the staff token" 'env("chatwoot-gate", "agent-panel")["PANEL_FORWARD_URL"] == "https://bridge.example.org/agent-panel/api" and "A2A_URL" not in env("chatwoot-gate", "agent-panel") and "--pass-access-token=true" in args() and pod("chatwoot-gate").get("serviceAccountName") is None'
+OUT=$(render "${SSO[@]}" "${AGENT[@]}" --set copilotPanel.enabled=true)
+check "local panel: no access token passed" '"--pass-access-token=false" in args() and "--upstream-timeout=330s" in args() and obj("Route", "chatwoot")["metadata"]["annotations"]["haproxy.router.openshift.io/timeout"] == "330s"'
+STANDALONE=(--set agentBridge.standalone.enabled=true --set agentBot.enabled=true --set copilotPanel.enabled=true
+  --set agentBridge.standalone.chatwootUrl=https://cw.example.com --set agentBridge.standalone.route.hostname=bridge.example.org
+  --set agentBridge.standalone.staff.issuerUrl=https://login.example.com/realms/acme --set 'agentBridge.standalone.staff.clientIds={cw.example.com}'
+  --set 'agentBridge.standalone.staff.allowedGroups={support}' --set agent.url=https://agents.example.com/a2a/x
+  --set agent.auth.type=serviceAccountToken --set agent.auth.audience=agents.example.com)
+OUT=$(render "${STANDALONE[@]}")
+check "standalone: the bridge alone" '{(d["kind"], d["metadata"]["name"]) for d in docs} == {("ConfigMap", "chatwoot-scripts"), ("Deployment", "chatwoot-agent-bridge"), ("NetworkPolicy", "chatwoot-agent-bridge"), ("Route", "chatwoot-agent-bridge"), ("Secret", "chatwoot-agent-bot"), ("Service", "chatwoot-agent-bridge"), ("ServiceAccount", "chatwoot-agent-bridge")}'
+check "standalone: answers to the public Chatwoot, staff tokens checked" 'env("chatwoot-agent-bridge", "agent-bot")["CHATWOOT_URL"] == "https://cw.example.com" and env("chatwoot-agent-bridge", "agent-bot")["STAFF_CLIENTS"] == "cw.example.com" and env("chatwoot-agent-bridge", "agent-bot")["STAFF_GROUPS"] == "support"'
+check "standalone: route with a long timeout" 'obj("Route", "chatwoot-agent-bridge")["spec"]["host"] == "bridge.example.org" and obj("Route", "chatwoot-agent-bridge")["metadata"]["annotations"]["haproxy.router.openshift.io/timeout"] == "330s" and obj("Route", "chatwoot-agent-bridge")["spec"]["tls"]["termination"] == "edge"'
+check "standalone: router only" 'obj("NetworkPolicy", "chatwoot-agent-bridge")["spec"]["ingress"][0]["from"] == [{"namespaceSelector": {"matchLabels": {"policy-group.network.openshift.io/ingress": ""}}}]'
+fails "standalone without feature" "needs agentBot.enabled or copilotPanel.enabled" --set agentBridge.standalone.enabled=true
+fails "standalone without chatwoot" "standalone.chatwootUrl, an https address, is required" --set agentBridge.standalone.enabled=true --set agentBot.enabled=true --set agent.url=https://a.example.com/
+fails "standalone panel without staff" "staff.issuerUrl (https) and staff.clientIds are required" --set agentBridge.standalone.enabled=true --set copilotPanel.enabled=true --set agent.url=https://a.example.com/ --set agentBridge.standalone.chatwootUrl=https://cw.example.com
+fails "remote over http" "agentBridge.remoteUrl must be an https address" --set agentBridge.remoteUrl=http://bridge.example.org --set agentBot.enabled=true
+fails "remote and standalone" "exclude each other" --set agentBridge.remoteUrl=https://bridge.example.org --set agentBridge.standalone.enabled=true --set agentBot.enabled=true
 fails "bot without agent" "agent.url, an http or https address, is required" --set agentBot.enabled=true
 fails "panel without sso" "copilotPanel.enabled needs sso.enabled" --set copilotPanel.enabled=true --set agent.url=https://a.example.com/
 fails "assertion without client" "tokenUrl and agent.auth.clientId are required" --set agentBot.enabled=true --set agent.url=https://a.example.com/ --set agent.auth.type=clientAssertion --set agent.auth.audience=x

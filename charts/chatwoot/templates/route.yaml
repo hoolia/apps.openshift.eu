@@ -1,3 +1,4 @@
+{{- if not (include "wrapper.standalone" .) }}
 {{- /* the one Route of the instance: to oauth2-proxy with sso.enabled, else to Chatwoot web */}}
 apiVersion: route.openshift.io/v1
 kind: Route
@@ -11,9 +12,15 @@ metadata:
     {{- with .Values.route.labels }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
-  {{- with .Values.route.annotations }}
+  {{- if or .Values.route.annotations .Values.copilotPanel.enabled }}
   annotations:
+    {{- with .Values.route.annotations }}
     {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- if .Values.copilotPanel.enabled }}
+    # an answer of the agent to the panel may take minutes
+    haproxy.router.openshift.io/timeout: 330s
+    {{- end }}
   {{- end }}
 spec:
   {{- if .Values.route.hostname }}
@@ -29,3 +36,4 @@ spec:
     name: {{ ternary "chatwoot-gate" "chatwoot-web" .Values.sso.enabled }}
     weight: 100
   wildcardPolicy: None
+{{- end }}

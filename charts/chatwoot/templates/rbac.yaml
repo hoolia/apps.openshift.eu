@@ -1,3 +1,4 @@
+{{- if not (include "wrapper.standalone" .) }}
 {{- if not .Values.route.hostname }}
 {{- /* without a hostname the pods read the host OpenShift gave the Route: this Route only */}}
 apiVersion: v1
@@ -41,9 +42,10 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: chatwoot-route
-{{- if and .Values.copilotPanel.enabled (ne .Values.agent.auth.type "none") }}
+{{- if and .Values.copilotPanel.enabled (not .Values.agentBridge.remoteUrl) (ne .Values.agent.auth.type "none") }}
 # the gate pod runs as chatwoot-agent-bridge with the panel
 - kind: ServiceAccount
   name: chatwoot-agent-bridge
+{{- end }}
 {{- end }}
 {{- end }}

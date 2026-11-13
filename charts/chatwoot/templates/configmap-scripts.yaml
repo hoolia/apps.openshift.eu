@@ -12,6 +12,7 @@ metadata:
     {{- include "chatwoot.commonLabels" $ | nindent 4 }}
   {{- end }}
 data:
+  {{- if not (include "wrapper.standalone" .) }}
   start.sh: |
     {{- .Files.Get "files/start.sh" | nindent 4 }}
   route_host.py: |
@@ -25,6 +26,7 @@ data:
   {{- if .Values.sso.enabled }}
   login_bridge.py: |
     {{- .Files.Get "files/login_bridge.py" | nindent 4 }}
+  {{- end }}
   {{- end }}
   {{- if include "wrapper.agentBridge" . }}
   agent_bot.py: |
