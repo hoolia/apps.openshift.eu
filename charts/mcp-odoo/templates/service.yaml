@@ -1,0 +1,34 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ include "mcp-odoo.namespace" . }}
+  labels:
+    app: {{ .Release.Name }}
+    app.kubernetes.io/name: mcp-odoo
+    app.kubernetes.io/component: server
+    app.kubernetes.io/instance: {{ .Release.Name | quote }}
+    app.kubernetes.io/part-of: {{ .Release.Name | quote }}
+    app.kubernetes.io/version: {{ .Values.image.tag | default .Chart.AppVersion | quote }}
+    {{- include "mcp-odoo.catalogLabels" . | nindent 4 }}
+    {{- with .Values.service.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  annotations:
+    {{- with .Values.service.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    agentgateway.dev/mcp-path: {{ .Values.path | quote }}
+    agentgateway.dev/mcp-target-name: {{ .Values.mcp.targetName | quote }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "mcp-odoo.selectorLabels" . | nindent 4 }}
+  ports:
+  - name: mcp
+    port: {{ .Values.port }}
+    targetPort: mcp
+    protocol: TCP
+    {{- with .Values.mcp.appProtocol }}
+    appProtocol: {{ . }}
+    {{- end }}

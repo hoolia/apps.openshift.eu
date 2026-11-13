@@ -1,0 +1,6 @@
+odoo:
+  url: https://erp.example.com
+  db: example
+  user: agent@example.com
+credentials:
+  existingSecret: odoo-mcp

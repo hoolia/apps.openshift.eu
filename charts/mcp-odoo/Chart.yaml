@@ -1,0 +1,31 @@
+apiVersion: v2
+name: mcp-odoo
+description: Odoo MCP server (ivnvxd/mcp-server-odoo) for a tenant or one of its teams, acting as one Odoo user through its API key
+type: application
+version: 0.1.0
+appVersion: "0.9.0"
+home: https://apps.openshift.eu
+icon: https://cdn.simpleicons.org/odoo
+keywords:
+- ai
+- mcp
+- mcp-server
+- odoo
+- crm
+- erp
+sources:
+- https://github.com/hoolia/apps.openshift.eu
+- https://github.com/ivnvxd/mcp-server-odoo
+maintainers:
+- name: GRN.CLOUD B.V.
+  url: https://apps.openshift.eu
+annotations:
+  charts.openshift.io/name: Odoo MCP server
+  charts.openshift.io/provider: GRN.CLOUD B.V.
+  apps.openshift.eu/vendor: ivnvxd
+  mcp.openshift.eu/server: odoo
+  mcp.openshift.eu/category: crm
+dependencies:
+- name: mcp-auth
+  version: 0.1.0
+  repository: file://../mcp-auth
