@@ -26,3 +26,11 @@ data:
   login_bridge.py: |
     {{- .Files.Get "files/login_bridge.py" | nindent 4 }}
   {{- end }}
+  {{- if include "wrapper.agentBridge" . }}
+  agent_bot.py: |
+    {{- .Files.Get "files/agent_bot.py" | nindent 4 }}
+  {{- end }}
+  {{- if .Values.copilotPanel.enabled }}
+  agent_panel.html: |
+    {{- .Files.Get "files/agent_panel.html" | nindent 4 }}
+  {{- end }}

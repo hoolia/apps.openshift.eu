@@ -27,6 +27,33 @@ if ENV.key?('CHATWOOT_SESSION_HOURS')
   DeviseTokenAuth.token_lifespan = Integer(hours, 10).hours
 end
 
+unless ENV['CHART_AGENT_BOT_URL'].to_s.empty?
+  # Chatwoot refuses webhooks to private addresses (SafeFetch). The agent bot's bridge is a
+  # Service of this release: allow a private address for a webhook to its address only
+  bridge = ENV['CHART_AGENT_BOT_URL']
+  Rails.application.config.to_prepare do
+    SafeFetch.singleton_class.prepend(Module.new do
+      def allow_private_network?
+        Thread.current[:chart_agent_bot_webhook] || super
+      end
+    end)
+    Webhooks::Trigger.prepend(Module.new do
+      private
+
+      define_method(:perform_request) do
+        return super() unless @url.to_s.start_with?(bridge)
+
+        Thread.current[:chart_agent_bot_webhook] = true
+        begin
+          super()
+        ensure
+          Thread.current[:chart_agent_bot_webhook] = nil
+        end
+      end
+    end)
+  end
+end
+
 # The Platform API never hands out a super admin: no login link, no API token, no change
 # and no adoption of an existing super admin by a Platform App. The login bridge uses this
 # API; a super admin logs in with its password at /super_admin only.

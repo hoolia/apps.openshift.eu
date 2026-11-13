@@ -1,0 +1,127 @@
+{{- if include "wrapper.agentBridge" . }}
+{{- /*
+The identity the agent sees for the bot and the panel: a token of this ServiceAccount, for
+agent.auth.audience, when agent.auth.type is not none.
+*/}}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: chatwoot-agent-bridge
+  labels:
+    app: chatwoot-agent-bridge
+    app.kubernetes.io/name: chatwoot-agent-bridge
+    app.kubernetes.io/component: rbac
+    {{- include "chatwoot.commonLabels" $ | nindent 4 }}
+automountServiceAccountToken: false
+{{- end }}
+{{- if .Values.agentBot.enabled }}
+---
+{{- /*
+The Agent Bot: Chatwoot's worker sends the bot's webhooks here, signed with the webhook
+secret; the bridge asks the agent and answers with the bot's access token.
+*/}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chatwoot-agent-bridge
+  labels:
+    app: chatwoot-agent-bridge
+    app.kubernetes.io/name: chatwoot-agent-bridge
+    app.kubernetes.io/component: bot
+    {{- include "chatwoot.commonLabels" $ | nindent 4 }}
+    app.openshift.io/runtime: python
+  annotations:
+    app.openshift.io/connects-to: '[{"apiVersion":"apps/v1","kind":"Deployment","name":"chatwoot-web"}]'
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: chatwoot-agent-bridge
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: chatwoot-agent-bridge
+      annotations:
+        checksum/scripts: {{ include (print $.Template.BasePath "/configmap-scripts.yaml") (merge (dict "checksum" true) .) | sha256sum }}
+    spec:
+      serviceAccountName: chatwoot-agent-bridge
+      automountServiceAccountToken: false
+      securityContext:
+        {{- include "wrapper.podSecurity" . | nindent 8 }}
+      containers:
+      - name: agent-bot
+        image: {{ .Values.agentBridge.image }}
+        command: ["python3", "/scripts/agent_bot.py"]
+        env:
+        {{- include "wrapper.agentEnv" . | nindent 8 }}
+        - name: CHATWOOT_URL
+          value: http://chatwoot-web:3000
+        - name: BOT_TOKEN_FILE
+          value: /etc/chatwoot-agent-bot/bot-token
+        - name: WEBHOOK_SECRET_FILE
+          value: /etc/chatwoot-agent-bot/webhook-secret
+        - name: LISTEN_PORT
+          value: "8080"
+        - name: INSTRUCTIONS
+          value: {{ .Values.agentBot.instructions | quote }}
+        - name: HANDOFF_KEYWORDS
+          value: {{ join "," .Values.agentBot.handoff.keywords | quote }}
+        - name: HANDOFF_MARKER
+          value: {{ .Values.agentBot.handoff.marker | quote }}
+        - name: HANDOFF_MESSAGE
+          value: {{ .Values.agentBot.handoff.message | quote }}
+        - name: FAILURE_MESSAGE
+          value: {{ .Values.agentBot.failureMessage | quote }}
+        ports:
+        - name: webhook
+          containerPort: 8080
+        securityContext:
+          {{- include "wrapper.restricted" . | nindent 10 }}
+        volumeMounts:
+        - name: scripts
+          mountPath: /scripts
+        - name: bot
+          mountPath: /etc/chatwoot-agent-bot
+          readOnly: true
+        {{- include "wrapper.agentTokenMount" . | nindent 8 }}
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: webhook
+          periodSeconds: 15
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: webhook
+          periodSeconds: 30
+        resources:
+          {{- toYaml .Values.agentBridge.resources | nindent 10 }}
+      volumes:
+      - name: scripts
+        configMap:
+          name: chatwoot-scripts
+      - name: bot
+        secret:
+          secretName: chatwoot-agent-bot
+          # readable by the pod's fsGroup: the random user id owns no file
+          defaultMode: 0440
+      {{- include "wrapper.agentTokenVolume" . | nindent 6 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: chatwoot-agent-bridge
+  labels:
+    app: chatwoot-agent-bridge
+    app.kubernetes.io/name: chatwoot-agent-bridge
+    app.kubernetes.io/component: bot
+    {{- include "chatwoot.commonLabels" $ | nindent 4 }}
+spec:
+  selector:
+    app.kubernetes.io/name: chatwoot-agent-bridge
+  ports:
+  - name: webhook
+    port: 8080
+    targetPort: webhook
+{{- end }}

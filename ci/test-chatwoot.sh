@@ -159,4 +159,35 @@ for bad in boss@example.com admin@chatwoot.invalid.example.com "x@invalid" "a b@
   fails "deliverable admin email $bad" "reserved domain .invalid" --set "account.adminEmail=$bad"
 done
 
+# --- agent bot and panel
+AGENT=(--set agent.url=https://agents.example.com/a2a/acme --set agent.auth.type=clientAssertion
+  --set agent.auth.audience=https://login.example.com/realms/acme
+  --set agent.auth.tokenUrl=https://login.example.com/realms/acme/protocol/openid-connect/token
+  --set agent.auth.clientId=chatwoot-agent)
+OUT=$(render)
+check "no bridge by default" 'not obj("Deployment", "chatwoot-agent-bridge") and not obj("ServiceAccount", "chatwoot-agent-bridge") and "CHART_AGENT_BOT_URL" not in env("chatwoot-worker", "worker")'
+OUT=$(render "${SSO[@]}" "${AGENT[@]}" --set agentBot.enabled=true --set 'agentBot.inboxes={Website,Mail}')
+check "bot bridge" 'pod("chatwoot-agent-bridge")["serviceAccountName"] == "chatwoot-agent-bridge" and env("chatwoot-agent-bridge", "agent-bot")["A2A_AUTH"] == "clientAssertion" and env("chatwoot-agent-bridge", "agent-bot")["A2A_TOKEN_FILE"] == "/var/run/secrets/agent/token"'
+check "bot token audience" 'any(v.get("projected", {}).get("sources", [{}])[0].get("serviceAccountToken", {}).get("audience") == "https://login.example.com/realms/acme" for v in pod("chatwoot-agent-bridge")["volumes"])'
+check "bot set up by the job" 'env("chatwoot-prepare-1", "prepare")["CHATWOOT_AGENT_BOT_URL"] == "http://chatwoot-agent-bridge:8080/webhook" and env("chatwoot-prepare-1", "prepare")["CHATWOOT_AGENT_BOT_INBOXES"] == "Website,Mail"'
+check "bot secret to bridge and job only" '"chatwoot-agent-bot" in refs(pod("chatwoot-agent-bridge")) and "chatwoot-agent-bot" in refs(pod("chatwoot-prepare-1")) and all("chatwoot-agent-bot\"" not in refs(pod(n)) for n in ("chatwoot-web", "chatwoot-worker", "chatwoot-gate"))'
+check "private webhook to the bridge only" 'all(env(n, c)["CHART_AGENT_BOT_URL"] == "http://chatwoot-agent-bridge:8080/" for n, c in (("chatwoot-web", "web"), ("chatwoot-worker", "worker")))'
+check "webhooks from the worker only" 'obj("NetworkPolicy", "chatwoot-agent-bridge")["spec"]["ingress"] == [{"ports": [{"protocol": "TCP", "port": 8080}], "from": [{"podSelector": {"matchLabels": {"app.kubernetes.io/name": "chatwoot-worker"}}}]}]'
+check "bridge reaches web" '{"podSelector": {"matchLabels": {"app.kubernetes.io/name": "chatwoot-agent-bridge"}}} in obj("NetworkPolicy", "chatwoot-web")["spec"]["ingress"][0]["from"]'
+check "no panel without the value" 'not ctr("chatwoot-gate", "agent-panel")'
+OUT=$(render "${SSO[@]}" "${AGENT[@]}" --set copilotPanel.enabled=true)
+check "panel only: no bot" 'not obj("Deployment", "chatwoot-agent-bridge") and not obj("Secret", "chatwoot-agent-bot") and "CHATWOOT_AGENT_BOT_TOKEN" not in env("chatwoot-prepare-1", "prepare")'
+check "panel behind the login" '"--upstream=http://127.0.0.1:8082/agent-panel/" in args() and env("chatwoot-gate", "agent-panel")["PANEL_HOST"] == "127.0.0.1" and not ctr("chatwoot-gate", "agent-panel").get("ports")'
+check "panel needs a login" 'not public("GET", "/agent-panel/") and not public("POST", "/agent-panel/api")'
+check "panel identity" 'pod("chatwoot-gate")["serviceAccountName"] == "chatwoot-agent-bridge" and pod("chatwoot-gate")["automountServiceAccountToken"] is False'
+check "panel registered by the job" 'env("chatwoot-prepare-1", "prepare")["CHATWOOT_AGENT_PANEL_PATH"] == "/agent-panel/"'
+OUT=$(render "${SSO[@]}" "${AGENT[@]}" --set copilotPanel.enabled=true --set route.hostname=)
+check "panel without hostname reads the Route" 'pod("chatwoot-gate")["automountServiceAccountToken"] is True and {"kind": "ServiceAccount", "name": "chatwoot-agent-bridge"} in obj("RoleBinding", "chatwoot-route")["subjects"]'
+OUT=$(render "${SSO[@]}" --set agentBot.enabled=true --set agent.url=http://agent.acme.svc:8080/ --set secrets.type=externalSecret --set secrets.externalSecret.storeName=vault)
+check "bot secrets from a store" 'obj("ExternalSecret", "chatwoot-agent-bot")["spec"]["data"][0]["remoteRef"]["key"] == "chatwoot-agent-bot-token" and not obj("Deployment", "chatwoot-gate").get("spec", {}).get("template", {}).get("spec", {}).get("volumes", [{}])[0].get("projected")'
+fails "bot without agent" "agent.url, an http or https address, is required" --set agentBot.enabled=true
+fails "panel without sso" "copilotPanel.enabled needs sso.enabled" --set copilotPanel.enabled=true --set agent.url=https://a.example.com/
+fails "assertion without client" "tokenUrl and agent.auth.clientId are required" --set agentBot.enabled=true --set agent.url=https://a.example.com/ --set agent.auth.type=clientAssertion --set agent.auth.audience=x
+fails "token without audience" "agent.auth.audience is required" --set agentBot.enabled=true --set agent.url=https://a.example.com/ --set agent.auth.type=serviceAccountToken
+
 [ $fail = 0 ] && echo "PASS charts/chatwoot render" || exit 1

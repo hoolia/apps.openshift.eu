@@ -30,7 +30,13 @@ spec:
       annotations:
         checksum/scripts: {{ include (print $.Template.BasePath "/configmap-scripts.yaml") (merge (dict "checksum" true) .) | sha256sum }}
     spec:
+      {{- if and .Values.copilotPanel.enabled (ne .Values.agent.auth.type "none") }}
+      # the panel asks the agent as chatwoot-agent-bridge; route-host reads the Route with it
+      serviceAccountName: chatwoot-agent-bridge
+      automountServiceAccountToken: {{ not .Values.route.hostname }}
+      {{- else }}
       {{- include "wrapper.serviceAccount" . | nindent 6 }}
+      {{- end }}
       securityContext:
         {{- include "wrapper.podSecurity" . | nindent 8 }}
       initContainers:
@@ -59,6 +65,10 @@ spec:
         - --upstream=http://chatwoot-web:3000/
         # the dashboard's login page goes to the bridge
         - --upstream=http://127.0.0.1:8081/app/login
+        {{- if .Values.copilotPanel.enabled }}
+        # the agent panel in the conversation sidebar, behind the same login
+        - --upstream=http://127.0.0.1:8082/agent-panel/
+        {{- end }}
         - --proxy-websockets=true
         - --pass-user-headers=true
         - --pass-access-token=false
@@ -155,7 +165,36 @@ spec:
           periodSeconds: 15
         resources:
           {{- toYaml .Values.loginBridge.resources | nindent 10 }}
+      {{- if .Values.copilotPanel.enabled }}
+      - name: agent-panel
+        image: {{ .Values.agentBridge.image }}
+        command: ["python3", "/scripts/agent_bot.py"]
+        env:
+        {{- include "wrapper.agentEnv" . | nindent 8 }}
+        - name: PANEL_HOST
+          value: 127.0.0.1
+        - name: PANEL_PORT
+          value: "8082"
+        - name: PANEL_PAGE
+          value: /scripts/agent_panel.html
+        # no ports: it listens on 127.0.0.1 only, behind oauth2-proxy
+        securityContext:
+          {{- include "wrapper.restricted" . | nindent 10 }}
+        volumeMounts:
+        - name: scripts
+          mountPath: /scripts
+        {{- include "wrapper.agentTokenMount" . | nindent 8 }}
+        readinessProbe:
+          exec:
+            command: ["python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8082/healthz', timeout=3)"]
+          periodSeconds: 15
+        resources:
+          {{- toYaml .Values.agentBridge.resources | nindent 10 }}
+      {{- end }}
       volumes:
+      {{- if .Values.copilotPanel.enabled }}
+      {{- include "wrapper.agentTokenVolume" . | nindent 6 }}
+      {{- end }}
       - name: scripts
         configMap:
           name: chatwoot-scripts

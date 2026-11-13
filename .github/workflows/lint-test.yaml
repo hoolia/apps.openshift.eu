@@ -51,7 +51,7 @@ jobs:
     - name: Test chatwoot chart
       run: ci/test-chatwoot.sh
     - name: Test chatwoot login bridge
-      run: python3 -m unittest ci/test_chatwoot_login_bridge.py ci/test_chatwoot_route_host.py ci/test_chatwoot_start.py
+      run: python3 -m unittest ci/test_chatwoot_login_bridge.py ci/test_chatwoot_route_host.py ci/test_chatwoot_start.py ci/test_chatwoot_agent_bot.py
     - name: Test chatwoot initializer
       run: ruby ci/test_chatwoot_initializer.rb
     - name: Test the GitLab API exporter

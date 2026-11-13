@@ -79,6 +79,30 @@ spec:
               name: chatwoot-platform
               key: platform-token
         {{- end }}
+        {{- if .Values.agentBot.enabled }}
+        - name: CHATWOOT_AGENT_BOT_NAME
+          value: {{ .Values.agentBot.name | quote }}
+        - name: CHATWOOT_AGENT_BOT_URL
+          value: {{ include "wrapper.agentBotUrl" . }}webhook
+        - name: CHATWOOT_AGENT_BOT_INBOXES
+          value: {{ join "," .Values.agentBot.inboxes | quote }}
+        - name: CHATWOOT_AGENT_BOT_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: chatwoot-agent-bot
+              key: bot-token
+        - name: CHATWOOT_AGENT_BOT_WEBHOOK_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: chatwoot-agent-bot
+              key: webhook-secret
+        {{- end }}
+        {{- if .Values.copilotPanel.enabled }}
+        - name: CHATWOOT_AGENT_PANEL_TITLE
+          value: {{ .Values.copilotPanel.title | quote }}
+        - name: CHATWOOT_AGENT_PANEL_PATH
+          value: /agent-panel/
+        {{- end }}
         securityContext:
           {{- include "wrapper.restricted" . | nindent 10 }}
         volumeMounts:

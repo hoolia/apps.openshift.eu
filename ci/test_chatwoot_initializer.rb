@@ -1,4 +1,5 @@
-# Tests of charts/chatwoot/files/chart_initializer.rb: the dashboard session lifetime.
+# Tests of charts/chatwoot/files/chart_initializer.rb: the dashboard session lifetime and
+# the agent bot webhook to a private address.
 #
 # ruby ci/test_chatwoot_initializer.rb
 require 'minitest/autorun'
@@ -17,13 +18,56 @@ module DeviseTokenAuth
 end
 
 module Rails
-  Config = Struct.new(:unused) do
-    def to_prepare(&_block) = nil
+  Config = Struct.new(:prepared) do
+    # kept, so a test can run a block; Chatwoot's own classes are not loaded here
+    def to_prepare(&block)
+      self.prepared ||= []
+      prepared << block
+    end
   end
   Application = Struct.new(:config)
 
   def self.application
     @application ||= Application.new(Config.new)
+  end
+end
+
+# Chatwoot's webhook sender, as far as the initializer patches it
+module SafeFetch
+  def self.allow_private_network? = false
+end
+
+module Webhooks
+  class Trigger
+    def initialize(url)
+      @url = url
+    end
+
+    def execute = perform_request
+
+    private
+
+    def perform_request = SafeFetch.allow_private_network?
+  end
+end
+
+class AgentBotWebhookTest < Minitest::Test
+  BRIDGE = 'http://chatwoot-agent-bridge:8080/'
+
+  def test_private_address_for_the_bridge_only
+    env = ENV.to_h
+    ENV['SMTP_ADDRESS'] = 'smtp.example.com'
+    ENV['CHART_AGENT_BOT_URL'] = BRIDGE
+    Rails.application.config.prepared = []
+    load INITIALIZER
+    Rails.application.config.prepared.first.call
+    assert Webhooks::Trigger.new("#{BRIDGE}webhook").execute
+    refute Webhooks::Trigger.new('http://10.0.0.1/webhook').execute
+    refute Webhooks::Trigger.new('https://hooks.example.com/x').execute
+    # the flag never outlives the request
+    refute SafeFetch.allow_private_network?
+  ensure
+    ENV.replace(env)
   end
 end
 

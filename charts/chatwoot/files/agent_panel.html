@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent</title>
+<style>
+:root { --bg: #ffffff; --fg: #1f2d3d; --muted: #6b7a8c; --line: #e3e8ee; --accent: #1f93ff; --box: #f6f8fa; }
+:root[data-theme="dark"] { --bg: #151718; --fg: #ecedee; --muted: #9ba1a6; --line: #2b2f31; --accent: #4aa6ff; --box: #1f2224; }
+* { box-sizing: border-box; }
+body { margin: 0; padding: 12px; font: 14px/1.45 system-ui, sans-serif; background: var(--bg); color: var(--fg); }
+.row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+button { border: 1px solid var(--line); background: var(--box); color: var(--fg); border-radius: 6px; padding: 6px 10px; cursor: pointer; font: inherit; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button:disabled { opacity: .5; cursor: default; }
+textarea { width: 100%; min-height: 60px; border: 1px solid var(--line); border-radius: 6px; padding: 8px; background: var(--bg); color: var(--fg); font: inherit; resize: vertical; }
+#out { white-space: pre-wrap; background: var(--box); border: 1px solid var(--line); border-radius: 6px; padding: 10px; min-height: 40px; }
+.muted { color: var(--muted); font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="row">
+  <button id="summarize">Summarise</button>
+  <button id="suggest">Suggest reply</button>
+</div>
+<textarea id="question" placeholder="Ask the agent about this conversation"></textarea>
+<div class="row" style="margin-top:6px"><button id="ask" class="primary">Ask</button></div>
+<div id="out" class="muted">Open a conversation, then choose an action.</div>
+<div class="row" style="margin-top:6px">
+  <button id="insert" hidden>Insert into reply</button>
+  <button id="copy" hidden>Copy</button>
+</div>
+<p class="muted">The agent's answers stay here: nothing is sent to the customer. A suggested reply goes into the reply box for you to edit and send.</p>
+<script>
+(function () {
+  "use strict";
+  var context = null, last = "", lastAction = "";
+  var out = document.getElementById("out");
+  function show(text, muted) { out.textContent = text; out.className = muted ? "muted" : ""; }
+  window.addEventListener("message", function (e) {
+    if (e.origin !== window.location.origin || typeof e.data !== "string") return;
+    var msg; try { msg = JSON.parse(e.data); } catch (err) { return; }
+    if (!msg || msg.event !== "appContext") return;
+    context = msg.data || {};
+    document.documentElement.dataset.theme = context.theme === "dark" ? "dark" : "light";
+  });
+  window.parent.postMessage("chatwoot-dashboard-app:fetch-info", "*");
+  function run(action) {
+    window.parent.postMessage("chatwoot-dashboard-app:fetch-info", "*");
+    var conversation = context && context.conversation;
+    if (!conversation || !conversation.id) { show("Open a conversation first.", true); return; }
+    var question = document.getElementById("question").value;
+    if (action === "ask" && !question.trim()) { show("Write a question first.", true); return; }
+    var buttons = document.querySelectorAll("button");
+    buttons.forEach(function (b) { b.disabled = true; });
+    show("The agent is working...", true);
+    fetch("api", {
+      method: "POST", credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: action, question: question,
+        conversation: { id: conversation.id, messages: conversation.messages || [] } })
+    }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (b) {
+        if (!r.ok) throw new Error(b.error || ("HTTP " + r.status));
+        return b;
+      });
+    }).then(function (b) {
+      last = b.text || ""; lastAction = action;
+      show(last || "(no answer)", !last);
+      document.getElementById("copy").hidden = !last;
+      document.getElementById("insert").hidden = !(last && action === "suggest");
+    }).catch(function (err) {
+      show("No answer: " + err.message, true);
+    }).finally(function () { buttons.forEach(function (b) { b.disabled = false; }); });
+  }
+  // the reply box of the dashboard, same origin; it is never submitted from here
+  function insert() {
+    var editor = null;
+    try { editor = window.parent.document.querySelector(".reply-box .ProseMirror, .reply-box textarea"); } catch (err) { editor = null; }
+    if (!editor) { copy(); show(last + "\n\n(copied: paste it into the reply box)"); return; }
+    editor.focus();
+    if (editor.tagName === "TEXTAREA") {
+      editor.value = last; editor.dispatchEvent(new Event("input", { bubbles: true }));
+    } else {
+      window.parent.document.execCommand("insertText", false, last);
+    }
+  }
+  function copy() { if (navigator.clipboard) navigator.clipboard.writeText(last).catch(function () {}); }
+  document.getElementById("summarize").onclick = function () { run("summarize"); };
+  document.getElementById("suggest").onclick = function () { run("suggest"); };
+  document.getElementById("ask").onclick = function () { run("ask"); };
+  document.getElementById("insert").onclick = insert;
+  document.getElementById("copy").onclick = copy;
+})();
+</script>
+</body>
+</html>
