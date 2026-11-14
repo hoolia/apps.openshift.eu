@@ -167,6 +167,9 @@ cache:
 # Push of file changes and notifications to the clients, under /push
 notifyPush:
   enabled: true
+  # the push server binary; keep it on the version of the notify_push app, which
+  # Nextcloud installs from the app store
+  image: ghcr.io/nextcloud/notify_push:v1.4.2@sha256:4f41eca2a71589f1d3f72ee7816c8a43ce3343652b1e715dfcd78d9c0388d7f9
   resources:
     requests:
       cpu: 25m
@@ -395,7 +398,7 @@ mailu:
     front:
       # a chart upgrade reloads mail-prefix.conf; equals the chart version (templates/validate.yaml)
       podAnnotations:
-        chart-version: 0.17.6
+        chart-version: 0.18.0
       extraVolumes:
       - name: dovecot-override
         configMap:
@@ -599,7 +602,7 @@ nextcloud:
   # a chart upgrade restarts Nextcloud so its start-up setup runs again; equals the chart
   # version (templates/validate.yaml refuses a render where it does not)
   podAnnotations:
-    chart-version: 0.17.6
+    chart-version: 0.18.0
   nextcloud:
     host: nextcloud.example.org
     existingSecret:
@@ -776,7 +779,8 @@ nextcloud:
       enabled: true
       labels: *volumeLabels
       annotations: *keepVolume
-      accessMode: ReadWriteOnce
+      # ReadWriteMany: pods next to Nextcloud that read the files may run on any node
+      accessMode: ReadWriteMany
       # the space for user files
       size: 25Gi
   resources:

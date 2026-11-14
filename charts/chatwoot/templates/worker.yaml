@@ -1,3 +1,4 @@
+{{- if not (include "wrapper.standalone" .) }}
 {{- $volume := eq .Values.attachments.storage "volume" }}
 apiVersion: apps/v1
 kind: Deployment
@@ -80,3 +81,4 @@ spec:
           {{- toYaml .Values.worker.resources | nindent 10 }}
       volumes:
       {{- include "wrapper.volumes" . | nindent 6 }}
+{{- end }}

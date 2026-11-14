@@ -1,3 +1,4 @@
+{{- if not (include "wrapper.standalone" .) }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -94,3 +95,4 @@ spec:
   - name: redis
     port: 6379
     targetPort: redis
+{{- end }}

@@ -105,6 +105,44 @@
     },
     "odoo": {"type": "object", "properties": {"enabled": {"type": "boolean", "description": "Reserved for a later version; must stay false"}}},
     "draftAgent": {"type": "object", "properties": {"enabled": {"type": "boolean", "description": "Reserved for a later version; must stay false"}}},
+    "agent": {
+      "type": "object",
+      "title": "A2A agent of the bot and the panel",
+      "properties": {
+        "url": {"type": "string", "title": "Agent address", "description": "JSON-RPC address of the A2A agent", "pattern": "^(https?://.*)?$"},
+        "timeoutSeconds": {"type": "integer", "minimum": 10},
+        "auth": {
+          "type": "object",
+          "properties": {
+            "type": {"type": "string", "enum": ["none", "serviceAccountToken", "clientAssertion"], "title": "Credential"},
+            "audience": {"type": "string"},
+            "tokenUrl": {"type": "string"},
+            "clientId": {"type": "string"},
+            "scope": {"type": "string"}
+          }
+        }
+      }
+    },
+    "agentBot": {
+      "type": "object",
+      "title": "Agent Bot",
+      "properties": {
+        "enabled": {"type": "boolean", "description": "Answer customers through the agent until a person takes over"},
+        "name": {"type": "string"},
+        "inboxes": {"type": "array", "items": {"type": "string"}, "description": "Inbox names; * is every inbox"},
+        "instructions": {"type": "string"},
+        "handoff": {"type": "object", "properties": {"keywords": {"type": "array", "items": {"type": "string"}}, "marker": {"type": "string"}, "message": {"type": "string"}}},
+        "failureMessage": {"type": "string"}
+      }
+    },
+    "copilotPanel": {
+      "type": "object",
+      "title": "Agent panel",
+      "properties": {
+        "enabled": {"type": "boolean", "description": "A sidebar panel where staff ask the agent; needs sso.enabled"},
+        "title": {"type": "string"}
+      }
+    },
     "secrets": {
       "type": "object",
       "properties": {
@@ -114,7 +152,9 @@
         "superAdminPassword": {"type": "string"},
         "platformToken": {"type": "string"},
         "oauthClientSecret": {"type": "string"},
-        "oauthCookieSecret": {"type": "string", "description": "16, 24 or 32 characters", "pattern": "^(.{16}|.{24}|.{32})?$"}
+        "oauthCookieSecret": {"type": "string", "description": "16, 24 or 32 characters", "pattern": "^(.{16}|.{24}|.{32})?$"},
+        "agentBotToken": {"type": "string", "description": "Leave empty to generate one; at least 32 characters"},
+        "agentBotWebhookSecret": {"type": "string", "description": "Leave empty to generate one; at least 32 characters"}
       }
     }
   }

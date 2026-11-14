@@ -52,6 +52,14 @@ a super admin.
 | `networkPolicy.webIngressFrom` | empty | Further peers that may reach Chatwoot web on port 3000. |
 | `secrets.type` | `kubernetes` | `externalSecret` reads the secrets from a secret store. |
 | `extraEnv` | empty | Further Chatwoot settings, for example the `SMTP_*` variables. |
+| `agent.url` | empty | JSON-RPC address of the A2A agent of the bot and the panel; required with either. |
+| `agent.auth.type` | `none` | `serviceAccountToken`: a token of ServiceAccount `chatwoot-agent-bridge` for `agent.auth.audience`. `clientAssertion`: that token as client assertion at `agent.auth.tokenUrl` for `agent.auth.clientId`. |
+| `agentBot.enabled` | `false` | An Agent Bot answers customers through the agent until a person takes over. |
+| `agentBot.inboxes` | empty | Inbox names the bot answers in; `*` is every inbox. |
+| `agentBot.handoff.keywords` | `human`, `person`, `agent`, `staff` | A customer message that is exactly one of these hands the conversation to a person. |
+| `copilotPanel.enabled` | `false` | A panel in the conversation sidebar where staff ask the agent; needs `sso.enabled`. |
+| `agentBridge.remoteUrl` | empty | https address of a standalone bridge elsewhere. Empty: the bridge runs in this release. |
+| `agentBridge.standalone.enabled` | `false` | A release of the bridge alone, next to the agent; needs `standalone.chatwootUrl`, and for the panel `standalone.staff.issuerUrl` and `standalone.staff.clientIds`. |
 
 ### Single sign-on
 
@@ -102,6 +110,87 @@ an identity header.
 Chatwoot sends no mail unless `extraEnv` sets `SMTP_ADDRESS` and the other `SMTP_*`
 variables. Without them password reset and notification mails are switched off.
 
+### Agent Bot
+
+With `agentBot.enabled` an A2A agent answers customers. The prepare Job creates the Agent
+Bot `agentBot.name` on every install and upgrade, with the access token and webhook secret
+of Secret `chatwoot-agent-bot` (only the Job and the bridge mount it), and connects it to
+exactly the inboxes of `agentBot.inboxes`; an inbox created later is connected on the next
+upgrade. A conversation in such an inbox starts as pending, held by the bot:
+
+```mermaid
+flowchart LR
+    C["customer message"] --> W["Chatwoot worker<br/>signed webhook"]
+    W --> B["chatwoot-agent-bridge"]
+    B -->|"A2A message/send<br/>one context per conversation"| A["agent.url"]
+    A --> B
+    B -->|"answer"| C2["outgoing message"]
+    B -->|"keyword, HANDOFF or failure"| O["conversation open:<br/>staff take over"]
+```
+
+- The bridge refuses a webhook without a valid `X-Chatwoot-Signature`, and only the worker
+  pods reach it.
+- The first message of a conversation carries `agentBot.instructions`; the A2A context id is
+  kept in the conversation's custom attribute `a2a_context_id`, so later messages continue it.
+- Chatwoot refuses webhooks to private addresses. The chart initializer of web and worker
+  allows a private address for the bridge Service alone.
+- Once a conversation is open the bot stays silent in it, until staff set it back to
+  pending.
+
+### Agent panel
+
+With `copilotPanel.enabled` the Job registers a Dashboard App `copilotPanel.title` at
+`https://<hostname>/agent-panel/`: a tab next to every conversation. Staff choose
+**Summarise**, **Suggest reply** or ask a free question; the agent gets the conversation's
+messages, private notes marked as such, and the staff member's address. A suggested reply
+goes into the reply box (or the clipboard) for staff to edit and send; nothing the panel
+returns is sent to the customer. The panel runs in the oauth2-proxy pod on 127.0.0.1, so
+it is reachable only after the staff login.
+
+### Bridge next to the agent
+
+When the agent trusts identities of its own cluster only, the bridge runs there, in a
+release of this chart with `agentBridge.standalone.enabled` (no Chatwoot, only the bridge
+and a Route), and the Chatwoot release names that Route in `agentBridge.remoteUrl`:
+
+```mermaid
+flowchart LR
+    subgraph c["Chatwoot cluster"]
+        W["worker"]
+        G["oauth2-proxy + panel"]
+        R["Chatwoot Route"]
+    end
+    subgraph a["agent cluster"]
+        B["chatwoot-agent-bridge<br/>standalone release"]
+        A["agent"]
+    end
+    W -->|"signed webhook"| B
+    G -->|"panel request<br/>staff access token"| B
+    B -->|"ServiceAccount token"| A
+    B -->|"bot answer, bot access token"| R
+```
+
+| Path | Checked by |
+|---|---|
+| Webhook, Chatwoot to bridge | the webhook secret (`X-Chatwoot-Signature`), the same vault item in both releases |
+| Panel request, Chatwoot to bridge | the staff member's own access token, passed by oauth2-proxy: signature, issuer, client (`staff.clientIds`, the `azp` claim) and group (`staff.allowedGroups`) |
+| Bridge to agent | `agent.auth` of the standalone release |
+| Bridge to Chatwoot | the bot's access token; the Chatwoot release lets `POST` to a conversation's `messages`, `toggle_status` and `custom_attributes` pass oauth2-proxy without a login, and Chatwoot checks the token |
+
+Those three `POST` paths then accept any Chatwoot access token without the staff login, a
+user's as well as the bot's. The bot's access token and webhook secret are in both
+releases (`secrets.externalSecret.items` naming the same vault items).
+
+### Agent credentials
+
+| `agent.auth.type` | The agent receives |
+|---|---|
+| `none` | no credential: an agent inside the project, or one behind its own network rules |
+| `serviceAccountToken` | a token of ServiceAccount `chatwoot-agent-bridge` for `agent.auth.audience`, renewed by the kubelet |
+| `clientAssertion` | an access token of `agent.auth.tokenUrl`, for which that ServiceAccount token is the client assertion (RFC 7523) of client `agent.auth.clientId` |
+
+No credential of the agent is stored in the project.
+
 ### Interfaces for integrations
 
 Service `chatwoot-web` port 3000 serves the Chatwoot API (`/api/v1/accounts/...` with a
@@ -138,6 +227,8 @@ bucket.
   platform team. Chatwoot serves the files itself, so the bucket needs no public address.
 - For single sign-on, ask the platform team for the OIDC issuer and a client as described
   above, or register one at your own provider.
+- For the Agent Bot or the panel, give `agent.url` the A2A address of the agent and agree
+  with its owner how it authenticates the bridge (`agent.auth`).
 - With `secrets.type=externalSecret`, create the items named in
   `secrets.externalSecret.items` in your vault collection with the value in the password
   field, and set `secrets.externalSecret.storeName` to your store. The super admin

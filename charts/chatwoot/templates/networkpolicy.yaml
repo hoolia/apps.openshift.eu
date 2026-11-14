@@ -1,4 +1,4 @@
-{{- if .Values.networkPolicy.enabled }}
+{{- if and .Values.networkPolicy.enabled (not (include "wrapper.standalone" .)) }}
 {{- /*
 Policies add up: a platform policy that admits the namespace's own tenant stays in
 force, so these close nothing that one opens. They admit the paths between the
@@ -35,9 +35,42 @@ spec:
         matchLabels:
           policy-group.network.openshift.io/ingress: ""
     {{- end }}
+    {{- if include "wrapper.bridgeHere" . }}
+    # the agent bot posts its answers through the API
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: chatwoot-agent-bridge
+    {{- end }}
     {{- with .Values.networkPolicy.webIngressFrom }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
+{{- if include "wrapper.bridgeHere" . }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: chatwoot-agent-bridge
+  labels:
+    app: chatwoot-agent-bridge
+    app.kubernetes.io/name: chatwoot-agent-bridge
+    app.kubernetes.io/component: network
+    {{- include "chatwoot.commonLabels" $ | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: chatwoot-agent-bridge
+  policyTypes:
+  - Ingress
+  ingress:
+  # webhooks, sent by the worker; each one is also signed
+  - ports:
+    - protocol: TCP
+      port: 8080
+    from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: chatwoot-worker
+{{- end }}
 {{- if .Values.sso.enabled }}
 ---
 apiVersion: networking.k8s.io/v1
@@ -91,4 +124,30 @@ spec:
         - key: app.kubernetes.io/name
           operator: In
           values: [chatwoot-web, chatwoot-worker, chatwoot-prepare]
+{{- end }}
+{{- if and .Values.networkPolicy.enabled (include "wrapper.standalone" .) }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: chatwoot-agent-bridge
+  labels:
+    app: chatwoot-agent-bridge
+    app.kubernetes.io/name: chatwoot-agent-bridge
+    app.kubernetes.io/component: network
+    {{- include "chatwoot.commonLabels" $ | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: chatwoot-agent-bridge
+  policyTypes:
+  - Ingress
+  ingress:
+  # the router only: every webhook is signed and every panel request carries a staff token
+  - ports:
+    - protocol: TCP
+      port: 8080
+    from:
+    - namespaceSelector:
+        matchLabels:
+          policy-group.network.openshift.io/ingress: ""
 {{- end }}

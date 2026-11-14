@@ -193,6 +193,102 @@ odoo:
 draftAgent:
   enabled: false
 
+# The agent behind agentBot and copilotPanel: an A2A (Agent2Agent) server
+agent:
+  # JSON-RPC address of the agent (method message/send); required with either feature
+  url: ""
+  # seconds to wait for one answer
+  timeoutSeconds: 300
+  auth:
+    # none: no credential. serviceAccountToken: a token of ServiceAccount
+    # chatwoot-agent-bridge for auth.audience, renewed by the kubelet. clientAssertion: that
+    # token is the client assertion (RFC 7523) of a client credentials grant at
+    # auth.tokenUrl for auth.clientId, and the access token goes to the agent
+    type: none
+    # audience of the ServiceAccount token; required unless type none
+    audience: ""
+    # token endpoint of the OAuth server, with clientAssertion
+    tokenUrl: ""
+    # OAuth client of the bridge, with clientAssertion
+    clientId: ""
+    # scope of the access token, with clientAssertion; empty: the client's default
+    scope: ""
+
+# An Agent Bot that answers customers through the agent until a person takes over. The
+# prepare Job creates it and connects it to the inboxes below on every install and upgrade
+agentBot:
+  enabled: false
+  # name of the bot in Chatwoot
+  name: Assistant
+  # names of the inboxes the bot answers in; "*" is every inbox. A listed inbox is taken
+  # from any other bot; an inbox created later is connected on the next upgrade
+  inboxes: []
+  # what the agent reads before the first message of each conversation
+  instructions: >-
+    You answer a customer in a support chat. Reply with the message for the customer only,
+    in the customer's language. When a person must take over, reply with HANDOFF only.
+  handoff:
+    # a customer message that is exactly one of these (case and punctuation ignored)
+    # hands the conversation to a person
+    keywords:
+    - human
+    - person
+    - agent
+    - staff
+    # an answer of the agent that is exactly this hands the conversation to a person
+    marker: HANDOFF
+    # posted to the customer at a handoff; empty: nothing
+    message: A colleague will take over this conversation.
+  # posted to the customer when the agent does not answer; the conversation then goes to a
+  # person. Empty: nothing
+  failureMessage: Sorry, I cannot answer right now. A colleague will take over this conversation.
+
+# A panel in the conversation sidebar (Chatwoot Dashboard App) where staff ask the agent to
+# summarise the conversation, suggest a reply or answer a question. Needs sso.enabled: the
+# panel is served behind the staff login
+copilotPanel:
+  enabled: false
+  # name of the panel's tab in the conversation sidebar
+  title: Agent
+
+# the pod of the agent bot and the panel
+agentBridge:
+  # https address of a bridge outside this release, for example a standalone release next
+  # to the agent in another cluster. Chatwoot sends the bot's webhooks there, the panel
+  # forwards each request there with the staff member's own access token, and the bridge
+  # posts the bot's answers to the public address of Chatwoot. Empty: the bridge runs here
+  remoteUrl: ""
+  # a release of the bridge alone, next to the agent: no Chatwoot, only the bridge with a
+  # Route that a Chatwoot release elsewhere names in agentBridge.remoteUrl. agentBot and
+  # copilotPanel say what it serves; agent is the agent it asks
+  standalone:
+    enabled: false
+    # public https address of that Chatwoot, for the bot's answers; required
+    chatwootUrl: ""
+    route:
+      # empty: OpenShift assigns a host under the default application domain
+      hostname: ""
+      annotations:
+        cert-manager.io/issuer-kind: ClusterIssuer
+        cert-manager.io/issuer-name: letsencrypt
+    # the access tokens of staff that panel requests carry (the staff login of that Chatwoot)
+    staff:
+      # OIDC issuer of the tokens; required with copilotPanel.enabled
+      issuerUrl: ""
+      # a token's azp (the OIDC client of that Chatwoot's login) must be one of these
+      clientIds: []
+      # a token's groups must hold one of these; empty: any member of the issuer
+      allowedGroups: []
+      groupsClaim: groups
+  image: registry.access.redhat.com/ubi9/python-312-minimal:9.8-1793637445
+  resources:
+    requests:
+      cpu: 10m
+      memory: 48Mi
+    limits:
+      cpu: 500m
+      memory: 192Mi
+
 secrets:
   # kubernetes: Secrets from the values below. externalSecret: from a secret store
   type: kubernetes
@@ -208,6 +304,11 @@ secrets:
   oauthClientSecret: ""
   # cookie secret of oauth2-proxy, with sso.enabled; empty: generated
   oauthCookieSecret: ""
+  # access token of the agent bot, with agentBot.enabled; empty: generated
+  agentBotToken: ""
+  # secret Chatwoot signs the agent bot's webhooks with, with agentBot.enabled; empty:
+  # generated
+  agentBotWebhookSecret: ""
   externalSecret:
     storeKind: ClusterSecretStore
     storeName: ""
@@ -220,3 +321,5 @@ secrets:
       platform-token: chatwoot-platform-token
       client-secret: chatwoot-oidc-client
       cookie-secret: chatwoot-oauth-cookie
+      bot-token: chatwoot-agent-bot-token
+      webhook-secret: chatwoot-agent-bot-webhook

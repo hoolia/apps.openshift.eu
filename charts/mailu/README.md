@@ -71,7 +71,9 @@ Argo CD or `helm template`, cannot read the existing Secret and generates new va
 every render: set `secrets.secretKey`, `secrets.apiToken`, `secrets.roundcubeKey` and
 `secrets.initialAdminPassword` there.
 
-All pods that share the mail volume run on one node, because the volume is ReadWriteOnce.
+The pods share one mail volume. It is ReadWriteMany (`upstream.persistence.accessModes`), so
+they may run on any node: the StorageClass must support ReadWriteMany, CephFS or NFS for
+example.
 The default requests add up to about 0.5 CPU and 2.2Gi of memory.
 
 Install one release per project: the object names start with `mailu`, not with the

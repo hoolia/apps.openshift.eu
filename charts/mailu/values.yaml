@@ -212,6 +212,10 @@ upstream:
     realIpFrom: 10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
 
   persistence:
+    # ReadWriteMany: admin, dovecot, postfix, rspamd and webmail share the volume and
+    # may run on any node
+    accessModes:
+    - ReadWriteMany
     size: 20Gi
     # empty: the default StorageClass of the cluster
     storageClass: ""
@@ -251,26 +255,9 @@ upstream:
   admin:
     containerSecurityContext: *root
     extraEnvVarsCM: '{{ include "mailu.names.fullname" . }}-ports'
-    # one ReadWriteOnce volume: never two admin pods at once
+    # one SQLite database on the volume: never two admin pods at once
     updateStrategy:
       type: Recreate
-    # all pods that share the volume run on one node
-    affinity:
-      podAffinity:
-        requiredDuringSchedulingIgnoredDuringExecution:
-        - labelSelector:
-            matchLabels:
-              app.kubernetes.io/instance: '{{ .Release.Name }}'
-            matchExpressions:
-            - key: app.kubernetes.io/component
-              operator: In
-              values:
-              - admin
-              - dovecot
-              - postfix
-              - rspamd
-              - webmail
-          topologyKey: kubernetes.io/hostname
     extraEnvVars:
     - name: SUBNET
       value: '{{ .Values.subnet }}'
@@ -360,14 +347,6 @@ upstream:
             port = 9900
           }
         }
-    affinity: &followAdmin
-      podAffinity:
-        requiredDuringSchedulingIgnoredDuringExecution:
-        - labelSelector:
-            matchLabels:
-              app.kubernetes.io/component: admin
-              app.kubernetes.io/instance: '{{ .Release.Name }}'
-          topologyKey: kubernetes.io/hostname
     resources:
       requests:
         cpu: 50m
@@ -380,7 +359,6 @@ upstream:
     containerSecurityContext: *root
     updateStrategy:
       type: Recreate
-    affinity: *followAdmin
     # outlast a storage stall of the queue volume
     startupProbe:
       timeoutSeconds: 10
@@ -409,7 +387,6 @@ upstream:
 
   rspamd:
     containerSecurityContext: *root
-    affinity: *followAdmin
     # rspamd keeps its state on the mail volume; outlast a storage stall
     startupProbe:
       timeoutSeconds: 10
@@ -469,7 +446,6 @@ upstream:
     containerSecurityContext: *root
     updateStrategy:
       type: Recreate
-    affinity: *followAdmin
     resources:
       requests:
         cpu: 50m
@@ -481,7 +457,6 @@ upstream:
   # off by default; when on it shares the mail volume, so it follows admin
   fetchmail:
     containerSecurityContext: *root
-    affinity: *followAdmin
     resources:
       requests:
         cpu: 10m
