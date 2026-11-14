@@ -75,6 +75,7 @@
         "allowedGroups": {"type": "array", "items": {"type": "string", "minLength": 1}, "title": "Groups that may log in"},
         "adminGroups": {"type": "array", "items": {"type": "string"}, "title": "Groups that administer", "description": "An empty entry is ignored"},
         "emailDomains": {"type": "array", "items": {"type": "string"}},
+        "deniedEmails": {"type": "array", "items": {"type": "string", "minLength": 3}, "title": "Addresses that may not log in"},
         "extraArgs": {"type": "array", "items": {"type": "string"}},
         "session": {
           "type": "object",

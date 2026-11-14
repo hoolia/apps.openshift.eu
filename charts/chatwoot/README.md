@@ -42,6 +42,7 @@ a super admin.
 | `sso.issuerUrl` | empty | OIDC issuer; required with `sso.enabled`. |
 | `sso.clientId` | empty | OIDC client. Empty: the Route host. |
 | `sso.allowedGroups` | empty | Groups (claim `sso.groupsClaim`) that may log in. Empty: every user of the issuer. |
+| `sso.deniedEmails` | empty | Addresses that never get a Chatwoot login, such as shared accounts of the issuer. Exact address, any case. It refuses new logins only: delete an existing Chatwoot user of the address first. |
 | `sso.adminGroups` | empty | Groups whose members are account administrators, others agents. Empty: new users are agents and roles set in Chatwoot stay. |
 | `sso.session.refresh` | `5m` | oauth2-proxy checks the user's groups at the OIDC provider again this often. |
 | `sso.session.expire` | `12h` | An oauth2-proxy session ends after this. |

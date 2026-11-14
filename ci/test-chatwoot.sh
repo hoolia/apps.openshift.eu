@@ -133,6 +133,8 @@ check "given secrets" 'secret("chatwoot-credentials", "secret-key-base") == "k" 
 check "pods restart on a script change" 'all(obj("Deployment", n)["spec"]["template"]["metadata"]["annotations"]["checksum/scripts"] for n in ("chatwoot-web", "chatwoot-worker", "chatwoot-gate"))'
 OUT=$(render "${SSO[@]}" "${OBC[@]}" "${GIVEN[@]}" --set account.adminEmail=Root@Ops.Example.invalid)
 check "admin email value" 'env("chatwoot-prepare-1", "prepare")["CHATWOOT_ADMIN_EMAIL"] == "root@ops.example.invalid" and env("chatwoot-gate", "login-bridge")["RESERVED_EMAILS"] == "root@ops.example.invalid"'
+OUT=$(render "${SSO[@]}" "${OBC[@]}" "${GIVEN[@]}" --set 'sso.deniedEmails={Demo@Example.com,guest@example.com}')
+check "denied emails refused by the bridge" 'env("chatwoot-gate", "login-bridge")["RESERVED_EMAILS"] == "superadmin@chatwoot.invalid,demo@example.com,guest@example.com"'
 
 # --- secrets from a store
 OUT=$(render "${SSO[@]}" --set secrets.type=externalSecret --set secrets.externalSecret.storeName=vault)
