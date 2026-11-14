@@ -8,6 +8,10 @@
 #   that lets the first visitor become super admin never opens
 # - with CHATWOOT_PLATFORM_TOKEN: keeps the Platform App of the login bridge with exactly
 #   that token and gives it the account
+# - with CHATWOOT_AGENT_BOT_TOKEN: keeps the Agent Bot with that access token, webhook
+#   secret and URL, connected to exactly the inboxes named in CHATWOOT_AGENT_BOT_INBOXES
+# - with CHATWOOT_AGENT_PANEL_PATH: keeps the Dashboard App of the agent panel at that path
+#   of FRONTEND_URL
 # It prints no credential.
 
 conn = ActiveRecord::Base.connection
@@ -58,5 +62,49 @@ else
   # a super admin is never the bridge's to log in (the chart initializer refuses it too)
   dropped = app.platform_app_permissibles.where(permissible_type: 'User', permissible_id: SuperAdmin.select(:id)).delete_all
   puts "platform app #{app.name}: #{dropped} super admin permission(s) removed" if dropped.positive?
+end
+bot_token = ENV.fetch('CHATWOOT_AGENT_BOT_TOKEN', '')
+if bot_token.empty?
+  puts 'no agent bot token: agent bot not set up'
+else
+  secret = ENV.fetch('CHATWOOT_AGENT_BOT_WEBHOOK_SECRET')
+  abort 'agent bot token or webhook secret shorter than 32 characters' if bot_token.length < 32 || secret.length < 32
+  bot = AgentBot.find_or_initialize_by(account_id: account.id, name: ENV.fetch('CHATWOOT_AGENT_BOT_NAME'))
+  bot.outgoing_url = ENV.fetch('CHATWOOT_AGENT_BOT_URL')
+  bot.description = 'Answers customers through an A2A agent until a person takes over (set by the chart)'
+  bot.secret = secret unless bot.persisted? && ActiveSupport::SecurityUtils.secure_compare(bot.secret.to_s, secret)
+  bot.save!
+  access = bot.access_token || bot.create_access_token
+  access.reload
+  access.update!(token: bot_token) unless ActiveSupport::SecurityUtils.secure_compare(access.token.to_s, bot_token)
+  wanted = ENV.fetch('CHATWOOT_AGENT_BOT_INBOXES', '').split(',').map(&:strip).reject(&:empty?)
+  account.inboxes.order(:id).each do |inbox|
+    link = AgentBotInbox.find_by(inbox_id: inbox.id)
+    if wanted.include?('*') || wanted.include?(inbox.name)
+      link ||= AgentBotInbox.new(inbox: inbox)
+      link.agent_bot = bot
+      link.status = :active
+      link.save!
+      puts "agent bot #{bot.name}: inbox #{inbox.id} connected"
+    elsif link && link.agent_bot_id == bot.id
+      link.destroy!
+      puts "agent bot #{bot.name}: inbox #{inbox.id} disconnected"
+    end
+  end
+  missing = wanted - ['*'] - account.inboxes.pluck(:name)
+  puts "agent bot #{bot.name}: no inbox named #{missing.join(', ')}" if missing.any?
+end
+
+panel_path = ENV.fetch('CHATWOOT_AGENT_PANEL_PATH', '')
+if panel_path.empty?
+  puts 'no agent panel path: agent panel not set up'
+else
+  panel_url = ENV.fetch('FRONTEND_URL').chomp('/') + panel_path
+  title = ENV.fetch('CHATWOOT_AGENT_PANEL_TITLE')
+  app = DashboardApp.find_or_initialize_by(account_id: account.id, title: title)
+  app.user ||= account.administrators.order(:id).first
+  app.content = [{ 'type' => 'frame', 'url' => panel_url }]
+  app.save!
+  puts "dashboard app #{title}: #{panel_url}"
 end
 puts 'bootstrap done'

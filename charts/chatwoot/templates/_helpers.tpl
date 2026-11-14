@@ -19,6 +19,42 @@ identity provider can deliver to or verify, so no login of a person can match it
 {{- if or .Values.odoo.enabled .Values.draftAgent.enabled }}
 {{- fail "odoo.enabled and draftAgent.enabled are reserved for a later chart version" }}
 {{- end }}
+{{- $b := .Values.agentBridge }}
+{{- if and $b.remoteUrl (not (hasPrefix "https://" $b.remoteUrl)) }}
+{{- fail "agentBridge.remoteUrl must be an https address" }}
+{{- end }}
+{{- if and $b.remoteUrl $b.standalone.enabled }}
+{{- fail "agentBridge.remoteUrl and agentBridge.standalone.enabled exclude each other" }}
+{{- end }}
+{{- if $b.standalone.enabled }}
+{{- if not (include "wrapper.agentBridge" .) }}
+{{- fail "agentBridge.standalone.enabled needs agentBot.enabled or copilotPanel.enabled" }}
+{{- end }}
+{{- if not (hasPrefix "https://" $b.standalone.chatwootUrl) }}
+{{- fail "agentBridge.standalone.chatwootUrl, an https address, is required with agentBridge.standalone.enabled" }}
+{{- end }}
+{{- if and .Values.copilotPanel.enabled (not (and (hasPrefix "https://" $b.standalone.staff.issuerUrl) $b.standalone.staff.clientIds)) }}
+{{- fail "agentBridge.standalone.staff.issuerUrl (https) and staff.clientIds are required for the panel" }}
+{{- end }}
+{{- end }}
+{{- if include "wrapper.asksAgent" . }}
+{{- if not (regexMatch "^https?://" .Values.agent.url) }}
+{{- fail "agent.url, an http or https address, is required with agentBot.enabled or copilotPanel.enabled" }}
+{{- end }}
+{{- $auth := .Values.agent.auth }}
+{{- if not (has $auth.type (list "none" "serviceAccountToken" "clientAssertion")) }}
+{{- fail "agent.auth.type is none, serviceAccountToken or clientAssertion" }}
+{{- end }}
+{{- if and (ne $auth.type "none") (not $auth.audience) }}
+{{- fail "agent.auth.audience is required unless agent.auth.type is none" }}
+{{- end }}
+{{- if and (eq $auth.type "clientAssertion") (not (and $auth.tokenUrl $auth.clientId)) }}
+{{- fail "agent.auth.tokenUrl and agent.auth.clientId are required with agent.auth.type clientAssertion" }}
+{{- end }}
+{{- end }}
+{{- if and .Values.copilotPanel.enabled (not .Values.sso.enabled) (not $b.standalone.enabled) }}
+{{- fail "copilotPanel.enabled needs sso.enabled: the panel is served behind the staff login" }}
+{{- end }}
 {{- if not (has .Values.attachments.storage (list "volume" "objectBucketClaim")) }}
 {{- fail "attachments.storage is volume or objectBucketClaim" }}
 {{- end }}
@@ -40,6 +76,82 @@ identity provider can deliver to or verify, so no login of a person can match it
 {{- fail "sso.session.chatwootHours must be a whole number of hours from 25 to 720: below 25 the dashboard session cookie expires at once and every login loops" }}
 {{- end }}
 {{- end -}}
+
+{{/* Non-empty when the bot or the panel is on. */}}
+{{- define "wrapper.agentBridge" -}}
+{{- if or .Values.agentBot.enabled .Values.copilotPanel.enabled }}true{{ end }}
+{{- end -}}
+
+{{/* Non-empty for a release of the bridge alone. */}}
+{{- define "wrapper.standalone" -}}
+{{- if .Values.agentBridge.standalone.enabled }}true{{ end }}
+{{- end -}}
+
+{{/* Non-empty when this release asks the agent itself (not through a remote bridge). */}}
+{{- define "wrapper.asksAgent" -}}
+{{- if and (include "wrapper.agentBridge" .) (or .Values.agentBridge.standalone.enabled (not .Values.agentBridge.remoteUrl)) }}true{{ end }}
+{{- end -}}
+
+{{/* Non-empty when the bot's bridge Deployment is part of this release. */}}
+{{- define "wrapper.bridgeHere" -}}
+{{- if and .Values.agentBot.enabled (or .Values.agentBridge.standalone.enabled (not .Values.agentBridge.remoteUrl)) }}true{{ end }}
+{{- end -}}
+
+{{/* Address of the bridge's webhook port that Chatwoot calls. */}}
+{{- define "wrapper.agentBotUrl" -}}
+{{- if .Values.agentBridge.remoteUrl -}}
+{{ trimSuffix "/" .Values.agentBridge.remoteUrl }}/
+{{- else -}}
+http://chatwoot-agent-bridge:8080/
+{{- end -}}
+{{- end -}}
+
+{{/* Environment of a container that asks the agent (agent_bot.py). */}}
+{{- define "wrapper.agentEnv" -}}
+{{- $a := .Values.agent }}
+- name: A2A_URL
+  value: {{ $a.url | quote }}
+- name: A2A_TIMEOUT
+  value: {{ $a.timeoutSeconds | quote }}
+- name: A2A_AUTH
+  value: {{ $a.auth.type | quote }}
+{{- if ne $a.auth.type "none" }}
+- name: A2A_TOKEN_FILE
+  value: /var/run/secrets/agent/token
+{{- end }}
+{{- if eq $a.auth.type "clientAssertion" }}
+- name: A2A_TOKEN_URL
+  value: {{ $a.auth.tokenUrl | quote }}
+- name: A2A_CLIENT_ID
+  value: {{ $a.auth.clientId | quote }}
+- name: A2A_SCOPE
+  value: {{ $a.auth.scope | quote }}
+{{- end }}
+- name: PYTHONUNBUFFERED
+  value: "1"
+{{- end }}
+
+{{/* The ServiceAccount token the agent gets, renewed by the kubelet. */}}
+{{- define "wrapper.agentTokenVolume" -}}
+{{- if ne .Values.agent.auth.type "none" }}
+- name: agent-token
+  projected:
+    defaultMode: 0440
+    sources:
+    - serviceAccountToken:
+        audience: {{ .Values.agent.auth.audience | quote }}
+        expirationSeconds: 3600
+        path: token
+{{- end }}
+{{- end }}
+
+{{- define "wrapper.agentTokenMount" -}}
+{{- if ne .Values.agent.auth.type "none" }}
+- name: agent-token
+  mountPath: /var/run/secrets/agent
+  readOnly: true
+{{- end }}
+{{- end }}
 
 {{- define "wrapper.restricted" -}}
 allowPrivilegeEscalation: false
@@ -172,6 +284,11 @@ serviceAccountName: chatwoot-route
 - name: ACTIVE_STORAGE_SERVICE
   value: local
 {{- end }}
+{{- if and .Values.agentBot.enabled (not .Values.agentBridge.remoteUrl) }}
+# the chart initializer lets webhooks to this address alone reach a private address
+- name: CHART_AGENT_BOT_URL
+  value: {{ include "wrapper.agentBotUrl" . }}
+{{- end }}
 {{- with .Values.extraEnv }}
 {{ toYaml . }}
 {{- end }}
@@ -275,6 +392,10 @@ skip-auth-route rules (METHOD=regex). Everything else needs a login.
 {{- end -}}
 {{- if $p.helpCenter -}}
 {{- $r = append $r "GET=^/hc/" -}}
+{{- end -}}
+{{- if and .Values.agentBot.enabled .Values.agentBridge.remoteUrl -}}
+{{- /* a remote bridge posts the bot's answers with the bot's access token */ -}}
+{{- $r = append $r "POST=^/api/v1/accounts/[0-9]+/conversations/[0-9]+/(messages|toggle_status|custom_attributes)$" -}}
 {{- end -}}
 {{- toJson $r -}}
 {{- end }}

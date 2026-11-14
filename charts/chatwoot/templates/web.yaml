@@ -1,3 +1,4 @@
+{{- if not (include "wrapper.standalone" .) }}
 {{- $volume := eq .Values.attachments.storage "volume" }}
 apiVersion: apps/v1
 kind: Deployment
@@ -103,3 +104,4 @@ spec:
   - name: http
     port: 3000
     targetPort: http
+{{- end }}
