@@ -87,4 +87,4 @@ Upstream's controller Roles `kagent-writer-role` and `kagent-getter-role` carry 
 - Team projects are served when the platform assigns them: it writes the controller's watch list and binds the controller in each of them. Without that, the controller serves the release namespace only.
 - The default `ModelConfig` reconciles once its API key Secret exists.
 - Do not add a NetworkPolicy that admits the router to the UI: only the login Route may reach it.
-- From 0.4.0 the chart runs upstream kagent 0.10.4: the CRDs of the platform's kagent-operator must be 0.10.4 before the upgrade.
+- The chart runs upstream kagent 0.10.6: the CRDs of the platform's kagent-operator must be 0.10.4 or later.
