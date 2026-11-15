@@ -111,6 +111,15 @@ spec:
     - namespaceSelector:
         matchLabels:
           policy-group.network.openshift.io/ingress: ""
+  {{- if .Values.monitoring.enabled }}
+  # /metrics; a webhook from there still needs its signature
+  - ports:
+    - protocol: TCP
+      port: 8080
+    from:
+    - namespaceSelector:
+        matchLabels: {{- toYaml .Values.monitoring.namespaceLabels | nindent 10 }}
+  {{- end }}
 {{- end }}
 {{- if .Values.sso.enabled }}
 ---

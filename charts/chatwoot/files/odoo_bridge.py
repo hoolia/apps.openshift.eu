@@ -15,9 +15,13 @@ Odoo record with message_post, so Odoo mails the customer, with x_chatwoot_messa
 a resolved conversation moves its ticket to the solved stage. Private notes, bot messages
 and the bridge's own incoming messages are never mirrored.
 
-Every event is handled within the caller's timeout and answered 200 only once it is done.
-Odoo's outbox retries anything else, and every write is keyed on its source id, so a
-redelivered event changes nothing. Standard library only; prints no credential.
+An Odoo event is answered 200 only once it is done, 503 while it still runs and 502 on an
+error: Odoo's outbox retries it. Chatwoot never retries a webhook and marks a message failed
+on any other answer, so a valid webhook is answered 200 at once and retried here, with
+backoff, for about 40 minutes; when that fails too, staff get a private note. Every write is
+keyed on its source id, so a redelivered event or a retry changes nothing. A reply acts only
+on a record whose x_chatwoot_url names its conversation. Standard library only; prints no
+credential.
 """
 import hashlib
 import hmac
@@ -43,6 +47,10 @@ MAX_BODY = 1 << 20
 SIGNATURE_AGE = 300
 MAX_CONTENT = 150000
 MESSAGE_PAGES = 10
+WEBHOOK_RETRIES = (5, 30, 120, 600, 1800)
+MAX_PENDING = 500
+MAX_REQUESTS = 32
+INBOX_CACHE_SECONDS = 300
 ODOO_SOURCE = "odoo:mail.message:"
 CONVERSATION_PATH = re.compile(r"/conversations/(\d+)/?$")
 MODELS = {
@@ -50,11 +58,13 @@ MODELS = {
         "fields": ["name", "partner_id", "partner_email", "partner_name", "stage_id", "team_id", "x_chatwoot_url"],
         "email": "partner_email",
         "contact": "partner_name",
+        "name": "partner_name",
     },
     "crm.lead": {
         "fields": ["name", "partner_id", "email_from", "contact_name", "partner_name", "x_chatwoot_url"],
         "email": "email_from",
         "contact": "contact_name",
+        "name": "contact_name",
     },
 }
 
@@ -79,9 +89,10 @@ class Config:
         self.solved_stage = env.get("SOLVED_STAGE", "Solved")
         self.webhook_port = int(env.get("WEBHOOK_PORT", "8080"))
         self.event_port = int(env.get("EVENT_PORT", "8081"))
-        # Odoo reads for 3 s, Chatwoot for 5 s: answer before they give up
+        # Odoo reads for 3 s: answer before it gives up
         self.event_deadline = float(env.get("EVENT_DEADLINE", "2.5"))
-        self.webhook_deadline = float(env.get("WEBHOOK_DEADLINE", "4"))
+        self.webhook_retries = tuple(float(x) for x in env.get("WEBHOOK_RETRIES", "").split(",") if x.strip()) \
+            or WEBHOOK_RETRIES
         if not self.public_url.startswith("https://"):
             raise ValueError("PUBLIC_URL must be an https address")
         if not self.odoo_url.startswith("https://") and not env.get("ODOO_ALLOW_HTTP"):
@@ -184,7 +195,16 @@ def clip(text):
 
 
 class Gone(Exception):
-    """The Odoo record or Chatwoot object no longer exists: nothing left to do."""
+    """The Odoo record no longer exists (MissingError): nothing left to do."""
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    # urllib would resend the Authorization header to wherever a redirect points
+    def redirect_request(self, *args, **kwargs):
+        return None
+
+
+OPENER = urllib.request.build_opener(_NoRedirect)
 
 
 class HttpError(Exception):
@@ -202,7 +222,7 @@ def http_json(method, url, body=None, headers=None, timeout=10):
     hdrs.update(headers or {})
     req = urllib.request.Request(url, data=data, headers=hdrs, method=method)
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        with OPENER.open(req, timeout=timeout) as resp:
             raw = resp.read()
     except urllib.error.HTTPError as e:
         name = ""
@@ -251,20 +271,17 @@ class Chatwoot:
     def __init__(self, cfg):
         self.cfg = cfg
         self._inboxes = {}
+        self._inboxes_at = 0.0
 
     def api(self, method, path, body=None):
+        # a 404 stays an error: a wrong account or a missing right must not end Odoo's retries
         url = f"{self.cfg.chatwoot_url}/api/v1/accounts/{self.cfg.account_id}{path}"
-        try:
-            return http_json(method, url, body, {"api_access_token": read_file(self.cfg.token_file)})
-        except HttpError as e:
-            if e.status == 404:
-                raise Gone(f"chatwoot {path}") from None
-            raise
+        return http_json(method, url, body, {"api_access_token": read_file(self.cfg.token_file)})
 
     def inbox_id(self, name):
-        if name not in self._inboxes:
-            for inbox in (self.api("GET", "/inboxes") or {}).get("payload", []):
-                self._inboxes[inbox["name"]] = inbox["id"]
+        if name not in self._inboxes or time.monotonic() - self._inboxes_at > INBOX_CACHE_SECONDS:
+            self._inboxes = {i["name"]: i["id"] for i in (self.api("GET", "/inboxes") or {}).get("payload", [])}
+            self._inboxes_at = time.monotonic()
         if name not in self._inboxes:
             raise RuntimeError(f"no Chatwoot inbox named {name!r}")
         return self._inboxes[name]
@@ -294,7 +311,13 @@ class Chatwoot:
         return (self.api("GET", f"/contacts/{contact_id}/conversations") or {}).get("payload", [])
 
     def conversation(self, cid):
-        return self.api("GET", f"/conversations/{cid}")
+        """The conversation, or None when it was deleted."""
+        try:
+            return self.api("GET", f"/conversations/{cid}")
+        except HttpError as e:
+            if e.status == 404:
+                return None
+            raise
 
     def create_conversation(self, inbox_id, contact_id, custom, additional):
         return self.api("POST", "/conversations", {
@@ -351,13 +374,21 @@ class Bridge:
         self.odoo = odoo or Odoo(cfg)
         self.chatwoot = chatwoot or Chatwoot(cfg)
         self.metrics = Metrics()
-        self._locks = {}
-        self._locks_lock = threading.Lock()
+        # striped: bounded memory, and re-entrant for a lock taken twice on one path
+        self._locks = [threading.RLock() for _ in range(64)]
         self.pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="work")
+        self.retries = cfg.webhook_retries
+        self._pending = 0
+        self._pending_lock = threading.Lock()
+        self._timers = set()
 
     def lock(self, ref):
-        with self._locks_lock:
-            return self._locks.setdefault(ref, threading.Lock())
+        return self._locks[int(hashlib.sha256(ref.encode()).hexdigest(), 16) % len(self._locks)]
+
+    def message_key(self, mid):
+        """x_chatwoot_message_id of a Chatwoot message: unique across instances and accounts."""
+        host = urllib.parse.urlsplit(self.cfg.public_url).hostname
+        return f"{host}/{self.cfg.account_id}/{mid}"
 
     def conversation_url(self, cid):
         return f"{self.cfg.public_url}/app/accounts/{self.cfg.account_id}/conversations/{cid}"
@@ -397,7 +428,8 @@ class Bridge:
             spec = MODELS[model]
             email = (record.get(spec["email"]) or "").strip() or None
             partner = record.get("partner_id")
-            identifier = f"odoo:res.partner:{partner[0]}" if partner else None
+            # without a partner the record itself names the contact, so a retry finds it again
+            identifier = f"odoo:res.partner:{partner[0]}" if partner else f"odoo:{model}:{rid}"
             contact = self.chatwoot.find_contact(email, identifier)
             if contact:
                 for conv in self.chatwoot.contact_conversations(contact["id"]):
@@ -423,11 +455,8 @@ class Bridge:
         match = CONVERSATION_PATH.search(record.get("x_chatwoot_url") or "")
         if not match:
             return None
-        try:
-            conv = self.chatwoot.conversation(int(match.group(1)))
-        except Gone:
-            return None
-        if (conv.get("custom_attributes") or {}).get("odoo_ref") != ref:
+        conv = self.chatwoot.conversation(int(match.group(1)))
+        if not conv or (conv.get("custom_attributes") or {}).get("odoo_ref") != ref:
             return None
         return conv["id"]
 
@@ -435,6 +464,11 @@ class Bridge:
         self.odoo.call(model, "write", ids=[rid], vals={"x_chatwoot_url": self.conversation_url(cid)})
 
     def mirror_mail(self, model, rid, mid):
+        # under the record's lock: Chatwoot has no unique source id, the check below is the dedupe
+        with self.lock(f"{model}:{rid}"):
+            self._mirror_mail(model, rid, mid)
+
+    def _mirror_mail(self, model, rid, mid):
         cid = self.ensure_conversation(model, rid)
         source = f"{ODOO_SOURCE}{mid}"
         msg = self.odoo.read("mail.message", mid, ["body", "email_from", "model", "res_id", "attachment_ids", "subject"])
@@ -455,14 +489,15 @@ class Bridge:
         self.metrics.inc("messages_mirrored", direction="odoo_to_chatwoot")
 
     def _contact_email(self, cid):
-        conv = self.chatwoot.conversation(cid)
+        conv = self.chatwoot.conversation(cid) or {}
         return (((conv.get("meta") or {}).get("sender") or {}).get("email") or "").strip()
 
     def close_conversation(self, model, rid):
         cid = self.ensure_conversation(model, rid, create=False)
         if not cid:
             return
-        if self.chatwoot.conversation(cid).get("status") != "resolved":
+        conv = self.chatwoot.conversation(cid)
+        if conv and conv.get("status") != "resolved":
             self.chatwoot.resolve(cid)
             LOG.info("%s:%s closed in Odoo; conversation %s resolved", model, rid, cid)
 
@@ -478,6 +513,8 @@ class Bridge:
 
     def _bridged(self, conv):
         """(model, id) of a conversation in one of the bridge's inboxes, else None."""
+        if not conv:
+            return None
         ref = (conv.get("custom_attributes") or {}).get("odoo_ref") or ""
         model, _, rid = ref.partition(":")
         if model not in MODELS or not rid.isdigit() or not self.cfg.inboxes.get(model):
@@ -485,6 +522,29 @@ class Bridge:
         if conv.get("inbox_id") != self.chatwoot.inbox_id(self.cfg.inboxes[model]):
             return None
         return model, int(rid)
+
+    def _record_of(self, conv, target, fields):
+        """The record, when its x_chatwoot_url names this conversation; staff can edit odoo_ref."""
+        model, rid = target
+        record = self.odoo.read(model, rid, ["x_chatwoot_url", *fields])
+        match = CONVERSATION_PATH.search(record.get("x_chatwoot_url") or "")
+        if not match or int(match.group(1)) != conv["id"]:
+            LOG.warning("conversation %s names %s:%s, which links another conversation; not acted on",
+                        conv["id"], model, rid)
+            return None
+        return record
+
+    def _customer(self, model, record):
+        """res.partner id the reply is mailed to: the record's partner, or one for its address."""
+        if record.get("partner_id"):
+            return record["partner_id"][0]
+        spec = MODELS[model]
+        email = (record.get(spec["email"]) or "").strip()
+        if not email:
+            return None
+        name = (record.get(spec["name"]) or "").strip().replace('"', "")
+        found = self.odoo.call("res.partner", "find_or_create", email=f'"{name}" <{email}>' if name else email)
+        return found[0] if isinstance(found, list) else found
 
     def reply(self, payload):
         if payload.get("message_type") != "outgoing" or payload.get("private"):
@@ -509,10 +569,19 @@ class Bridge:
             return "ignored"
         sender = hooked
         model, rid = target
+        spec = MODELS[model]
+        key = self.message_key(mid)
         with self.lock(f"chatwoot:{mid}"):
-            if self.odoo.search_read("mail.message", [["x_chatwoot_message_id", "=", str(mid)]], ["id"]):
+            if self.odoo.search_read("mail.message", [["x_chatwoot_message_id", "=", key]], ["id"]):
                 return "done"
-            record = self.odoo.read(model, rid, ["partner_id"])
+            record = self._record_of(conv, target, ["partner_id", spec["email"], spec["name"]])
+            if not record:
+                return "ignored"
+            customer = self._customer(model, record)
+            if not customer:
+                self.chatwoot.create_message(cid, "This reply was not sent: the Odoo record has no customer address. "
+                                             + self.odoo.url(model, rid), "outgoing", private=True)
+                return "ignored"
             kwargs = {
                 "ids": [rid],
                 "body": text_to_html(msg.get("content") or ""),
@@ -520,10 +589,9 @@ class Bridge:
                 "body_is_html": True,
                 "message_type": "comment",
                 "subtype_xmlid": "mail.mt_comment",
-                "x_chatwoot_message_id": str(mid),
+                "x_chatwoot_message_id": key,
+                "partner_ids": [customer],
             }
-            if record.get("partner_id"):
-                kwargs["partner_ids"] = [record["partner_id"][0]]
             author = self._staff_partner(sender.get("email"))
             if author:
                 kwargs["author_id"] = author
@@ -540,7 +608,9 @@ class Bridge:
         """The res.partner of the Odoo user with this login or email, or None."""
         if not email:
             return None
-        for domain in ([["login", "=ilike", email]], [["email", "=ilike", email]]):
+        # =ilike is a LIKE: an address with _ or % would match other users
+        exact = email.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        for domain in ([["login", "=ilike", exact]], [["email", "=ilike", exact]]):
             users = self.odoo.search_read("res.users", domain, ["partner_id"])
             if users and users[0].get("partner_id"):
                 return users[0]["partner_id"][0]
@@ -554,7 +624,9 @@ class Bridge:
         if not target or target[0] != "helpdesk.ticket" or conv.get("status") != "resolved":
             return "ignored"
         rid = target[1]
-        ticket = self.odoo.read("helpdesk.ticket", rid, ["stage_id", "team_id"])
+        ticket = self._record_of(conv, target, ["stage_id", "team_id"])
+        if not ticket:
+            return "ignored"
         if ticket.get("stage_id"):
             stage = self.odoo.read("helpdesk.stage", ticket["stage_id"][0], ["fold"])
             if stage.get("fold"):
@@ -585,6 +657,64 @@ class Bridge:
             return 502, type(result).__name__
         return 200, result
 
+    def accept_webhook(self, payload):
+        """Queue a verified webhook; False when the queue is full."""
+        with self._pending_lock:
+            if self._pending >= MAX_PENDING:
+                return False
+            self._pending += 1
+        self.pool.submit(self._attempt, payload, 0)
+        return True
+
+    def _attempt(self, payload, attempt):
+        result = self._guarded("webhooks", self.handle_webhook, payload)
+        if not isinstance(result, Exception):
+            self._done()
+            return
+        if attempt < len(self.retries):
+            timer = threading.Timer(self.retries[attempt], self._retry, (payload, attempt + 1))
+            timer.daemon = True
+            with self._pending_lock:
+                self._timers.add(timer)
+            timer.start()
+            return
+        self._done()
+        self.metrics.inc("webhooks", result="given_up")
+        LOG.error("webhook %s for conversation %s given up after %d attempts", payload.get("event"),
+                  (payload.get("conversation") or {}).get("id") or payload.get("id"), attempt + 1)
+        self._tell_staff(payload)
+
+    def _retry(self, payload, attempt):
+        with self._pending_lock:
+            self._timers = {t for t in self._timers if t.is_alive() and t is not threading.current_thread()}
+        self.pool.submit(self._attempt, payload, attempt)
+
+    def _done(self):
+        with self._pending_lock:
+            self._pending -= 1
+
+    def _tell_staff(self, payload):
+        if payload.get("event") != "message_created":
+            return
+        cid = (payload.get("conversation") or {}).get("id")
+        try:
+            self.chatwoot.create_message(cid, "This reply did not reach Odoo and was not sent to the customer. "
+                                         "Send it again, or answer in Odoo.", "outgoing", private=True)
+        except Exception as e:  # noqa: BLE001
+            LOG.error("conversation %s: no note about the lost reply either: %s", cid, type(e).__name__)
+
+    def pending(self):
+        with self._pending_lock:
+            return self._pending
+
+    def stop(self):
+        """Stop the retry timers; returns how many webhooks were still waiting."""
+        with self._pending_lock:
+            timers, self._timers = self._timers, set()
+        for timer in timers:
+            timer.cancel()
+        return len(timers)
+
     def _guarded(self, kind, func, arg):
         try:
             result = func(arg)
@@ -605,10 +735,13 @@ class Bridge:
 
 def make_handler(bridge, port_kind):
     cfg = bridge.cfg
+    busy = threading.BoundedSemaphore(MAX_REQUESTS)
 
     class Handler(http.server.BaseHTTPRequestHandler):
         server_version = "odoo-bridge"
         sys_version = ""
+        # the event port is public: a slow client gives up its thread
+        timeout = 15
 
         def log_message(self, *args):
             pass
@@ -625,7 +758,8 @@ def make_handler(bridge, port_kind):
             if self.path == "/healthz":
                 return self._send(200, "ok")
             if self.path == "/metrics" and port_kind == "webhook":
-                return self._send(200, bridge.metrics.render().rstrip("\n"))
+                gauge = f"chatwoot_odoo_bridge_webhooks_pending {bridge.pending()}"
+                return self._send(200, bridge.metrics.render() + gauge)
             self._send(404, "not found")
 
         def _body(self):
@@ -638,6 +772,14 @@ def make_handler(bridge, port_kind):
             return self.rfile.read(length)
 
         def do_POST(self):
+            if not busy.acquire(blocking=False):
+                return self._send(503, "busy")
+            try:
+                self._post()
+            finally:
+                busy.release()
+
+        def _post(self):
             expected = "/odoo/events" if port_kind == "event" else "/chatwoot/webhook"
             if self.path != expected:
                 return self._send(404, "not found")
@@ -661,8 +803,10 @@ def make_handler(bridge, port_kind):
                 return self._send(400, "bad json")
             if port_kind == "event":
                 status, text = bridge.run("events", bridge.handle_event, payload, cfg.event_deadline)
+            elif bridge.accept_webhook(payload):
+                status, text = 200, "accepted"
             else:
-                status, text = bridge.run("webhooks", bridge.handle_webhook, payload, cfg.webhook_deadline)
+                status, text = 503, "queue full"
             self._send(status, text)
 
     return Handler
@@ -689,6 +833,9 @@ def main():
     stop.wait()
     for server in servers:
         server.shutdown()
+    waiting = bridge.stop()
+    if waiting:
+        LOG.error("%d webhook(s) waiting for a retry are dropped: the replies were not sent", waiting)
     # let running events finish: an unfinished one is retried by its sender
     bridge.pool.shutdown(wait=True, cancel_futures=True)
 

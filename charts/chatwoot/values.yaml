@@ -185,10 +185,7 @@ networkPolicy:
   # example an integration in another namespace
   webIngressFrom: []
 
-# The Odoo bridge: Odoo tickets and leads as conversations in Chatwoot API inboxes. Odoo
-# (its helpdesk bridge module) owns every record and mail and posts signed events to
-# https://<route.hostname>/odoo/events; a staff reply in Chatwoot is posted on the Odoo
-# record, and Odoo mails it. Needs route.hostname
+# Odoo tickets and leads as conversations; staff replies go back to Odoo. See the README
 odoo:
   enabled: false
   # https address of Odoo; required
@@ -211,6 +208,16 @@ odoo:
       limits:
         cpu: 500m
         memory: 192Mi
+
+# metrics of the Odoo bridge for the namespace's monitoring
+monitoring:
+  # a ServiceMonitor, and the scraping namespaces may reach the bridge's metrics port
+  enabled: false
+  # alert rules next to the ServiceMonitor; false where the platform alerts centrally
+  alerts: true
+  # label of the namespaces that may scrape
+  namespaceLabels:
+    network.openshift.io/policy-group: monitoring
 
 # AI drafts as private notes: not part of this version, must stay false
 draftAgent:

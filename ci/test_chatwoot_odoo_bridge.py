@@ -32,6 +32,20 @@ INBOX_SECRET = "inbox-" + "i" * 42
 SUPPORT, SALES, WEBSITE = 1, 2, 3
 
 
+def like(value, pattern):
+    """SQL ILIKE with backslash escapes, as PostgreSQL runs Odoo's =ilike."""
+    rx, i = "", 0
+    while i < len(pattern):
+        c = pattern[i]
+        if c == "\\" and i + 1 < len(pattern):
+            rx += re.escape(pattern[i + 1])
+            i += 2
+            continue
+        rx += ".*" if c == "%" else "." if c == "_" else re.escape(c)
+        i += 1
+    return re.fullmatch(rx, value or "", re.IGNORECASE | re.DOTALL) is not None
+
+
 def match(row, domain):
     for field, op, value in domain:
         have = row.get(field)
@@ -39,7 +53,7 @@ def match(row, domain):
             have = have[0]
         if op == "=" and have != value:
             return False
-        if op == "=ilike" and (have or "").lower() != value.lower():
+        if op == "=ilike" and not like(have, value):
             return False
         if op == "in" and not set(have if isinstance(have, list) else [have]) & set(value):
             return False
@@ -83,6 +97,15 @@ class Fake(http.server.BaseHTTPRequestHandler):
             return self._json(401, {"name": "werkzeug.exceptions.Unauthorized"})
         _, _, _, model, method = self.path.split("/")
         s["odoo_calls"].append((model, method, kw))
+        if s.get("odoo_redirect"):
+            self.send_response(302)
+            self.send_header("Location", self.path)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return None
+        if method == "message_post" and s.get("odoo_fail", 0) > 0:
+            s["odoo_fail"] -= 1
+            return self._json(500, {"name": "builtins.RuntimeError"})
         if s.get("odoo_delay"):
             time.sleep(s["odoo_delay"])
         table = s["odoo"].setdefault(model, {})
@@ -101,6 +124,15 @@ class Fake(http.server.BaseHTTPRequestHandler):
             for rid in kw["ids"]:
                 table[rid].update(kw["vals"])
             return self._json(200, True)
+        if model == "res.partner" and method == "find_or_create":
+            email = re.search(r"<([^>]+)>", kw["email"])
+            email = email.group(1) if email else kw["email"]
+            for pid, row in table.items():
+                if row.get("email") == email:
+                    return self._json(200, [pid])
+            pid = max(table, default=500) + 1
+            table[pid] = {"email": email, "name": kw["email"]}
+            return self._json(200, [pid])
         if method == "message_post":
             messages = s["odoo"].setdefault("mail.message", {})
             if any(m.get("x_chatwoot_message_id") == kw.get("x_chatwoot_message_id") for m in messages.values()):
@@ -122,6 +154,8 @@ class Fake(http.server.BaseHTTPRequestHandler):
         path = path[len(prefix):]
         s["chatwoot_calls"].append((method, path, body))
         cw = s["chatwoot"]
+        if s.get("chatwoot_404") and path.startswith("/contacts"):
+            return self._json(404, {})
         if method == "GET" and path == "/inboxes":
             return self._json(200, {"payload": [{"id": SUPPORT, "name": "Support"}, {"id": SALES, "name": "Sales"},
                                                 {"id": WEBSITE, "name": "Website"}]})
@@ -154,7 +188,11 @@ class Fake(http.server.BaseHTTPRequestHandler):
             msgs = cw["messages"][conv["id"]]
             if "before" in query:
                 msgs = [x for x in msgs if x["id"] < int(query["before"][0])]
-            return self._json(200, {"payload": msgs[-20:]})
+            page = list(msgs[-20:])
+            if s.get("list_delay"):
+                # a snapshot that is stale by the time the caller acts on it
+                time.sleep(s["list_delay"])
+            return self._json(200, {"payload": page})
         if method == "POST" and rest == "/messages":
             mid = s["next_message"]
             s["next_message"] += 1
@@ -233,6 +271,7 @@ class BridgeTest(unittest.TestCase):
         self.bridge = odoo_bridge.Bridge(odoo_bridge.Config(env))
 
     def tearDown(self):
+        getattr(self.bridge, "stop", lambda: None)()
         self.bridge.pool.shutdown(wait=True)
 
     # ------------------------------------------------------------ helpers
@@ -256,6 +295,12 @@ class BridgeTest(unittest.TestCase):
         return {"event": "message_created", "id": mid, "message_type": "outgoing", "private": private,
                 "content": content, "conversation": {"id": cid},
                 "sender": {**sender, "email": "staff@grn.cloud", "name": "Staff"}}
+
+    def wait_idle(self, timeout=5):
+        end = time.time() + timeout
+        while self.bridge.pending() and time.time() < end:
+            time.sleep(0.02)
+        self.assertEqual(self.bridge.pending(), 0)
 
     def posts(self):
         return [m for m in self.state["odoo"]["mail.message"].values() if m.get("message_type") == "comment"]
@@ -351,7 +396,7 @@ class BridgeTest(unittest.TestCase):
         post = posts[0]
         self.assertEqual((post["model"], post["res_id"]), ("helpdesk.ticket", 7))
         self.assertEqual(post["subtype_xmlid"], "mail.mt_comment")
-        self.assertEqual(post["x_chatwoot_message_id"], str(hook["id"]))
+        self.assertEqual(post["x_chatwoot_message_id"], f"support.example.org/1/{hook['id']}")
         self.assertEqual(post["author_id"], 3)
         self.assertEqual(post["partner_ids"], [42])
         self.assertEqual(post["body"], "<p>Hi Ada,<br>we reset it.</p><p>Regards</p>")
@@ -425,6 +470,95 @@ class BridgeTest(unittest.TestCase):
         self.assertEqual(self.bridge.handle_webhook(hook), "ignored")
         self.assertEqual(self.state["odoo"]["helpdesk.ticket"][7]["stage_id"], [1, "New"])
 
+    def test_reply_to_a_lead_without_partner_goes_to_its_address(self):
+        self.event("lead.created", model="crm.lead", rid=9)
+        cid = next(iter(self.conversations()))
+        self.assertEqual(self.bridge.handle_webhook(self.staff_reply(cid)), "done")
+        bob = [pid for pid, r in self.state["odoo"]["res.partner"].items() if r["email"] == "bob@example.org"]
+        self.assertEqual(self.posts()[0]["partner_ids"], bob)
+
+    def test_reply_without_any_customer_address_is_not_sent(self):
+        self.state["odoo"]["crm.lead"][10] = {"name": "x", "partner_id": False, "email_from": False,
+                                              "contact_name": "Nobody", "x_chatwoot_url": False}
+        self.event("lead.created", model="crm.lead", rid=10)
+        cid = next(iter(self.conversations()))
+        self.assertEqual(self.bridge.handle_webhook(self.staff_reply(cid)), "ignored")
+        self.assertEqual(self.posts(), [])
+        self.assertIn("no customer address", self.chat(cid)[-1]["content"])
+        self.assertTrue(self.chat(cid)[-1]["private"])
+
+    def test_contact_of_a_record_without_partner_is_found_again(self):
+        self.state["odoo"]["crm.lead"][10] = {"name": "x", "partner_id": False, "email_from": False,
+                                              "contact_name": "Nobody", "x_chatwoot_url": False}
+        self.event("lead.created", model="crm.lead", rid=10)
+        self.state["odoo"]["crm.lead"][10]["x_chatwoot_url"] = False
+        self.event("lead.created", model="crm.lead", rid=10)
+        self.assertEqual(len(self.state["chatwoot"]["contacts"]), 1)
+        self.assertEqual(len(self.conversations()), 1)
+
+    def test_edited_odoo_ref_cannot_reach_another_record(self):
+        self.state["odoo"]["helpdesk.ticket"][8] = dict(self.state["odoo"]["helpdesk.ticket"][7], partner_id=[43, "Eve"])
+        self.event("ticket.created")
+        self.event("ticket.created", rid=8)
+        mine, other = sorted(self.conversations())
+        # an agent points the conversation of ticket 7 at ticket 8
+        self.conversations()[mine]["custom_attributes"]["odoo_ref"] = "helpdesk.ticket:8"
+        self.assertEqual(self.bridge.handle_webhook(self.staff_reply(mine)), "ignored")
+        self.assertEqual(self.posts(), [])
+        self.conversations()[mine]["status"] = "resolved"
+        hook = {"event": "conversation_status_changed", "id": mine, "status": "resolved"}
+        self.assertEqual(self.bridge.handle_webhook(hook), "ignored")
+        self.assertEqual(self.state["odoo"]["helpdesk.ticket"][8]["stage_id"], [1, "New"])
+
+    def test_staff_address_is_matched_exactly(self):
+        self.state["odoo"]["res.users"] = {4: {"login": "axb@grn.cloud", "email": "axb@grn.cloud", "partner_id": [9, "X"]}}
+        self.event("ticket.created")
+        hook = self.staff_reply(next(iter(self.conversations())))
+        hook["sender"]["email"] = "a_b@grn.cloud"
+        self.bridge.handle_webhook(hook)
+        self.assertNotIn("author_id", self.posts()[0])
+
+    def test_failed_reply_is_retried_then_posted_once(self):
+        self.bridge.retries = (0.05, 0.05, 0.05)
+        self.event("ticket.created")
+        self.state["odoo_fail"] = 2
+        self.assertTrue(self.bridge.accept_webhook(self.staff_reply(next(iter(self.conversations())))))
+        self.wait_idle()
+        self.assertEqual(len(self.posts()), 1)
+
+    def test_reply_given_up_tells_staff(self):
+        self.bridge.retries = (0.05,)
+        self.event("ticket.created")
+        cid = next(iter(self.conversations()))
+        self.state["odoo_fail"] = 10
+        self.bridge.accept_webhook(self.staff_reply(cid))
+        self.wait_idle()
+        self.assertEqual(self.posts(), [])
+        self.assertIn("did not reach Odoo", self.chat(cid)[-1]["content"])
+        self.assertIn('chatwoot_odoo_bridge_webhooks_total{result="given_up"} 1', self.bridge.metrics.render())
+
+    def test_chatwoot_404_is_retried_not_dropped(self):
+        self.state["chatwoot_404"] = True
+        with self.assertRaises(odoo_bridge.HttpError):
+            self.event("ticket.created")
+
+    def test_redirect_is_not_followed_with_the_key(self):
+        self.state["odoo_redirect"] = True
+        with self.assertRaises(odoo_bridge.HttpError) as caught:
+            self.event("ticket.created")
+        self.assertEqual(caught.exception.status, 302)
+        self.assertEqual(len(self.state["odoo_calls"]), 1)
+
+    def test_concurrent_redelivery_mirrors_a_mail_once(self):
+        self.event("ticket.created")
+        # every redelivery checks the messages at once, then writes
+        self.state["list_delay"] = 0.1
+        threads = [threading.Thread(target=self.event, args=("message.created",), kwargs={"message_id": 70})
+                   for _ in range(3)]
+        [t.start() for t in threads]
+        [t.join() for t in threads]
+        self.assertEqual(len(self.chat(next(iter(self.conversations())))), 1)
+
     # ------------------------------------------------------------ HTTP
 
     def serve(self, **cfg):
@@ -464,7 +598,8 @@ class BridgeTest(unittest.TestCase):
         self.assertEqual(self.post(ports["webhook"], "/chatwoot/webhook", body, bad)[0], 401)
         self.assertEqual(self.post(ports["webhook"], "/odoo/events", body, bad)[0], 404)
         good = {"X-Chatwoot-Timestamp": ts, "X-Chatwoot-Signature": sig}
-        self.assertEqual(self.post(ports["webhook"], "/chatwoot/webhook", body, good), (200, "done"))
+        self.assertEqual(self.post(ports["webhook"], "/chatwoot/webhook", body, good), (200, "accepted"))
+        self.wait_idle()
         self.assertEqual(len(self.posts()), 1)
 
     def test_slow_event_answers_503_and_finishes(self):

@@ -61,9 +61,11 @@ a super admin.
 | `copilotPanel.enabled` | `false` | A panel in the conversation sidebar where staff ask the agent; needs `sso.enabled`. |
 | `agentBridge.remoteUrl` | empty | https address of a standalone bridge elsewhere. Empty: the bridge runs in this release. |
 | `odoo.enabled` | `false` | Odoo tickets and leads become conversations; staff replies go back to Odoo as mail. Needs `route.hostname`, `odoo.url` and `secrets.odooApiKey`. |
-| `odoo.url`, `odoo.database` | empty, `odoo` | https address and database of Odoo. |
+| `odoo.url`, `odoo.database` | empty | https address of Odoo, and its database (empty: the server's only database). |
 | `odoo.ticketInbox`, `odoo.leadInbox` | `Support`, `Sales` | API inboxes of tickets and of leads. An empty `leadInbox` mirrors no leads. |
 | `odoo.solvedStage` | `Solved` | Stage a ticket moves to when its conversation is resolved. |
+| `monitoring.enabled` | `false` | A ServiceMonitor of the Odoo bridge; `monitoring.namespaceLabels` names the namespaces that may scrape it. |
+| `monitoring.alerts` | `true` | Alert rules of the Odoo bridge next to the ServiceMonitor; false where the platform alerts centrally. |
 | `agentBridge.standalone.enabled` | `false` | A release of the bridge alone, next to the agent; needs `standalone.chatwootUrl`, and for the panel `standalone.staff.issuerUrl` and `standalone.staff.clientIds`. |
 
 ### Single sign-on
@@ -207,20 +209,31 @@ flowchart LR
   Odoo keeps the conversation address in `x_chatwoot_url`. A customer mail appears once, as
   an incoming message with source id `odoo:mail.message:<id>`, without Odoo's quoted history.
 - A public reply of a staff member is posted on the record as a comment from the matching
-  Odoo user, and Odoo mails it to the customer. Private notes, bot messages and messages in
-  other inboxes are never sent. A reply with attachments is sent without them, and a private
-  note says so.
+  Odoo user, and Odoo mails it to the customer: the record's partner, or for a record
+  without one (most mailed-in leads) the partner of its address, which Odoo finds or
+  creates. A record without any address gets no mail, and a private note says so. Private
+  notes, bot messages and messages in other inboxes are never sent. A reply with
+  attachments is sent without them, and a private note says so.
+- The bridge acts only on a record whose `x_chatwoot_url` names the conversation, so an
+  edited `odoo_ref` cannot send a reply to another customer or solve another ticket.
 - Resolving a conversation moves the ticket to `odoo.solvedStage`; a closed ticket resolves
   its conversation.
-- The bridge answers within 2.5 seconds, or 503 while it is still busy, so Odoo retries an
-  event from its outbox (8 attempts, up to 2 hours apart). A record deleted in Odoo ends the
-  retries. Chatwoot does not retry a webhook.
+- An Odoo event is answered within 2.5 seconds, or 503 while it is still busy, and Odoo
+  retries it from its outbox (8 attempts, up to 2 hours apart). A record deleted in Odoo
+  ends the retries.
+- Chatwoot never retries a webhook and marks the message failed on any answer but 200. The
+  bridge therefore answers a valid webhook at once and retries it itself, after 5 seconds,
+  30 seconds, 2, 10 and 30 minutes. When the last attempt fails, or the pod stops while a
+  retry waits, the reply is not sent; after the retries a private note asks staff to send
+  it again, and `chatwoot_odoo_bridge_webhooks_total{result="given_up"}` counts it.
 - The Job creates user `Odoo` (`odoo-bridge@chatwoot.invalid`), the two API inboxes with the
   bridge as webhook, and the custom attributes. Staff choose who works in an inbox in
   Chatwoot.
 - Only the worker pods reach the webhook port; the event port is reachable through the
-  Route path `/odoo/events` alone. `/metrics` on port 8080 counts events, webhooks and
-  failures.
+  Route path `/odoo/events` alone. `/metrics` on port 8080 counts events, webhooks,
+  failures and retries waiting; with `monitoring.enabled` the scraping namespaces may reach
+  it, and `monitoring.alerts` adds ChatwootOdooBridgeDown, ChatwootOdooBridgeReplyLost and
+  ChatwootOdooBridgeEventsFailing.
 
 ### Agent credentials
 

@@ -179,6 +179,12 @@ check "odoo webhooks from the worker, events from the router" 'obj("NetworkPolic
 check "odoo bridge reaches web" '{"podSelector": {"matchLabels": {"app.kubernetes.io/name": "chatwoot-odoo-bridge"}}} in obj("NetworkPolicy", "chatwoot-web")["spec"]["ingress"][0]["from"]'
 OUT=$(render "${ODOO[@]}" --set secrets.type=externalSecret --set secrets.externalSecret.storeName=vault)
 check "odoo secrets from a store" 'obj("ExternalSecret", "chatwoot-odoo")["spec"]["data"][0]["remoteRef"]["key"] == "chatwoot-odoo-api-key" and obj("ExternalSecret", "chatwoot-odoo-bridge")'
+check "no monitoring by default" 'not objs("ServiceMonitor") and not objs("PrometheusRule")'
+OUT=$(render "${ODOO[@]}" --set secrets.odooApiKey=k --set monitoring.enabled=true)
+check "odoo bridge monitored" 'obj("ServiceMonitor", "chatwoot-odoo-bridge")["spec"]["endpoints"] == [{"port": "webhook", "path": "/metrics", "scheme": "http"}] and len(obj("PrometheusRule", "chatwoot-odoo-bridge")["spec"]["groups"][0]["rules"]) == 3'
+check "monitoring reaches the metrics port only" 'obj("NetworkPolicy", "chatwoot-odoo-bridge")["spec"]["ingress"][2] == {"ports": [{"protocol": "TCP", "port": 8080}], "from": [{"namespaceSelector": {"matchLabels": {"network.openshift.io/policy-group": "monitoring"}}}]}'
+OUT=$(render "${ODOO[@]}" --set secrets.odooApiKey=k --set monitoring.enabled=true --set monitoring.alerts=false)
+check "alerts can stay central" 'obj("ServiceMonitor", "chatwoot-odoo-bridge") and not objs("PrometheusRule")'
 
 # --- agent bot and panel
 AGENT=(--set agent.url=https://agents.example.com/a2a/acme --set agent.auth.type=clientAssertion
