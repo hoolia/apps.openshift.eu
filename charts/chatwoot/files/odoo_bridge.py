@@ -721,9 +721,10 @@ class Bridge:
 
     def _attempt(self, payload, attempt, token=None):
         with self._pending_lock:
-            self._queued.pop(token, None)
+            mine = self._queued.pop(token, None) is not None
         if self._stopping:
-            return self._drop(payload)
+            # without the token, stop() has already dropped this one
+            return self._drop(payload) if mine else None
         result = self._guarded("webhooks", self.handle_webhook, payload)
         if not isinstance(result, Exception):
             self._done()

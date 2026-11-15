@@ -629,6 +629,16 @@ class BridgeTest(unittest.TestCase):
         self.state["odoo_delay"] = 0
         self.assertIn("restarted before this reply reached Odoo", self.chat(cid)[-1]["content"])
 
+    def test_attempt_already_dropped_by_stop_is_not_dropped_again(self):
+        payload = {"event": "message_created", "id": 1, "conversation": {"id": 1}}
+        with self.bridge._pending_lock:
+            self.bridge._pending += 1
+        self.bridge._stopping = True
+        self.bridge._drop(payload)  # stop() took it from the queue
+        self.bridge._attempt(payload, 0, object())  # the worker started it a moment later
+        self.assertEqual(self.bridge.pending(), 0)
+        self.assertEqual(len(self.bridge._dropped), 1)
+
     def test_mailed_in_lead_with_a_display_name(self):
         lead = self.state["odoo"]["crm.lead"][9]
         lead["email_from"] = '"Bob Smith" <bob@example.org>'
