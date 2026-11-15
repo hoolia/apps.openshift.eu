@@ -170,6 +170,7 @@ done
 OUT=$(render)
 check "no odoo bridge by default" 'not obj("Deployment", "chatwoot-odoo-bridge") and not obj("Secret", "chatwoot-odoo") and "CHART_ODOO_BRIDGE_URL" not in env("chatwoot-worker", "worker") and "odoo_bridge.py" not in obj("ConfigMap", "chatwoot-scripts")["data"]'
 OUT=$(render "${ODOO[@]}" --set secrets.odooApiKey=k)
+check "odoo bridge one pod at a time" 'obj("Deployment", "chatwoot-odoo-bridge")["spec"]["strategy"] == {"type": "Recreate"}'
 check "odoo bridge env" 'env("chatwoot-odoo-bridge", "odoo-bridge")["ODOO_URL"] == "https://odoo.example.org" and env("chatwoot-odoo-bridge", "odoo-bridge")["PUBLIC_URL"] == "https://support.example.org" and env("chatwoot-odoo-bridge", "odoo-bridge")["TICKET_INBOX"] == "Support"'
 check "odoo inboxes set up by the job" 'env("chatwoot-prepare-1", "prepare")["CHATWOOT_ODOO_WEBHOOK_URL"] == "http://chatwoot-odoo-bridge:8080/chatwoot/webhook" and env("chatwoot-prepare-1", "prepare")["CHATWOOT_ODOO_INBOXES"] == "Support,Sales"'
 check "odoo key to the bridge only" '"chatwoot-odoo" in refs(pod("chatwoot-odoo-bridge")) and all("chatwoot-odoo\"" not in refs(pod(n)) for n in ("chatwoot-web", "chatwoot-worker", "chatwoot-gate", "chatwoot-prepare-1"))'

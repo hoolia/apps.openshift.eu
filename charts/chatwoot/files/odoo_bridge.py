@@ -50,6 +50,10 @@ MESSAGE_PAGES = 10
 WEBHOOK_RETRIES = (5, 30, 120, 600, 1800)
 MAX_PENDING = 500
 MAX_REQUESTS = 32
+# Odoo events running or queued; beyond that Odoo hears 503 and retries from its outbox
+MAX_EVENTS = 64
+# seconds a stopping pod spends telling staff about replies it could not send
+STOP_BUDGET = 10
 INBOX_CACHE_SECONDS = 300
 ODOO_SOURCE = "odoo:mail.message:"
 CONVERSATION_PATH = re.compile(r"/conversations/(\d+)/?$")
@@ -287,14 +291,17 @@ class Chatwoot:
         return self._inboxes[name]
 
     def find_contact(self, email, identifier):
-        for term in (email, identifier):
-            if not term:
+        """The contact with exactly this address, else this identifier.
+
+        The filter matches exactly; /contacts/search matches substrings and returns one page.
+        """
+        for key, value in (("email", email), ("identifier", identifier)):
+            if not value:
                 continue
-            found = self.api("GET", "/contacts/search?" + urllib.parse.urlencode({"q": term}))
-            for contact in (found or {}).get("payload", []):
-                if email and (contact.get("email") or "").lower() == email.lower():
-                    return contact
-                if identifier and contact.get("identifier") == identifier:
+            query = {"payload": [{"attribute_key": key, "filter_operator": "equal_to", "values": [value],
+                                  "query_operator": None}]}
+            for contact in (self.api("POST", "/contacts/filter", query) or {}).get("payload", []):
+                if (contact.get(key) or "").lower() == value.lower():
                     return contact
         return None
 
@@ -354,6 +361,11 @@ class Metrics:
         self.lock = threading.Lock()
         self.counts = {}
 
+    def seed(self, name, **labels):
+        """A counter at 0, so the first increment is an increase an alert can see."""
+        with self.lock:
+            self.counts.setdefault((name, tuple(sorted(labels.items()))), 0)
+
     def inc(self, name, **labels):
         key = (name, tuple(sorted(labels.items())))
         with self.lock:
@@ -380,7 +392,12 @@ class Bridge:
         self.retries = cfg.webhook_retries
         self._pending = 0
         self._pending_lock = threading.Lock()
-        self._timers = set()
+        self._timers = {}  # Timer -> payload waiting for its retry
+        self._dropped = []
+        self._stopping = False
+        self._events = 0
+        for name, result in (("webhooks", "given_up"), ("webhooks", "dropped"), ("events", "error")):
+            self.metrics.seed(name, result=result)
 
     def lock(self, ref):
         return self._locks[int(hashlib.sha256(ref.encode()).hexdigest(), 16) % len(self._locks)]
@@ -432,15 +449,23 @@ class Bridge:
             identifier = f"odoo:res.partner:{partner[0]}" if partner else f"odoo:{model}:{rid}"
             contact = self.chatwoot.find_contact(email, identifier)
             if contact:
+                # odoo_ref is editable by staff: only a conversation in the record's own inbox counts
                 for conv in self.chatwoot.contact_conversations(contact["id"]):
-                    if (conv.get("custom_attributes") or {}).get("odoo_ref") == ref:
+                    if ((conv.get("custom_attributes") or {}).get("odoo_ref") == ref
+                            and conv.get("inbox_id") == self.chatwoot.inbox_id(self.cfg.inboxes[model])):
                         self._link(model, rid, conv["id"])
                         return conv["id"]
             if not create:
                 return None
             if not contact:
                 name = record.get(spec["contact"]) or record.get("partner_name") or (partner[1] if partner else None)
-                contact = self.chatwoot.create_contact(name, email, identifier)
+                try:
+                    contact = self.chatwoot.create_contact(name, email, identifier)
+                except HttpError as e:
+                    # address or identifier taken meanwhile: use that contact
+                    contact = e.status == 422 and self.chatwoot.find_contact(email, identifier)
+                    if not contact:
+                        raise
             conv = self.chatwoot.create_conversation(
                 self.chatwoot.inbox_id(self.cfg.inboxes[model]), contact["id"],
                 {"odoo_ref": ref, "odoo_url": self.odoo.url(model, rid)},
@@ -542,7 +567,7 @@ class Bridge:
         email = (record.get(spec["email"]) or "").strip()
         if not email:
             return None
-        name = (record.get(spec["name"]) or "").strip().replace('"', "")
+        name = (record.get(spec["name"]) or "").replace('"', "").replace("\\", "").strip()
         found = self.odoo.call("res.partner", "find_or_create", email=f'"{name}" <{email}>' if name else email)
         return found[0] if isinstance(found, list) else found
 
@@ -646,8 +671,13 @@ class Bridge:
     # ------------------------------------------------------------ run with a deadline
 
     def run(self, kind, func, arg, deadline):
-        """(status, text): 200 when done in time, 503 while it is still running, 502 on error."""
+        """(status, text): 200 when done in time, 503 while it is still running or busy, 502 on error."""
+        with self._pending_lock:
+            if self._events >= MAX_EVENTS:
+                return 503, "busy"
+            self._events += 1
         future = self.pool.submit(self._guarded, kind, func, arg)
+        future.add_done_callback(self._event_done)
         try:
             result = future.result(timeout=deadline)
         except FutureTimeout:
@@ -666,16 +696,24 @@ class Bridge:
         self.pool.submit(self._attempt, payload, 0)
         return True
 
+    def _event_done(self, _future):
+        with self._pending_lock:
+            self._events -= 1
+
     def _attempt(self, payload, attempt):
+        if self._stopping:
+            return self._drop(payload)
         result = self._guarded("webhooks", self.handle_webhook, payload)
         if not isinstance(result, Exception):
             self._done()
             return
+        if self._stopping:
+            return self._drop(payload)
         if attempt < len(self.retries):
             timer = threading.Timer(self.retries[attempt], self._retry, (payload, attempt + 1))
             timer.daemon = True
             with self._pending_lock:
-                self._timers.add(timer)
+                self._timers[timer] = payload
             timer.start()
             return
         self._done()
@@ -686,19 +724,30 @@ class Bridge:
 
     def _retry(self, payload, attempt):
         with self._pending_lock:
-            self._timers = {t for t in self._timers if t.is_alive() and t is not threading.current_thread()}
-        self.pool.submit(self._attempt, payload, attempt)
+            mine = self._timers.pop(threading.current_thread(), None)
+        if mine is None:
+            return  # stop() took this one over
+        try:
+            self.pool.submit(self._attempt, payload, attempt)
+        except RuntimeError:  # the pool is shut down
+            self._drop(payload)
+
+    def _drop(self, payload):
+        with self._pending_lock:
+            self._pending -= 1
+            self._dropped.append(payload)
+        self.metrics.inc("webhooks", result="dropped")
 
     def _done(self):
         with self._pending_lock:
             self._pending -= 1
 
-    def _tell_staff(self, payload):
+    def _tell_staff(self, payload, why="This reply did not reach Odoo"):
         if payload.get("event") != "message_created":
             return
         cid = (payload.get("conversation") or {}).get("id")
         try:
-            self.chatwoot.create_message(cid, "This reply did not reach Odoo and was not sent to the customer. "
+            self.chatwoot.create_message(cid, f"{why} and was not sent to the customer. "
                                          "Send it again, or answer in Odoo.", "outgoing", private=True)
         except Exception as e:  # noqa: BLE001
             LOG.error("conversation %s: no note about the lost reply either: %s", cid, type(e).__name__)
@@ -707,13 +756,28 @@ class Bridge:
         with self._pending_lock:
             return self._pending
 
-    def stop(self):
-        """Stop the retry timers; returns how many webhooks were still waiting."""
+    def stop(self, budget=STOP_BUDGET):
+        """Stop retrying and finish running work; returns how many webhooks were not delivered.
+
+        Chatwoot already shows those replies as sent, so each gets a private note while the
+        budget lasts.
+        """
+        self._stopping = True
         with self._pending_lock:
-            timers, self._timers = self._timers, set()
-        for timer in timers:
+            timers, self._timers = self._timers, {}
+        for timer, payload in timers.items():
             timer.cancel()
-        return len(timers)
+            self._drop(payload)
+        # running work finishes; queued webhooks see _stopping and are dropped
+        self.pool.shutdown(wait=True)
+        with self._pending_lock:
+            dropped, self._dropped = self._dropped, []
+        end = time.monotonic() + budget
+        for payload in dropped:
+            if time.monotonic() > end:
+                break
+            self._tell_staff(payload, "The bridge restarted before this reply reached Odoo")
+        return len(dropped)
 
     def _guarded(self, kind, func, arg):
         try:
@@ -833,11 +897,10 @@ def main():
     stop.wait()
     for server in servers:
         server.shutdown()
-    waiting = bridge.stop()
-    if waiting:
-        LOG.error("%d webhook(s) waiting for a retry are dropped: the replies were not sent", waiting)
-    # let running events finish: an unfinished one is retried by its sender
-    bridge.pool.shutdown(wait=True, cancel_futures=True)
+    # running events finish; an unfinished one is retried by Odoo
+    dropped = bridge.stop()
+    if dropped:
+        LOG.error("%d webhook(s) not delivered at shutdown: the replies were not sent", dropped)
 
 
 if __name__ == "__main__":

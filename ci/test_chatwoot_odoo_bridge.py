@@ -160,10 +160,26 @@ class Fake(http.server.BaseHTTPRequestHandler):
             return self._json(200, {"payload": [{"id": SUPPORT, "name": "Support"}, {"id": SALES, "name": "Sales"},
                                                 {"id": WEBSITE, "name": "Website"}]})
         if method == "GET" and path == "/contacts/search":
+            # as Chatwoot: substring on name, email and identifier, 15 per page
             q = query["q"][0].lower()
-            found = [c for c in cw["contacts"].values() if q in (c.get("email") or "").lower() or q == c.get("identifier")]
-            return self._json(200, {"payload": found})
+            found = [c for c in cw["contacts"].values()
+                     if any(q in (c.get(k) or "").lower() for k in ("name", "email", "identifier"))]
+            return self._json(200, {"payload": found[:15]})
+        if method == "POST" and path == "/contacts/filter":
+            if s.get("filter_miss", 0) > 0:
+                s["filter_miss"] -= 1
+                return self._json(200, {"payload": []})
+            (cond,) = body["payload"]
+            assert cond["filter_operator"] == "equal_to", cond
+            value = cond["values"][0].lower()
+            found = [c for c in cw["contacts"].values() if (c.get(cond["attribute_key"]) or "").lower() == value]
+            return self._json(200, {"payload": found[:15]})
         if method == "POST" and path == "/contacts":
+            # email and identifier are unique in an account
+            for c in cw["contacts"].values():
+                for k in ("email", "identifier"):
+                    if body.get(k) and (c.get(k) or "").lower() == body[k].lower():
+                        return self._json(422, {"message": f"{k} has already been taken"})
             cid = len(cw["contacts"]) + 1
             cw["contacts"][cid] = {"id": cid, **body}
             return self._json(200, {"payload": {"contact": cw["contacts"][cid], "contact_inbox": {}}})
@@ -271,8 +287,7 @@ class BridgeTest(unittest.TestCase):
         self.bridge = odoo_bridge.Bridge(odoo_bridge.Config(env))
 
     def tearDown(self):
-        getattr(self.bridge, "stop", lambda: None)()
-        self.bridge.pool.shutdown(wait=True)
+        self.bridge.stop(budget=0)
 
     # ------------------------------------------------------------ helpers
 
@@ -320,6 +335,31 @@ class BridgeTest(unittest.TestCase):
         contact = self.state["chatwoot"]["contacts"][conv["contact_id"]]
         self.assertEqual((contact["email"], contact["identifier"], contact["name"]),
                          ("ada@example.org", "odoo:res.partner:42", "Ada"))
+
+    def test_contact_is_found_among_similar_ones(self):
+        # 16 identifiers that contain odoo:res.partner:42 push the exact one off the search page
+        contacts = self.state["chatwoot"]["contacts"]
+        for i in range(16):
+            contacts[i + 1] = {"id": i + 1, "name": "x", "identifier": f"odoo:res.partner:42{i}"}
+        contacts[17] = {"id": 17, "name": "Ada", "email": "old@example.org", "identifier": "odoo:res.partner:42"}
+        self.assertEqual(self.event("ticket.created"), "done")
+        self.assertEqual(len(contacts), 17)
+        self.assertEqual(next(iter(self.conversations().values()))["contact_id"], 17)
+
+    def test_contact_created_meanwhile_is_used(self):
+        self.state["chatwoot"]["contacts"][1] = {"id": 1, "name": "Ada", "email": "ada@example.org"}
+        self.state["filter_miss"] = 2
+        self.assertEqual(self.event("ticket.created"), "done")
+        self.assertEqual(next(iter(self.conversations().values()))["contact_id"], 1)
+
+    def test_link_is_found_again_only_in_the_record_inbox(self):
+        self.event("ticket.created")
+        (cid,) = self.conversations()
+        self.conversations()[cid]["inbox_id"] = WEBSITE
+        self.state["odoo"]["helpdesk.ticket"][7]["x_chatwoot_url"] = False
+        self.event("ticket.created")
+        self.assertEqual(len(self.conversations()), 2)
+        self.assertFalse(self.state["odoo"]["helpdesk.ticket"][7]["x_chatwoot_url"].endswith(f"/{cid}"))
 
     def test_lost_link_finds_the_existing_conversation(self):
         self.event("ticket.created")
@@ -537,6 +577,57 @@ class BridgeTest(unittest.TestCase):
         self.assertIn("did not reach Odoo", self.chat(cid)[-1]["content"])
         self.assertIn('chatwoot_odoo_bridge_webhooks_total{result="given_up"} 1', self.bridge.metrics.render())
 
+    def test_stop_tells_staff_about_a_waiting_retry(self):
+        self.bridge.retries = (30,)
+        self.event("ticket.created")
+        cid = next(iter(self.conversations()))
+        self.state["odoo_fail"] = 1
+        self.bridge.accept_webhook(self.staff_reply(cid))
+        end = time.time() + 5
+        while not self.bridge._timers and time.time() < end:
+            time.sleep(0.02)
+        self.assertEqual(self.bridge.stop(), 1)
+        self.assertEqual(self.posts(), [])
+        self.assertTrue(self.chat(cid)[-1]["private"])
+        self.assertIn("restarted before this reply reached Odoo", self.chat(cid)[-1]["content"])
+        self.assertEqual(self.bridge.pending(), 0)
+        self.assertIn('chatwoot_odoo_bridge_webhooks_total{result="dropped"} 1', self.bridge.metrics.render())
+
+    def test_stop_tells_staff_about_queued_replies(self):
+        self.event("ticket.created")
+        cid = next(iter(self.conversations()))
+        self.state["odoo_delay"] = 0.05
+        hooks = [self.staff_reply(cid) for _ in range(6)]
+        for hook in hooks:
+            self.bridge.accept_webhook(hook)
+        dropped = self.bridge.stop()
+        notes = [m for m in self.chat(cid) if m["private"] and "restarted" in m["content"]]
+        self.assertGreaterEqual(dropped, 1)
+        self.assertEqual(len(notes), dropped)
+        self.assertEqual(len(self.posts()) + dropped, 6)
+        self.assertEqual(self.bridge.pending(), 0)
+
+    def test_alert_counters_exist_before_the_first_failure(self):
+        text = self.bridge.metrics.render()
+        for line in ('webhooks_total{result="given_up"} 0', 'webhooks_total{result="dropped"} 0',
+                     'events_total{result="error"} 0'):
+            self.assertIn("chatwoot_odoo_bridge_" + line, text)
+
+    def test_events_beyond_the_bound_answer_busy(self):
+        self.addCleanup(setattr, odoo_bridge, "MAX_EVENTS", odoo_bridge.MAX_EVENTS)
+        odoo_bridge.MAX_EVENTS = 1
+        self.state["odoo_delay"] = 0.3
+        event = {"event": "ticket.created", "model": "helpdesk.ticket", "id": 7}
+        self.assertEqual(self.bridge.run("events", self.bridge.handle_event, event, 0.05), (503, "in progress"))
+        self.assertEqual(self.bridge.run("events", self.bridge.handle_event, event, 0.05), (503, "busy"))
+
+    def test_customer_name_cannot_break_the_address(self):
+        self.state["odoo"]["crm.lead"][9]["contact_name"] = 'Bob \\'
+        self.event("lead.created", model="crm.lead", rid=9)
+        self.bridge.handle_webhook(self.staff_reply(next(iter(self.conversations()))))
+        (call,) = [kw for model, method, kw in self.state["odoo_calls"] if method == "find_or_create"]
+        self.assertEqual(call["email"], '"Bob" <bob@example.org>')
+
     def test_chatwoot_404_is_retried_not_dropped(self):
         self.state["chatwoot_404"] = True
         with self.assertRaises(odoo_bridge.HttpError):
@@ -607,7 +698,7 @@ class BridgeTest(unittest.TestCase):
         self.state["odoo_delay"] = 0.3
         body = json.dumps({"event": "ticket.created", "model": "helpdesk.ticket", "id": 7}).encode()
         self.assertEqual(self.post(ports["event"], "/odoo/events", body, self.signed_event(body))[0], 503)
-        self.bridge.pool.shutdown(wait=True)
+        self.bridge.stop(budget=0)
         self.assertEqual(len(self.conversations()), 1)
 
     def test_deleted_record_ends_the_retries(self):

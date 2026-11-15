@@ -223,14 +223,16 @@ flowchart LR
   ends the retries.
 - Chatwoot never retries a webhook and marks the message failed on any answer but 200. The
   bridge therefore answers a valid webhook at once and retries it itself, after 5 seconds,
-  30 seconds, 2, 10 and 30 minutes. When the last attempt fails, or the pod stops while a
-  retry waits, the reply is not sent; after the retries a private note asks staff to send
-  it again, and `chatwoot_odoo_bridge_webhooks_total{result="given_up"}` counts it.
+  30 seconds, 2, 10 and 30 minutes. When the last attempt fails, or the pod stops before a
+  reply is delivered, the reply is not sent: a private note asks staff to send it again, and
+  `chatwoot_odoo_bridge_webhooks_total` counts it (`result` `given_up` or `dropped`). The
+  queue lives in the pod, so the bridge runs one pod and replaces it with `Recreate`.
 - The Job creates user `Odoo` (`odoo-bridge@chatwoot.invalid`), the two API inboxes with the
   bridge as webhook, and the custom attributes. Staff choose who works in an inbox in
   Chatwoot.
-- Only the worker pods reach the webhook port; the event port is reachable through the
-  Route path `/odoo/events` alone. `/metrics` on port 8080 counts events, webhooks,
+- The chart's NetworkPolicy admits the worker pods to the webhook port and the router to
+  the event port (Route path `/odoo/events`); a platform policy may open more, so both check
+  the signature of every request. `/metrics` on port 8080 counts events, webhooks,
   failures and retries waiting; with `monitoring.enabled` the scraping namespaces may reach
   it, and `monitoring.alerts` adds ChatwootOdooBridgeDown, ChatwootOdooBridgeReplyLost and
   ChatwootOdooBridgeEventsFailing.
@@ -284,8 +286,9 @@ bucket.
 - For the Agent Bot or the panel, give `agent.url` the A2A address of the agent and agree
   with its owner how it authenticates the bridge (`agent.auth`).
 - For the Odoo bridge, Odoo needs the module `grncloud_helpdesk` and an internal user for
-  the bridge that may read and write helpdesk tickets and CRM leads, with an API key
-  (`secrets.odooApiKey`). Set system parameter `grncloud_helpdesk.bridge_url` to
+  the bridge with an API key (`secrets.odooApiKey`). It reads and writes helpdesk tickets
+  and CRM leads, posts messages on them, reads `mail.message`, `res.users` and
+  `helpdesk.stage`, and creates contacts (`res.partner`) for a lead without one. Set system parameter `grncloud_helpdesk.bridge_url` to
   `https://<hostname>/odoo/events` and give Odoo the event secret in
   `GRNCLOUD_HELPDESK_BRIDGE_SECRET_FILE` (the value of `secrets.odooEventSecret`; leave that
   empty and read it from Secret `chatwoot-odoo` after the install). Staff log in to Chatwoot

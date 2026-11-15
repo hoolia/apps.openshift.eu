@@ -18,6 +18,9 @@ metadata:
     argocd.argoproj.io/sync-wave: "2"
 spec:
   replicas: 1
+  # the retry queue and the record locks live in the process: never two pods
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app.kubernetes.io/name: chatwoot-odoo-bridge
