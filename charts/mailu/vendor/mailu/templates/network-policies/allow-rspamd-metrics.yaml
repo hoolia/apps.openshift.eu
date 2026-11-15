@@ -1,5 +1,3 @@
-{{- /* apps.openshift.eu: no mail domain, no mail server */ -}}
-{{- if .Values.domain -}}
 {{- if and .Values.networkPolicy.enabled .Values.rspamd.enabled .Values.rspamd.serviceMonitor.enabled }}
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -31,4 +29,3 @@ spec:
   policyTypes:
     - Ingress
 {{- end }}
-{{ end }}

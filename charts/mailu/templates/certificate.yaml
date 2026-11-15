@@ -1,4 +1,3 @@
-{{- if .Values.upstream.domain }}
 {{- if .Values.certificate.enabled }}
 apiVersion: cert-manager.io/v1
 kind: Certificate
@@ -21,5 +20,4 @@ spec:
     kind: {{ .Values.certificate.issuerKind }}
     group: cert-manager.io
   renewBefore: {{ .Values.certificate.renewBefore }}
-{{- end }}
 {{- end }}

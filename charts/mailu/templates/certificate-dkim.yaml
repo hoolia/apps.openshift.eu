@@ -1,4 +1,3 @@
-{{- if .Values.upstream.domain }}
 {{- $dkim := (.Values.global).dkim | default dict }}
 {{- if $dkim.managed }}
 # Never renewed with a new key: the public half is in DNS
@@ -28,5 +27,4 @@ spec:
   secretTemplate:
     {{- toYaml . | nindent 4 }}
   {{- end }}
-{{- end }}
 {{- end }}

@@ -1,5 +1,3 @@
-{{- /* apps.openshift.eu: no mail domain, no mail server */ -}}
-{{- if .Values.domain -}}
 ---
 {{- if .Values.fetchmail.enabled -}}
 {{- if and (not .Values.persistence.single_pvc) (not .Values.fetchmail.persistence.existingClaim) }}
@@ -35,4 +33,3 @@ spec:
   {{- end }}
 {{- end }}
 {{- end }}
-{{ end }}

@@ -1,5 +1,3 @@
-{{- /* apps.openshift.eu: no mail domain, no mail server */ -}}
-{{- if .Values.domain -}}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -146,4 +144,3 @@ spec:
         {{- if .Values.admin.extraVolumes }}
         {{- include "mailu.tplvalues.render" (dict "value" .Values.admin.extraVolumes "context" $) | nindent 8 }}
         {{- end }}
-{{ end }}

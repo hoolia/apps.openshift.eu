@@ -1,4 +1,3 @@
-{{- if .Values.upstream.domain }}
 {{- $ports := (include "mailu-wrapper.frontPorts" . | fromYaml).ports }}
 {{- $numbers := list }}
 {{- range $ports }}
@@ -18,4 +17,3 @@ metadata:
 data:
   # mail ports the front pod listens on, same as the public Service
   PORTS: {{ join "," $numbers | quote }}
-{{- end }}

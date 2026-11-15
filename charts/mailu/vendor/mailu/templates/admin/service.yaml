@@ -1,5 +1,3 @@
-{{- /* apps.openshift.eu: no mail domain, no mail server */ -}}
-{{- if .Values.domain -}}
 ---
 apiVersion: v1
 kind: Service
@@ -21,4 +19,3 @@ spec:
     - name: http
       port: {{ int (include "mailu.admin.port" .) }}
       protocol: TCP
-{{ end }}

@@ -218,19 +218,14 @@ metallb.io/loadBalancerIPs: {{ . | quote }}
 {{- if and .Values.oidc.enabled .Values.oidc.discoveryUri .Values.oidc.clientId }}true{{ end -}}
 {{- end -}}
 
-{{/* The mail server of this chart runs: switched on and with a mail domain; an empty domain is mail off */}}
-{{- define "wrapper.mailuActive" -}}
-{{- if and .Values.mailu.enabled (.Values.mailu.upstream).domain }}true{{ end -}}
-{{- end -}}
-
 {{/* Webmail logs in through the OpenID Connect provider: Mailu on the Nextcloud host, oidc or sso set up */}}
 {{- define "wrapper.mailLoginActive" -}}
-{{- if and (include "wrapper.mailuActive" .) .Values.mailRoute.enabled .Values.mailRoute.sso.enabled (eq .Values.secrets.type "kubernetes") (or .Values.sso.enabled (include "wrapper.oidcActive" .)) }}true{{ end -}}
+{{- if and .Values.mailu.enabled .Values.mailRoute.enabled .Values.mailRoute.sso.enabled (eq .Values.secrets.type "kubernetes") (or .Values.sso.enabled (include "wrapper.oidcActive" .)) }}true{{ end -}}
 {{- end -}}
 
 {{/* Users get a mailbox in the Mail app: switched on, with the mail server of this chart */}}
 {{- define "wrapper.mailActive" -}}
-{{- if and .Values.mail.enabled (include "wrapper.mailuActive" .) }}true{{ end -}}
+{{- if and .Values.mail.enabled .Values.mailu.enabled }}true{{ end -}}
 {{- end -}}
 
 {{/* editFormats of the ONLYOFFICE connector: {"odt":true,...} from onlyoffice.editFormats */}}

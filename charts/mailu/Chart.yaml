@@ -2,7 +2,7 @@ apiVersion: v2
 name: mailu
 description: Mail server with SMTP, IMAP, webmail, spam filter and admin interface
 type: application
-version: 0.3.0
+version: 0.2.5
 appVersion: "2024.06.46"
 home: https://apps.openshift.eu
 icon: https://mailu.io/master/_images/logo.png
@@ -27,5 +27,5 @@ dependencies:
 - name: mailu
   alias: upstream
   version: 2.6.3
-  # the upstream chart, vendored with a guard on the mail domain: vendor/README.md
+  # the upstream package mailu-2.6.3.tgz of https://mailu.github.io/helm-charts
   repository: file://vendor/mailu

@@ -1,5 +1,3 @@
-{{- /* apps.openshift.eu: no mail domain, no mail server */ -}}
-{{- if .Values.domain -}}
 ---
 {{- if .Values.oletools.enabled }}
 apiVersion: v1
@@ -23,4 +21,3 @@ spec:
     port: 11343
     protocol: TCP
 {{- end }}
-{{ end }}

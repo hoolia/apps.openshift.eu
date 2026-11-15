@@ -1,5 +1,3 @@
-{{- /* apps.openshift.eu: no mail domain, no mail server */ -}}
-{{- if .Values.domain -}}
 ---
 {{- if .Values.rspamd.enabled }}
 apiVersion: v1
@@ -25,5 +23,4 @@ spec:
     - name: rspamd-http
       protocol: TCP
       port: 11334
-{{ end }}
 {{ end }}

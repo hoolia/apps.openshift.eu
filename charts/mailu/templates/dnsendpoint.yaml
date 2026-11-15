@@ -1,4 +1,3 @@
-{{- if .Values.upstream.domain }}
 {{- if .Values.dns.enabled }}
 {{- $domain := .Values.upstream.domain }}
 {{- $spf := .Values.dns.spf }}
@@ -38,5 +37,4 @@ spec:
     recordTTL: {{ .Values.dns.ttl }}
     targets:
     - {{ printf "%q" .Values.dns.dmarc | quote }}
-{{- end }}
 {{- end }}

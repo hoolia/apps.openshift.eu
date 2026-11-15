@@ -42,10 +42,10 @@ password:
 | `secrets.generator.enabled` | `false` | The External Secrets Operator makes the credentials Secrets and generates their empty passwords once. |
 | `global.publicAddress.shared` | `false` | Share one public address between the public Services of the project. See Delivery instructions. |
 | `mailu.enabled` | `true` | Run a Mailu mail server in the same project. Its values are those of the `mailu` chart, under `mailu`. |
-| `mailu.upstream.domain` | `example.org` | Mail domain of the mail server, normally the domain of the users' login email addresses. Set it. Empty: mail off, the same as `mailu.enabled=false`: no Mailu object, no mail Route, no webmail login and no Mail app setup. |
+| `mailu.upstream.domain` | `example.org` | Mail domain of the mail server, normally the domain of the users' login email addresses. Set it. |
 | `mailu.upstream.initialAccount.domain` | `example.org` | Domain of the first mail admin account, `admin@<domain>`. Same value as the mail domain. |
 | `mailu.upstream.hostnames` | `[mail.example.org]` | Hostnames of the mail server; the first one is its name towards other mail servers and the target of the MX record. Set it to `mail.<mail domain>`. |
-| `mail.enabled` | `true` | With `mailu.enabled` and a mail domain: install the Mail app and give every user with an address in a mail domain a mailbox with that address, see Mail for every user. |
+| `mail.enabled` | `true` | With `mailu.enabled`: install the Mail app and give every user with an address in a mail domain a mailbox with that address, see Mail for every user. |
 | `mail.domains` | `[]` | Domains hosted on the mail server. Empty: `mailu.upstream.domain`. Only domains you own, never a public mail provider. |
 | `settings.apps` | `[groupfolders, calendar, contacts]` | Store apps installed and enabled at every start. `groupfolders` is Team folders. |
 | `route.certificate.enabled` | `true` | Certificate of the host from a cert-manager `Certificate` of this chart (`nextcloud-cert`, Secret `nextcloud-tls`, issuer `route.certificate.issuerKind`/`issuerName`); Route `nextcloud` reads it through `spec.tls.externalCertificate` (OpenShift 4.16 or later) and a Role lets the router (`route.certificate.router`) read the Secret. A changed host gets its certificate by itself. |
@@ -162,9 +162,9 @@ The second command applies only with `ai.enabled` or `taskprocessing.enabled`.
 
 ## Mail for every user
 
-With `mailu.enabled`, `mail.enabled` (both default) and a mail domain, a Nextcloud user
-whose email address is in one of the mail domains finds a mailbox with exactly that
-address in the Mail app. For a user who logs in with OpenID Connect that is the login email, which
+With `mailu.enabled` and `mail.enabled` (both default) a Nextcloud user whose email
+address is in one of the mail domains finds a mailbox with exactly that address in the
+Mail app. For a user who logs in with OpenID Connect that is the login email, which
 `user_oidc` stores in Nextcloud; the user needs no Nextcloud password. Once a minute the
 cron container of the Nextcloud pod gives each new user:
 

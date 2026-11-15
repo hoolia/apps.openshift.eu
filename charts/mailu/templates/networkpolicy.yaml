@@ -1,4 +1,3 @@
-{{- if .Values.upstream.domain }}
 {{- if .Values.networkPolicy.enabled }}
 {{- $ports := (include "mailu-wrapper.frontPorts" . | fromYaml).ports }}
 apiVersion: networking.k8s.io/v1
@@ -43,5 +42,4 @@ spec:
   ingress:
   - from:
     - podSelector: {}
-{{- end }}
 {{- end }}

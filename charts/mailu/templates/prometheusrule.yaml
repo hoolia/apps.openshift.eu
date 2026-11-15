@@ -1,4 +1,3 @@
-{{- if .Values.upstream.domain }}
 {{- if and .Values.monitoring.enabled .Values.monitoring.alerts }}
 {{- $fullname := include "mailu-wrapper.fullname" . }}
 {{- $ns := .Release.Namespace }}
@@ -67,5 +66,4 @@ spec:
       annotations:
         summary: Mailu rspamd average scan time above 5s
         description: "{{ `{{ $value | humanize }}` }}s average scan time - check for a slow RBL, DNS or Lua module."
-{{- end }}
 {{- end }}

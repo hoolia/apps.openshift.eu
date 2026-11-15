@@ -1,4 +1,3 @@
-{{- if .Values.upstream.domain }}
 {{- $type := ternary "LoadBalancer" .Values.mailService.type .Values.mailService.public }}
 {{- $ports := (include "mailu-wrapper.frontPorts" . | fromYaml).ports }}
 {{- $annotations := deepCopy .Values.mailService.annotations }}
@@ -39,4 +38,3 @@ spec:
     port: {{ .port }}
     protocol: TCP
   {{- end }}
-{{- end }}
