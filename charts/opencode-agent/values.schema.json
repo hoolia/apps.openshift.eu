@@ -267,6 +267,16 @@
         "config": {
           "type": "object"
         },
+        "homeFiles": {
+          "type": "object",
+          "additionalProperties": {
+            "type": [
+              "string",
+              "object",
+              "array"
+            ]
+          }
+        },
         "resources": {
           "type": "object"
         }

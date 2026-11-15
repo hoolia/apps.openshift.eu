@@ -1,0 +1,24 @@
+# The agent: every value of chart opencode-agent, under this key. Defaults below load
+# oh-my-openagent (OmO) into OpenCode; see the README of opencode-agent for the rest.
+agent:
+  opencode:
+    # npm plugins OpenCode installs on start. Keep oh-my-openagent in the list when you add a
+    # plugin: a list given at install replaces this one
+    plugins:
+    - oh-my-openagent@5.1.70
+    # OmO sends anonymous daily-active telemetry to PostHog unless switched off
+    env:
+      OMO_SEND_ANONYMOUS_TELEMETRY: "0"
+      OMO_DISABLE_POSTHOG: "1"
+    # OmO's user configuration, ~/.omo/omo.jsonc, rewritten on every start. Agent and
+    # category models go under "[opencode]" as "<provider>/<model>"; a repository can add its
+    # own .omo/omo.jsonc, which wins over this file
+    homeFiles:
+      .omo/omo.jsonc:
+        $schema: https://raw.githubusercontent.com/code-yeongyu/oh-my-openagent/v5.1.70/assets/omo.schema.json
+        telemetry:
+          enabled: false
+        "[opencode]":
+          telemetry: false
+          # the plugin version is the one in plugins above; no update behind the chart's back
+          auto_update: false

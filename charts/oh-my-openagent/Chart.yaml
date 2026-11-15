@@ -1,0 +1,32 @@
+apiVersion: v2
+name: oh-my-openagent
+description: Personal OpenCode coding agent with the oh-my-openagent (OmO) agent harness, a browser UI behind a login and A2A for other agents
+type: application
+version: 0.1.0
+appVersion: 5.1.70
+home: https://apps.openshift.eu
+icon: https://raw.githubusercontent.com/code-yeongyu/oh-my-openagent/v5.1.70/.github/assets/omo-icon-light.svg
+keywords:
+- ai
+- agent
+- opencode
+- oh-my-openagent
+- omo
+- a2a
+- kagent
+sources:
+- https://github.com/code-yeongyu/oh-my-openagent
+- https://github.com/hoolia/apps.openshift.eu
+maintainers:
+- name: GRN.CLOUD B.V.
+  url: https://apps.openshift.eu
+annotations:
+  charts.openshift.io/name: oh-my-openagent
+  charts.openshift.io/provider: GRN.CLOUD B.V.
+  apps.openshift.eu/category: ai-agent
+  apps.openshift.eu/vendor: Sisyphus Labs
+dependencies:
+- name: opencode-agent
+  version: 0.9.0
+  repository: file://../opencode-agent
+  alias: agent

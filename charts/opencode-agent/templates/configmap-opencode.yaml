@@ -66,6 +66,27 @@ data:
     {{- end }}
   init.sh: |
 {{ .Files.Get "files/init.sh" | indent 4 }}
+  {{- range $path, $content := .Values.opencode.homeFiles }}
+  {{- if or (hasPrefix "/" $path) (has ".." (splitList "/" $path)) (not (regexMatch "^[A-Za-z0-9._/-]+$" $path)) }}
+  {{- fail (printf "opencode.homeFiles: %s must be a path below HOME of letters, digits, . _ - and /" $path) }}
+  {{- end }}
+  home-file-{{ $path | sha256sum | trunc 12 }}: |
+    {{- if kindIs "string" $content }}
+    {{- $content | nindent 4 }}
+    {{- else }}
+    {{- $content | toPrettyJson | nindent 4 }}
+    {{- end }}
+  {{- end }}
+  {{- with .Values.opencode.homeFiles }}
+  # Copies each opencode.homeFiles entry to its path under HOME on every start
+  home-files.sh: |
+    set -eu
+    {{- range $path, $content := . }}
+    mkdir -p "$HOME/{{ dir $path }}"
+    cp /etc/opencode-agent/home-file-{{ $path | sha256sum | trunc 12 }} "$HOME/{{ $path }}.tmp"
+    mv "$HOME/{{ $path }}.tmp" "$HOME/{{ $path }}"
+    {{- end }}
+  {{- end }}
   # Writes each mcp.servers credential header from the vault secret files into memory
   mcp-headers.sh: |
     set -eu
