@@ -132,9 +132,6 @@ opencode:
   - opencode
   # merged over the generated opencode.json
   config: {}
-  # files written under HOME (the work tree volume) on every start, as "<path below HOME>": <content>.
-  # A string is written as it is, any other value as JSON, for example the config file of a plugin
-  homeFiles: {}
   # opencode container requests and limits; an agent at work peaks near 10 cores
   resources:
     requests:

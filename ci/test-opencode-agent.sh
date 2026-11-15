@@ -332,29 +332,4 @@ has "authorization through the proxy" "the token proxy sets Authorization to the
 OUT=$(render "${BASE[@]}" "${VS[@]}" --set 'mcp.servers[0].auth.secretRef=nope')
 has "unknown secretRef" 'auth.secretRef "nope" is not a vaultSecrets name'
 
-# opencode.homeFiles: files under HOME, rewritten on every start; an object is written as JSON
-OUT=$(render "${BASE[@]}")
-check "no home files" '"home-files.sh" not in cfg()'
-HF=(--set-json 'opencode.homeFiles={".omo/omo.jsonc":{"[opencode]":{"telemetry":false}},"notes/a.txt":"plain text"}')
-OUT=$(render "${BASE[@]}" "${HF[@]}")
-check "home file json" 'any(json.loads(v) == {"[opencode]": {"telemetry": False}} for k, v in cfg().items() if k.startswith("home-file-"))'
-T=$(mktemp -d)
-echo "$OUT" | python3 -c '
-import sys, yaml
-for d in yaml.safe_load_all(sys.stdin):
-    if isinstance(d, dict) and d.get("kind") == "ConfigMap" and d["metadata"]["name"].endswith("-opencode"):
-        for k, v in d["data"].items():
-            if k.startswith("home-file"):
-                open(sys.argv[1] + "/" + k, "w").write(v)' "$T"
-sed -i "s#/etc/opencode-agent/#$T/#g" "$T/home-files.sh"
-mkdir -p "$T/home/.omo" && echo stale > "$T/home/.omo/omo.jsonc"
-HOME="$T/home" sh "$T/home-files.sh" || { echo "FAIL home-files: run"; fail=1; }
-grep -q '"telemetry": false' "$T/home/.omo/omo.jsonc" || { echo "FAIL home-files: json file not rewritten"; fail=1; }
-[ "$(cat "$T/home/notes/a.txt")" = "plain text" ] || { echo "FAIL home-files: string file"; fail=1; }
-rm -rf "$T"
-OUT=$(render "${BASE[@]}" --set-json 'opencode.homeFiles={"../x":"a"}')
-has "home file outside HOME" 'must be a path below HOME'
-OUT=$(render "${BASE[@]}" --set-json 'opencode.homeFiles={"a$(id)":"a"}')
-has "home file name" 'must be a path below HOME'
-
 [ $fail = 0 ] && echo "RESULT PASS" || { echo "RESULT FAIL"; exit 1; }

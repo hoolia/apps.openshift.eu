@@ -38,11 +38,6 @@ if [ -f "${NPMRC_SOURCE:-/etc/opencode-agent/npmrc}" ]; then
 	cp "${NPMRC_SOURCE:-/etc/opencode-agent/npmrc}" "$HOME/.npmrc"
 fi
 
-# Files under HOME the chart owns (opencode.homeFiles); rewritten like .gitconfig
-if [ -f "${HOME_FILES_SCRIPT:-/etc/opencode-agent/home-files.sh}" ]; then
-	sh "${HOME_FILES_SCRIPT:-/etc/opencode-agent/home-files.sh}"
-fi
-
 if [ -z "${GIT_URL:-}" ]; then
 	exit 0
 fi
