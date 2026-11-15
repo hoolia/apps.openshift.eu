@@ -81,7 +81,7 @@ gateway:
   defaultModel: ""
 
 tokenProxy:
-  image: registry.access.redhat.com/ubi9/python-312-minimal:9.7-1794510449
+  image: registry.access.redhat.com/ubi9/python-312-minimal:9.8-1793637445
   port: 8099
   resources:
     requests:
