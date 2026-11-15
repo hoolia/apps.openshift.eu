@@ -38,7 +38,7 @@ install -m 0600 /etc/omo/omo.jsonc "$HOME/.omo/omo.jsonc"
 # kubelet's fsGroup ownership change adds group rw to every file of the volume on each mount,
 # so the mode is set back here, after the mount and before OmO starts.
 key="$HOME/.omo/agent/config-identity.key"
-[ ! -f "$key" ] || chmod 0600 "$key"
+[ ! -f "$key" ] || [ -L "$key" ] || chmod 0600 "$key"
 
 [ -z "${GIT_USER_NAME:-}" ] || git config --global user.name "$GIT_USER_NAME"
 [ -z "${GIT_USER_EMAIL:-}" ] || git config --global user.email "$GIT_USER_EMAIL"
