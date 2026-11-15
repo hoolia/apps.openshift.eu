@@ -1,3 +1,5 @@
+{{- /* apps.openshift.eu: no mail domain, no mail server */ -}}
+{{- if .Values.domain -}}
 {{- if and (and .Values.persistence.single_pvc .Values.persistence.hostPath) (not .Values.persistence.existingClaim) -}}
 ---
 apiVersion: v1
@@ -43,3 +45,4 @@ spec:
           {{- end }}
   {{ end }}
 {{- end }}
+{{ end }}

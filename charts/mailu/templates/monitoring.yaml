@@ -1,3 +1,4 @@
+{{- if .Values.upstream.domain }}
 {{- if .Values.monitoring.enabled }}
 {{- $fullname := include "mailu-wrapper.fullname" . }}
 apiVersion: v1
@@ -81,5 +82,6 @@ spec:
       protocol: TCP
     - port: 9900
       protocol: TCP
+{{- end }}
 {{- end }}
 {{- end }}

@@ -1,3 +1,5 @@
+{{- /* apps.openshift.eu: rendered by mailu templates/subcharts.yaml */ -}}
+{{- if .mailuParent -}}
 {{- /*
 Copyright Broadcom, Inc. All Rights Reserved.
 SPDX-License-Identifier: APACHE-2.0
@@ -15,3 +17,4 @@ metadata:
   {{- end }}
 data: {{- include "common.tplvalues.render" (dict "value" .Values.primary.preInitDb.scripts "context" .) | nindent 2 }}
 {{- end }}
+{{ end }}

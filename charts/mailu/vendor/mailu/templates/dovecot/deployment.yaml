@@ -1,3 +1,5 @@
+{{- /* apps.openshift.eu: no mail domain, no mail server */ -}}
+{{- if .Values.domain -}}
 ---
 {{- if .Values.dovecot.enabled }}
 apiVersion: apps/v1
@@ -167,3 +169,4 @@ spec:
         {{- include "mailu.tplvalues.render" (dict "value" .Values.dovecot.extraVolumes "context" $) | nindent 8 }}
         {{- end }}
 {{- end }}
+{{ end }}

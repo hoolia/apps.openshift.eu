@@ -1,3 +1,5 @@
+{{- /* apps.openshift.eu: no mail domain, no mail server */ -}}
+{{- if .Values.domain -}}
 ---
 apiVersion: v1
 kind: Service
@@ -55,3 +57,4 @@ spec:
     - name: https
       port: 443
       protocol: TCP
+{{ end }}

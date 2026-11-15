@@ -1,3 +1,5 @@
+{{- /* apps.openshift.eu: rendered by mailu templates/subcharts.yaml */ -}}
+{{- if .mailuParent -}}
 {{- /*
 Copyright Broadcom, Inc. All Rights Reserved.
 SPDX-License-Identifier: APACHE-2.0
@@ -202,3 +204,4 @@ data:
     "$script_dir/ping_liveness_local.sh" $1 || exit_status=$?
     "$script_dir/ping_liveness_master.sh" $1 || exit_status=$?
     exit $exit_status
+{{ end }}

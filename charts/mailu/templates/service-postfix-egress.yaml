@@ -1,3 +1,4 @@
+{{- if .Values.upstream.domain }}
 {{- if .Values.egressService.enabled }}
 {{- $annotations := deepCopy .Values.egressService.annotations }}
 {{- if .Values.dns.enabled }}
@@ -30,4 +31,5 @@ spec:
     port: 9
     targetPort: 9
     protocol: TCP
+{{- end }}
 {{- end }}

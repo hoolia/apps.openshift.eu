@@ -1,3 +1,5 @@
+{{- /* apps.openshift.eu: no mail domain, no mail server */ -}}
+{{- if .Values.domain -}}
 CHART NAME: {{ .Chart.Name }}
 CHART VERSION: {{ .Chart.Version }}
 APP VERSION: {{ .Chart.AppVersion }}
@@ -38,3 +40,4 @@ If you're upgrading from Mailu < 2024.06, please read this: https://mailu.io/202
 {{ include "mailu.validateValues" . }}
 
 {{ include "mailu.dovecot.validateServiceMonitor" . }}
+{{ end }}

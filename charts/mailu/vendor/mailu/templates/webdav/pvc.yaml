@@ -1,3 +1,5 @@
+{{- /* apps.openshift.eu: no mail domain, no mail server */ -}}
+{{- if .Values.domain -}}
 ---
 {{- if .Values.webdav.enabled -}}
 {{- if and (not .Values.persistence.single_pvc) (not .Values.webdav.persistence.existingClaim) }}
@@ -33,3 +35,4 @@ spec:
   {{- end }}
 {{- end }}
 {{- end }}
+{{ end }}

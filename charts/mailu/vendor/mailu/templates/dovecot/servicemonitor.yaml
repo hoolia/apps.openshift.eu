@@ -1,3 +1,5 @@
+{{- /* apps.openshift.eu: no mail domain, no mail server */ -}}
+{{- if .Values.domain -}}
 {{- if and .Values.dovecot.enabled .Values.dovecot.serviceMonitor.enabled }}
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
@@ -34,3 +36,4 @@ spec:
       metricRelabelings: {{- tpl (toYaml .Values.dovecot.serviceMonitor.metricRelabelings | nindent 6) . }}
       {{- end }}
 {{- end }}
+{{ end }}

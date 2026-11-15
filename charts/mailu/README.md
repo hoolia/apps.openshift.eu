@@ -3,14 +3,20 @@
 ## Purpose
 
 Mailu is a mail server: SMTP, IMAP and POP3, webmail (Roundcube), a spam filter (rspamd)
-and an admin interface. This chart wraps the upstream chart `mailu` 2.6.3 and adds what a
+and an admin interface. This chart carries the upstream chart `mailu` 2.6.3 and adds what a
 project on OpenShift needs: a Route for webmail, a public Service for the mail protocols,
 NetworkPolicies, a spam filter configuration and, on request, a certificate, monitoring
 and a page to copy mailboxes from another server (imapsync).
 
 The upstream chart is included under the alias `upstream`. Every value of the upstream
 chart is set below `upstream:`, for example `upstream.domain`. A chart that includes this
-chart as `mailu` sets the same value as `mailu.upstream.domain`.
+chart as `mailu` sets the same value as `mailu.upstream.domain`. The upstream chart is
+kept in this repository in `vendor/mailu`, changed only so that it renders nothing without
+a mail domain. See `vendor/README.md`.
+
+An empty `upstream.domain` switches mail off: the chart renders no object at all, not
+even its Secret. A caller that can pass only text, not a boolean, uses this to install an
+application without mail.
 
 ## Install
 
@@ -27,7 +33,7 @@ Read the webmail address and the password of the first account (`admin@<domain>`
 
 | Value | Default | Meaning |
 |---|---|---|
-| `upstream.domain` | `example.org` | Mail domain, the part after the @. |
+| `upstream.domain` | `example.org` | Mail domain, the part after the @. Empty: mail off, the chart renders no object. Emptying it on a running mail server deletes the mail server and its mail volume. |
 | `upstream.initialAccount.domain` | `example.org` | Domain of the first admin account. Same value as the mail domain. |
 | `upstream.hostnames` | `[mail.example.org]` | Hostnames of the mail server. The first one goes in the MX record. |
 | `upstream.persistence.size` | `20Gi` | Size of the one volume that holds all mail and state. |

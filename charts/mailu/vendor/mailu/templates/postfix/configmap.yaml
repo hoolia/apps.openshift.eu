@@ -1,3 +1,5 @@
+{{- /* apps.openshift.eu: no mail domain, no mail server */ -}}
+{{- if .Values.domain -}}
 {{- if .Values.postfix.overrides }}
 apiVersion: v1
 kind: ConfigMap
@@ -15,5 +17,6 @@ metadata:
 {{- with .Values.postfix.overrides }}
 data:
 {{- .|toYaml|nindent 2 }}
+{{ end }}
 {{ end }}
 {{ end }}

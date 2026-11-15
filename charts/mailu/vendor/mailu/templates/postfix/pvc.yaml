@@ -1,3 +1,5 @@
+{{- /* apps.openshift.eu: no mail domain, no mail server */ -}}
+{{- if .Values.domain -}}
 ---
 {{- if and (not .Values.persistence.single_pvc) (not .Values.postfix.persistence.existingClaim) }}
 apiVersion: v1
@@ -31,3 +33,4 @@ spec:
   storageClassName: {{ .Values.postfix.persistence.storageClass }}
   {{- end }}
 {{- end }}
+{{ end }}

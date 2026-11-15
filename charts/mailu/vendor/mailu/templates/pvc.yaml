@@ -1,3 +1,5 @@
+{{- /* apps.openshift.eu: no mail domain, no mail server */ -}}
+{{- if .Values.domain -}}
 {{- if and .Values.persistence.single_pvc (not .Values.persistence.existingClaim) -}}
 ---
 apiVersion: v1
@@ -33,3 +35,4 @@ spec:
   volumeName: {{ printf "%s-storage" (include "mailu.fullname" . ) }}
   {{- end }}
 {{- end }}
+{{ end }}

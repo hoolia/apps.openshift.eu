@@ -1,3 +1,5 @@
+{{- /* apps.openshift.eu: no mail domain, no mail server */ -}}
+{{- if .Values.domain -}}
 {{- if .Values.networkPolicy.enabled }}
 ---
 apiVersion: networking.k8s.io/v1
@@ -25,3 +27,4 @@ spec:
           matchLabels:
             app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
+{{ end }}

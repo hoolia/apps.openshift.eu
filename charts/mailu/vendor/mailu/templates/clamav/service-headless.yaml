@@ -1,3 +1,5 @@
+{{- /* apps.openshift.eu: no mail domain, no mail server */ -}}
+{{- if .Values.domain -}}
 ---
 {{- if .Values.clamav.enabled }}
 apiVersion: v1
@@ -34,3 +36,4 @@ spec:
       targetPort: clamav
       protocol: TCP
 {{- end }}
+{{ end }}

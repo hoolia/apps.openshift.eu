@@ -1,3 +1,5 @@
+{{- /* apps.openshift.eu: no mail domain, no mail server */ -}}
+{{- if .Values.domain -}}
 ---
 {{- if .Values.dovecot.enabled }}
 {{- if and (not .Values.persistence.single_pvc) (not .Values.postfix.persistence.existingClaim)}}
@@ -33,3 +35,4 @@ spec:
   {{- end }}
 {{- end }}
 {{- end }}
+{{ end }}

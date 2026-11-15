@@ -1,3 +1,5 @@
+{{- /* apps.openshift.eu: no mail domain, no mail server */ -}}
+{{- if .Values.domain -}}
 ---
 {{- if .Values.dovecot.enabled }}
 apiVersion: v1
@@ -38,3 +40,4 @@ spec:
       protocol: TCP
     {{- end }}
 {{- end }}
+{{ end }}

@@ -1,3 +1,5 @@
+{{- /* apps.openshift.eu: no mail domain, no mail server */ -}}
+{{- if .Values.domain -}}
 ---
 {{/* TODO: add support for Traefik */}}
 {{- if .Values.ingress.enabled }}
@@ -59,3 +61,4 @@ spec:
     {{- end }}
   {{- end }}
 {{- end }}
+{{ end }}

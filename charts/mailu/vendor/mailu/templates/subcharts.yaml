@@ -1,0 +1,124 @@
+{{- /*
+apps.openshift.eu: the templates of the subcharts render here, in the context of each
+subchart, so that they follow the mail domain like the templates of this chart. Their
+own render is empty: each of their templates renders only with .mailuParent set.
+*/ -}}
+{{- if .Values.domain }}
+{{- $files := dict
+  "redis" (list
+    "configmap.yaml"
+    "extra-list.yaml"
+    "headless-svc.yaml"
+    "health-configmap.yaml"
+    "master/application.yaml"
+    "master/pdb.yaml"
+    "master/psp.yaml"
+    "master/pvc.yaml"
+    "master/service.yaml"
+    "master/serviceaccount.yaml"
+    "metrics-svc.yaml"
+    "networkpolicy.yaml"
+    "podmonitor.yaml"
+    "prometheusrule.yaml"
+    "replicas/application.yaml"
+    "replicas/hpa.yaml"
+    "replicas/pdb.yaml"
+    "replicas/service.yaml"
+    "replicas/serviceaccount.yaml"
+    "role.yaml"
+    "rolebinding.yaml"
+    "scripts-configmap.yaml"
+    "secret-svcbind.yaml"
+    "secret.yaml"
+    "sentinel/hpa.yaml"
+    "sentinel/node-services.yaml"
+    "sentinel/pdb.yaml"
+    "sentinel/ports-configmap.yaml"
+    "sentinel/service.yaml"
+    "sentinel/statefulset.yaml"
+    "serviceaccount.yaml"
+    "servicemonitor.yaml"
+    "svc-external.yaml"
+    "tls-secret.yaml"
+  )
+  "postgresql" (list
+    "backup/cronjob.yaml"
+    "backup/networkpolicy.yaml"
+    "backup/pvc.yaml"
+    "extra-list.yaml"
+    "primary/configmap.yaml"
+    "primary/extended-configmap.yaml"
+    "primary/initialization-configmap.yaml"
+    "primary/metrics-configmap.yaml"
+    "primary/metrics-svc.yaml"
+    "primary/networkpolicy.yaml"
+    "primary/pdb.yaml"
+    "primary/preinitialization-configmap.yaml"
+    "primary/servicemonitor.yaml"
+    "primary/statefulset.yaml"
+    "primary/svc-headless.yaml"
+    "primary/svc.yaml"
+    "prometheusrule.yaml"
+    "psp.yaml"
+    "read/extended-configmap.yaml"
+    "read/metrics-configmap.yaml"
+    "read/metrics-svc.yaml"
+    "read/networkpolicy.yaml"
+    "read/pdb.yaml"
+    "read/servicemonitor.yaml"
+    "read/statefulset.yaml"
+    "read/svc-headless.yaml"
+    "read/svc.yaml"
+    "role.yaml"
+    "rolebinding.yaml"
+    "secrets.yaml"
+    "serviceaccount.yaml"
+    "tls-secrets.yaml"
+    "update-password/job.yaml"
+    "update-password/new-secret.yaml"
+    "update-password/previous-secret.yaml"
+  )
+  "mariadb" (list
+    "ca-cert.yaml"
+    "cert.yaml"
+    "extra-list.yaml"
+    "headless-svc.yaml"
+    "networkpolicy.yaml"
+    "primary/configmap.yaml"
+    "primary/initialization-configmap.yaml"
+    "primary/pdb.yaml"
+    "primary/statefulset.yaml"
+    "primary/svc.yaml"
+    "prometheusrules.yaml"
+    "role.yaml"
+    "rolebinding.yaml"
+    "secondary/configmap.yaml"
+    "secondary/pdb.yaml"
+    "secondary/statefulset.yaml"
+    "secondary/svc.yaml"
+    "secrets.yaml"
+    "secretstoreproviderclass-tde.yaml"
+    "serviceaccount.yaml"
+    "servicemonitor.yaml"
+    "tls-secret.yaml"
+    "update-password/job.yaml"
+    "update-password/new-secret.yaml"
+    "update-password/previous-secret.yaml"
+  )
+}}
+{{- range $sub := list "redis" "postgresql" "mariadb" }}
+{{- with index $.Subcharts $sub }}
+{{- $base := printf "%s/charts/%s/templates" (dir $.Template.BasePath) $sub }}
+{{- $chart := . }}
+{{- range index $files $sub }}
+{{- $ctx := merge (dict "mailuParent" true "Template" (dict "Name" (printf "%s/%s" $base .) "BasePath" $base)) $chart }}
+{{- $out := include $ctx.Template.Name $ctx }}
+{{- if trim $out }}
+---
+# Template: {{ $ctx.Template.Name }}
+{{ $out }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

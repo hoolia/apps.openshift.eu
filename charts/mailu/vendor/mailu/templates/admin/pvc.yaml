@@ -1,3 +1,5 @@
+{{- /* apps.openshift.eu: no mail domain, no mail server */ -}}
+{{- if .Values.domain -}}
 ---
 {{- if and (not .Values.persistence.single_pvc) (not .Values.admin.persistence.existingClaim)}}
 kind: PersistentVolumeClaim
@@ -31,3 +33,4 @@ spec:
   storageClassName: {{ .Values.admin.persistence.storageClass }}
   {{- end }}
 {{- end }}
+{{ end }}

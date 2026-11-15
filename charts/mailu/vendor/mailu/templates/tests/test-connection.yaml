@@ -1,3 +1,5 @@
+{{- /* apps.openshift.eu: no mail domain, no mail server */ -}}
+{{- if .Values.domain -}}
 apiVersion: v1
 kind: Pod
 metadata:
@@ -20,3 +22,4 @@ spec:
           wget -S --header "Host: {{ . }}" 'https://{{ printf "%s-front" (include "mailu.fullname" $) }}.{{ include "mailu.names.namespace" $ }}.svc.cluster.local'
           {{- end }}
   restartPolicy: Never
+{{ end }}

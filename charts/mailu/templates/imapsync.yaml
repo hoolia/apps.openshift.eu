@@ -1,3 +1,4 @@
+{{- if .Values.upstream.domain }}
 {{- if .Values.imapsync.enabled }}
 {{- $name := printf "%s-imapsync" (include "mailu-wrapper.fullname" .) }}
 apiVersion: v1
@@ -137,5 +138,6 @@ spec:
   - ports:
     - protocol: TCP
       port: 8081
+{{- end }}
 {{- end }}
 {{- end }}

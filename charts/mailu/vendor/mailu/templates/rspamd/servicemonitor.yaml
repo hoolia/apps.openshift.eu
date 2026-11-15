@@ -1,3 +1,5 @@
+{{- /* apps.openshift.eu: no mail domain, no mail server */ -}}
+{{- if .Values.domain -}}
 {{- if and .Values.rspamd.enabled .Values.rspamd.serviceMonitor.enabled }}
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
@@ -41,3 +43,4 @@ spec:
       metricRelabelings: {{- tpl (toYaml .Values.rspamd.serviceMonitor.metricRelabelings | nindent 6) . }}
       {{- end }}
 {{- end }}
+{{ end }}

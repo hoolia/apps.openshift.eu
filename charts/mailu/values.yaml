@@ -152,7 +152,7 @@ global:
       existingSecret: mailu-secrets
       existingSecretPasswordKey: roundcube-db-password
 
-# Values of the upstream chart mailu, included under the alias upstream
+# Values of the upstream chart mailu (vendor/mailu), included under the alias upstream
 upstream:
   nameOverride: mailu
   fullnameOverride: mailu
@@ -184,7 +184,9 @@ upstream:
       rspamd: [redis, oletools, clamav]
       fetchmail: [front, admin]
 
+  # mail domain, the part after the @. Empty: mail off, the chart renders no object
   domain: example.org
+  # hostnames of the mail server; the first one goes in the MX record
   hostnames:
   - mail.example.org
 

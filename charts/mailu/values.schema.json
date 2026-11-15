@@ -5,7 +5,7 @@
     "upstream": {
       "type": "object",
       "properties": {
-        "domain": {"type": "string", "title": "Mail domain", "description": "The part after the @ of the mail addresses"},
+        "domain": {"type": "string", "title": "Mail domain", "description": "The part after the @ of the mail addresses. Empty: mail off, nothing is installed"},
         "hostnames": {"type": "array", "items": {"type": "string"}, "title": "Hostnames of the mail server", "description": "The first one is the name in the MX record"},
         "initialAccount": {
           "type": "object",
