@@ -16,7 +16,6 @@
 {{- define "oh-my-openagent.commonLabels" -}}
 app: {{ include "oh-my-openagent.name" . }}
 app.kubernetes.io/name: oh-my-openagent
-app.kubernetes.io/instance: {{ .Release.Name | quote }}
 app.kubernetes.io/part-of: {{ .Release.Name | quote }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end -}}
@@ -26,9 +25,10 @@ app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 app.kubernetes.io/component: {{ .component }}
 {{- end -}}
 
+{{/* Pod selector; not app.kubernetes.io/instance, which Argo CD sets on every object it tracks */}}
 {{- define "oh-my-openagent.selectorLabels" -}}
+app: {{ include "oh-my-openagent.name" . }}
 app.kubernetes.io/name: oh-my-openagent
-app.kubernetes.io/instance: {{ .Release.Name | quote }}
 {{- end -}}
 
 {{/* The ServiceAccount is the OAuth client of the login; its redirect goes to the Route */}}
