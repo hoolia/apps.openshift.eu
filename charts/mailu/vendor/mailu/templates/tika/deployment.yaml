@@ -1,0 +1,128 @@
+---
+{{- if .Values.tika.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ printf "%s-tika" (include "mailu.fullname" .) }}
+  namespace: {{ include "mailu.names.namespace" . | quote }}
+  labels: {{- include "mailu.labels.standard" . | nindent 4 }}
+    app.kubernetes.io/component: tika
+    {{- if .Values.commonLabels }}
+    {{- include "mailu.tplvalues.render" ( dict "value" .Values.commonLabels "context" $ ) | nindent 4 }}
+    {{- end }}
+  {{- if .Values.commonAnnotations }}
+  annotations: {{- include "mailu.tplvalues.render" ( dict "value" .Values.commonAnnotations "context" $ ) | nindent 4 }}
+  {{- end }}
+spec:
+  replicas: 1
+  {{- if .Values.tika.updateStrategy }}
+  strategy: {{- toYaml .Values.tika.updateStrategy | nindent 4 }}
+  {{- end }}
+  revisionHistoryLimit: {{ .Values.tika.revisionHistoryLimit }}
+  selector:
+    matchLabels: {{- include "mailu.labels.matchLabels" . | nindent 6 }}
+      app.kubernetes.io/component: tika
+  template:
+    metadata:
+      labels: {{- include "mailu.labels.standard" . | nindent 8 }}
+        app.kubernetes.io/component: tika
+        {{- if .Values.tika.podLabels }}
+        {{- include "mailu.tplvalues.render" (dict "value" .Values.tika.podLabels "context" $) | nindent 8 }}
+        {{- end }}
+      {{- if .Values.tika.podAnnotations }}
+      annotations: {{- include "mailu.tplvalues.render" ( dict "value" .Values.tika.podAnnotations "context" $) | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- include "mailu.images.renderPullSecrets" (dict "images" (list .Values.tika.image) "context" $) | nindent 6 }}
+      {{- if .Values.tika.hostAliases }}
+      hostAliases: {{- include "mailu.tplvalues.render" (dict "value" .Values.tika.hostAliases "context" $) | nindent 8 }}
+      {{- end }}
+      {{- if .Values.tika.nodeSelector }}
+      nodeSelector: {{- include "mailu.tplvalues.render" (dict "value" .Values.tika.nodeSelector "context" $) | nindent 8 }}
+      {{- end }}
+      {{- if .Values.tika.affinity }}
+      affinity: {{- include "mailu.tplvalues.render" (dict "value" .Values.tika.affinity "context" $) | nindent 8 }}
+      {{- end }}
+      {{- if .Values.tika.tolerations }}
+      tolerations: {{- include "mailu.tplvalues.render" (dict "value" .Values.tika.tolerations "context" $) | nindent 8 }}
+      {{- end }}
+      {{- if .Values.tika.priorityClassName }}
+      priorityClassName: {{ .Values.tika.priorityClassName | quote }}
+      {{- end }}
+      {{- if .Values.tika.schedulerName }}
+      schedulerName: {{ .Values.tika.schedulerName | quote }}
+      {{- end }}
+      {{- if .Values.tika.topologySpreadConstraints }}
+      topologySpreadConstraints: {{- include "mailu.tplvalues.render" (dict "value" .Values.tika.topologySpreadConstraints "context" $) | nindent 8 }}
+      {{- end }}
+      {{- if .Values.tika.terminationGracePeriodSeconds }}
+      terminationGracePeriodSeconds: {{ .Values.tika.terminationGracePeriodSeconds }}
+      {{- end }}
+      {{- if .Values.tika.initContainers }}
+      initContainers: {{- include "mailu.tplvalues.render" (dict "value" .Values.tika.initContainers "context" $) | nindent 8 }}
+      {{- end }}
+      {{- if .Values.tika.podSecurityContext.enabled }}
+      securityContext: {{- omit .Values.tika.podSecurityContext "enabled" | toYaml | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: tika
+          image: {{ .Values.tika.image.registry }}/{{ .Values.tika.image.repository }}:{{ .Values.tika.image.tag }}
+          imagePullPolicy: {{ .Values.tika.image.pullPolicy }}
+          {{- if .Values.tika.containerSecurityContext.enabled }}
+          securityContext: {{- omit .Values.tika.containerSecurityContext "enabled" | toYaml | nindent 12 }}
+          {{- end }}
+          {{- if .Values.tika.extraVolumeMounts }}
+          volumeMounts:
+            {{- include "mailu.tplvalues.render" (dict "value" .Values.tika.extraVolumeMounts "context" $) | nindent 12 }}
+          {{- end }}
+          env:
+            - name: LOG_LEVEL
+              value: {{ default .Values.logLevel .Values.tika.logLevel }}
+            {{- tpl (include "mailu.envvars.secrets" .) $ | nindent 12 }}
+            {{- if .Values.tika.extraEnvVars }}
+            {{- include "mailu.tplvalues.render" (dict "value" .Values.tika.extraEnvVars "context" $) | nindent 12 }}
+            {{- end }}
+          {{- if or .Values.tika.extraEnvVarsCM .Values.tika.extraEnvVarsSecret }}
+          envFrom:
+            {{- if .Values.tika.extraEnvVarsCM }}
+            - configMapRef:
+                name: {{ include "mailu.tplvalues.render" (dict "value" .Values.tika.extraEnvVarsCM "context" $) }}
+            {{- end }}
+            {{- if .Values.tika.extraEnvVarsSecret }}
+            - secretRef:
+                name: {{ include "mailu.tplvalues.render" (dict "value" .Values.tika.extraEnvVarsSecret "context" $) }}
+            {{- end }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: 9998
+              protocol: TCP
+          {{- if .Values.tika.resources }}
+          resources: {{- toYaml .Values.tika.resources | nindent 12 }}
+          {{- end }}
+          {{- if .Values.tika.startupProbe.enabled }}
+          startupProbe: {{- include "mailu.tplvalues.render" (dict "value" (omit .Values.tika.startupProbe "enabled") "context" $) | nindent 12 }}
+            httpGet:
+              path: /tika
+              port: http
+          {{- end }}
+          {{- if .Values.tika.livenessProbe.enabled }}
+          livenessProbe: {{- include "mailu.tplvalues.render" (dict "value" (omit .Values.tika.livenessProbe "enabled") "context" $) | nindent 12 }}
+            httpGet:
+              path: /tika
+              port: http
+          {{- end }}
+          {{- if .Values.tika.readinessProbe.enabled }}
+          readinessProbe: {{- include "mailu.tplvalues.render" (dict "value" (omit .Values.tika.readinessProbe "enabled") "context" $) | nindent 12 }}
+            httpGet:
+              path: /tika
+              port: http
+          {{- end }}
+      {{- if .Values.tika.extraContainers }}
+        {{- toYaml .Values.tika.extraContainers | nindent 8 }}
+      {{- end }}
+      {{- if .Values.tika.extraVolumes }}
+      volumes:
+        {{- include "mailu.tplvalues.render" (dict "value" .Values.tika.extraVolumes "context" $) | nindent 8 }}
+      {{- end }}
+{{- end }}

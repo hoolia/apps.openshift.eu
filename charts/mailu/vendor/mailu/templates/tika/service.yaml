@@ -1,0 +1,23 @@
+---
+{{- if .Values.tika.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "mailu.tika.serviceName" . }}
+  namespace: {{ include "mailu.names.namespace" . | quote }}
+  labels: {{- include "mailu.labels.standard" . | nindent 4 }}
+    app.kubernetes.io/component: tika
+    {{- if .Values.commonLabels }}
+    {{- include "mailu.tplvalues.render" ( dict "value" .Values.commonLabels "context" $ ) | nindent 4 }}
+    {{- end }}
+  {{- if .Values.tika.service.annotations }}
+  annotations: {{- include "mailu.tplvalues.render" ( dict "value" .Values.tika.service.annotations "context" $) | nindent 4 }}
+  {{- end }}
+spec:
+  selector: {{- include "mailu.labels.matchLabels" . | nindent 4 }}
+    app.kubernetes.io/component: tika
+  ports:
+  - name: http
+    port: 9998
+    protocol: TCP
+{{- end }}

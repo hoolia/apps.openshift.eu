@@ -27,4 +27,5 @@ dependencies:
 - name: mailu
   alias: upstream
   version: 2.6.3
-  repository: https://mailu.github.io/helm-charts
+  # the upstream package mailu-2.6.3.tgz of https://mailu.github.io/helm-charts
+  repository: file://vendor/mailu

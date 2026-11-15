@@ -1,0 +1,173 @@
+---
+{{- if .Values.clamav.enabled }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ printf "%s-clamav" (include "mailu.fullname" .) }}
+  namespace: {{ include "mailu.names.namespace" . | quote }}
+  labels: {{- include "mailu.labels.standard" . | nindent 4 }}
+    app.kubernetes.io/component: clamav
+    {{- if .Values.commonLabels }}
+    {{- include "mailu.tplvalues.render" ( dict "value" .Values.commonLabels "context" $ ) | nindent 4 }}
+    {{- end }}
+  {{- if .Values.commonAnnotations }}
+  annotations: {{- include "mailu.tplvalues.render" ( dict "value" .Values.commonAnnotations "context" $ ) | nindent 4 }}
+  {{- end }}
+spec:
+  replicas: {{ .Values.clamav.replicaCount }}
+  {{- if .Values.clamav.updateStrategy }}
+  updateStrategy:
+    {{- include "mailu.tplvalues.render" (dict "value" .Values.clamav.updateStrategy "context" $ ) | nindent 4 }}
+  {{- end }}
+  serviceName: {{ include "mailu.clamav.serviceNameHeadless" . | quote }}
+  selector:
+    matchLabels: {{- include "mailu.labels.matchLabels" . | nindent 6 }}
+      app.kubernetes.io/component: clamav
+  template:
+    metadata:
+      labels: {{- include "mailu.labels.standard" . | nindent 8 }}
+        app.kubernetes.io/component: clamav
+        {{- if .Values.clamav.podLabels }}
+        {{- include "mailu.tplvalues.render" (dict "value" .Values.clamav.podLabels "context" $) | nindent 8 }}
+        {{- end }}
+      {{- if .Values.clamav.podAnnotations }}
+      annotations: {{- include "mailu.tplvalues.render" ( dict "value" .Values.clamav.podAnnotations "context" $) | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- include "mailu.images.renderPullSecrets" (dict "images" (list .Values.clamav.image) "context" $) | nindent 6 }}
+      {{- if .Values.clamav.hostAliases }}
+      hostAliases: {{- include "mailu.tplvalues.render" (dict "value" .Values.clamav.hostAliases "context" $) | nindent 8 }}
+      {{- end }}
+      {{- if .Values.clamav.nodeSelector }}
+      nodeSelector: {{- include "mailu.tplvalues.render" (dict "value" .Values.clamav.nodeSelector "context" $) | nindent 8 }}
+      {{- end }}
+      {{- if .Values.clamav.affinity }}
+      affinity: {{- include "mailu.tplvalues.render" (dict "value" .Values.clamav.affinity "context" $) | nindent 8 }}
+      {{- end }}
+      {{- if .Values.clamav.tolerations }}
+      tolerations: {{- include "mailu.tplvalues.render" (dict "value" .Values.clamav.tolerations "context" $) | nindent 8 }}
+      {{- end }}
+      {{- if .Values.clamav.priorityClassName }}
+      priorityClassName: {{ .Values.clamav.priorityClassName | quote }}
+      {{- end }}
+      {{- if .Values.clamav.schedulerName }}
+      schedulerName: {{ .Values.clamav.schedulerName | quote }}
+      {{- end }}
+      {{- if .Values.clamav.topologySpreadConstraints }}
+      topologySpreadConstraints: {{- include "mailu.tplvalues.render" (dict "value" .Values.clamav.topologySpreadConstraints "context" $) | nindent 8 }}
+      {{- end }}
+      {{- if .Values.clamav.terminationGracePeriodSeconds }}
+      terminationGracePeriodSeconds: {{ .Values.clamav.terminationGracePeriodSeconds }}
+      {{- end }}
+      {{- if .Values.clamav.initContainers }}
+      initContainers: {{- include "mailu.tplvalues.render" (dict "value" .Values.clamav.initContainers "context" $) | nindent 8 }}
+      {{- end }}
+      {{- if .Values.clamav.podSecurityContext.enabled }}
+      securityContext: {{- omit .Values.clamav.podSecurityContext "enabled" | toYaml | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: clamav
+          image: {{ .Values.clamav.image.registry }}/{{ .Values.clamav.image.repository }}:{{ .Values.clamav.image.tag }}
+          imagePullPolicy: {{ .Values.clamav.image.pullPolicy }}
+          {{- if .Values.clamav.containerSecurityContext.enabled }}
+          securityContext: {{- omit .Values.clamav.containerSecurityContext "enabled" | toYaml | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: data
+              subPath: clamav
+              mountPath: /var/lib/clamav
+            {{- if .Values.clamav.extraVolumeMounts }}
+            {{- include "mailu.tplvalues.render" (dict "value" .Values.clamav.extraVolumeMounts "context" $) | nindent 12 }}
+            {{- end }}
+          env:
+            - name: LOG_LEVEL
+              value: {{ default .Values.logLevel .Values.clamav.logLevel }}
+            {{- tpl (include "mailu.envvars.secrets" .) $ | nindent 12 }}
+            {{- if .Values.clamav.extraEnvVars }}
+            {{- include "mailu.tplvalues.render" (dict "value" .Values.clamav.extraEnvVars "context" $) | nindent 12 }}
+            {{- end }}
+          {{- if or .Values.clamav.extraEnvVarsCM .Values.clamav.extraEnvVarsSecret }}
+          envFrom:
+            {{- if .Values.clamav.extraEnvVarsCM }}
+            - configMapRef:
+                name: {{ include "mailu.tplvalues.render" (dict "value" .Values.clamav.extraEnvVarsCM "context" $) }}
+            {{- end }}
+            {{- if .Values.clamav.extraEnvVarsSecret }}
+            - secretRef:
+                name: {{ include "mailu.tplvalues.render" (dict "value" .Values.clamav.extraEnvVarsSecret "context" $) }}
+            {{- end }}
+          {{- end }}
+          ports:
+            - name: clamav
+              containerPort: 3310
+              protocol: TCP
+          {{- if .Values.clamav.resources }}
+          resources: {{- toYaml .Values.clamav.resources | nindent 12 }}
+          {{- end }}
+          {{- if .Values.clamav.startupProbe.enabled }}
+          startupProbe: {{- include "mailu.tplvalues.render" (dict "value" (omit .Values.clamav.startupProbe "enabled") "context" $) | nindent 12 }}
+            exec:
+              command: ["echo", "PING", "|", "nc", "localhost", "3310", "|", "grep", "PONG"]
+          {{- end }}
+          {{- if .Values.clamav.livenessProbe.enabled }}
+          livenessProbe: {{- include "mailu.tplvalues.render" (dict "value" (omit .Values.clamav.livenessProbe "enabled") "context" $) | nindent 12 }}
+            exec:
+              command: ["echo", "PING", "|", "nc", "localhost", "3310", "|", "grep", "PONG"]
+          {{- end }}
+          {{- if .Values.clamav.readinessProbe.enabled }}
+          readinessProbe: {{- include "mailu.tplvalues.render" (dict "value" (omit .Values.clamav.readinessProbe "enabled") "context" $) | nindent 12 }}
+            exec:
+              command: ["echo", "PING", "|", "nc", "localhost", "3310", "|", "grep", "PONG"]
+          {{- end }}
+      {{- if .Values.clamav.extraContainers }}
+        {{- toYaml .Values.clamav.extraContainers | nindent 8 }}
+      {{- end }}
+      volumes:
+        {{- if .Values.clamav.extraVolumes }}
+        {{- include "mailu.tplvalues.render" (dict "value" .Values.clamav.extraVolumes "context" $) | nindent 8 }}
+        {{- end }}
+  {{- if not .Values.clamav.persistence.enabled }}
+        - name: data
+          emptyDir: {}
+  {{- else if .Values.clamav.persistence.existingClaim }}
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ printf "%s" (tpl .Values.clamav.persistence.existingClaim .) }}
+  {{- else }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+        labels: {{- include "mailu.labels.matchLabels" . | nindent 10 }}
+          app.kubernetes.io/component: clamav
+          {{- if .Values.clamav.persistence.labels }}
+          {{- include "mailu.tplvalues.render" ( dict "value" .Values.clamav.persistence.labels "context" $ ) | nindent 10 }}
+          {{- end }}
+          {{- if .Values.commonLabels }}
+          {{- include "mailu.tplvalues.render" ( dict "value" .Values.commonLabels "context" $ ) | nindent 10 }}
+          {{- end }}
+        {{- if or .Values.clamav.persistence.annotations .Values.commonAnnotations }}
+        annotations:
+          {{- if .Values.clamav.persistence.annotations }}
+          {{- include "mailu.tplvalues.render" ( dict "value" .Values.clamav.persistence.annotations "context" $ ) | nindent 10 }}
+          {{- end }}
+          {{- if .Values.commonAnnotations }}
+          {{- include "mailu.tplvalues.render" ( dict "value" .Values.commonAnnotations "context" $ ) | nindent 10 }}
+          {{- end }}
+        {{- end }}
+      spec:
+        accessModes:
+          {{- range .Values.clamav.persistence.accessModes }}
+          - {{ . | quote }}
+          {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.clamav.persistence.size | quote }}
+        {{- if .Values.clamav.persistence.selector }}
+        selector: {{- include "mailu.tplvalues.render" (dict "value" .Values.clamav.persistence.selector "context" $) | nindent 10 }}
+        {{- end }}
+        {{- if .Values.clamav.persistence.dataSource }}
+        dataSource: {{- include "mailu.tplvalues.render" (dict "value" .Values.clamav.persistence.dataSource "context" $) | nindent 10 }}
+        {{- end }}
+        {{- include "mailu.storage.class" (dict "persistence" .Values.clamav.persistence "global" .Values.global) | nindent 8 }}
+  {{- end }}
+{{- end }}

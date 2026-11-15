@@ -1,0 +1,61 @@
+---
+{{/* TODO: add support for Traefik */}}
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "mailu.fullname" . }}
+  namespace: {{ include "mailu.names.namespace" . | quote }}
+  labels: {{- include "mailu.labels.standard" . | nindent 4 }}
+    {{- if .Values.commonLabels }}
+    {{- include "mailu.tplvalues.render" ( dict "value" .Values.commonLabels "context" $ ) | nindent 4 }}
+    {{- end }}
+  annotations:
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+    {{- if .Values.ingress.annotations }}
+    {{- include "mailu.tplvalues.render" ( dict "value" .Values.ingress.annotations "context" $ ) | nindent 4 }}
+    {{- end }}
+    {{- if .Values.commonAnnotations }}
+    {{- include "mailu.tplvalues.render" ( dict "value" .Values.commonAnnotations "context" $ ) | nindent 4 }}
+    {{- end }}
+spec:
+  {{- if .Values.ingress.ingressClassName }}
+  ingressClassName: {{ .Values.ingress.ingressClassName | quote }}
+  {{- end }}
+  rules:
+    {{- range .Values.hostnames }}
+    - host: {{ . | quote }}
+      http:
+        paths:
+          {{- if $.Values.ingress.extraPaths }}
+          {{- toYaml $.Values.ingress.extraPaths | nindent 10 }}
+          {{- end }}
+          - path: {{ $.Values.ingress.path }}
+            pathType: {{ $.Values.ingress.pathType }}
+            backend: {{- include "mailu.ingress.backend" (dict "serviceName" (include "mailu.front.serviceName" $) "servicePort" "https" "context" $)  | nindent 14 }}
+    {{- end }}
+    {{- range .Values.ingress.extraHosts }}
+    - host: {{ .name | quote }}
+      http:
+        paths:
+          - path: {{ default "/" .path }}
+            pathType: {{ default "ImplementationSpecific" .pathType }}
+            backend: {{- include "mailu.ingress.backend" (dict "serviceName" (include "mailu.front.serviceName" $) "servicePort" "https" "context" $) | nindent 14 }}
+    {{- end }}
+    {{- if .Values.ingress.extraRules }}
+    {{- include "mailu.tplvalues.render" (dict "value" .Values.ingress.extraRules "context" $) | nindent 4 }}
+    {{- end }}
+  {{- if .Values.ingress.tls }}
+  tls:
+    {{- if or (include "mailu.ingress.certManagerRequest" ( dict "annotations" .Values.ingress.annotations )) .Values.ingress.secrets .Values.ingress.selfSigned .Values.ingress.existingSecret }}
+    - secretName: {{ include "mailu.certificatesSecretName" . }}
+      hosts:
+        {{- range .Values.hostnames }}
+        - {{ . | quote }}
+        {{- end }}
+    {{- end }}
+    {{- if .Values.ingress.extraTls }}
+    {{- include "mailu.tplvalues.render" (dict "value" .Values.ingress.extraTls "context" $) | nindent 4 }}
+    {{- end }}
+  {{- end }}
+{{- end }}

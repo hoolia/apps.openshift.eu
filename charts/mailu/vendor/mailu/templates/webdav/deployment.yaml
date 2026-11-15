@@ -1,0 +1,140 @@
+---
+{{- if .Values.webdav.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ printf "%s-webdav" (include "mailu.fullname" .) }}
+  namespace: {{ include "mailu.names.namespace" . | quote }}
+  labels: {{- include "mailu.labels.standard" . | nindent 4 }}
+    app.kubernetes.io/component: webdav
+    {{- if .Values.commonLabels }}
+    {{- include "mailu.tplvalues.render" ( dict "value" .Values.commonLabels "context" $ ) | nindent 4 }}
+    {{- end }}
+  {{- if .Values.commonAnnotations }}
+  annotations: {{- include "mailu.tplvalues.render" ( dict "value" .Values.commonAnnotations "context" $ ) | nindent 4 }}
+  {{- end }}
+spec:
+  replicas: 1
+  {{- if .Values.webdav.updateStrategy }}
+  strategy: {{- toYaml .Values.webdav.updateStrategy | nindent 4 }}
+  {{- end }}
+  revisionHistoryLimit: {{ .Values.webdav.revisionHistoryLimit }}
+  selector:
+    matchLabels: {{- include "mailu.labels.matchLabels" . | nindent 6 }}
+      app.kubernetes.io/component: webdav
+  template:
+    metadata:
+      labels: {{- include "mailu.labels.standard" . | nindent 8 }}
+        app.kubernetes.io/component: webdav
+        {{- if .Values.webdav.podLabels }}
+        {{- include "mailu.tplvalues.render" (dict "value" .Values.webdav.podLabels "context" $) | nindent 8 }}
+        {{- end }}
+      {{- if .Values.webdav.podAnnotations }}
+      annotations: {{- include "mailu.tplvalues.render" ( dict "value" .Values.webdav.podAnnotations "context" $) | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- include "mailu.images.renderPullSecrets" (dict "images" (list .Values.webdav.image) "context" $) | nindent 6 }}
+      {{- if .Values.webdav.hostAliases }}
+      hostAliases: {{- include "mailu.tplvalues.render" (dict "value" .Values.webdav.hostAliases "context" $) | nindent 8 }}
+      {{- end }}
+      {{- if .Values.webdav.nodeSelector }}
+      nodeSelector: {{- include "mailu.tplvalues.render" (dict "value" .Values.webdav.nodeSelector "context" $) | nindent 8 }}
+      {{- end }}
+      {{- if .Values.webdav.affinity }}
+      affinity: {{- include "mailu.tplvalues.render" (dict "value" .Values.webdav.affinity "context" $) | nindent 8 }}
+      {{- end }}
+      {{- if .Values.webdav.tolerations }}
+      tolerations: {{- include "mailu.tplvalues.render" (dict "value" .Values.webdav.tolerations "context" $) | nindent 8 }}
+      {{- end }}
+      {{- if .Values.webdav.priorityClassName }}
+      priorityClassName: {{ .Values.webdav.priorityClassName | quote }}
+      {{- end }}
+      {{- if .Values.webdav.schedulerName }}
+      schedulerName: {{ .Values.webdav.schedulerName | quote }}
+      {{- end }}
+      {{- if .Values.webdav.topologySpreadConstraints }}
+      topologySpreadConstraints: {{- include "mailu.tplvalues.render" (dict "value" .Values.webdav.topologySpreadConstraints "context" $) | nindent 8 }}
+      {{- end }}
+      {{- if .Values.webdav.terminationGracePeriodSeconds }}
+      terminationGracePeriodSeconds: {{ .Values.webdav.terminationGracePeriodSeconds }}
+      {{- end }}
+      {{- if .Values.webdav.initContainers }}
+      initContainers: {{- include "mailu.tplvalues.render" (dict "value" .Values.webdav.initContainers "context" $) | nindent 8 }}
+      {{- end }}
+      {{- if .Values.webdav.podSecurityContext.enabled }}
+      securityContext: {{- omit .Values.webdav.podSecurityContext "enabled" | toYaml | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: webdav
+          image: {{ .Values.imageRegistry }}/{{ .Values.webdav.image.repository }}:{{ default (include "mailu.version" .) .Values.webdav.image.tag }}
+          imagePullPolicy: {{ .Values.webdav.image.pullPolicy }}
+          {{- if .Values.webdav.containerSecurityContext.enabled }}
+          securityContext: {{- omit .Values.webdav.containerSecurityContext "enabled" | toYaml | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: data
+              subPath: webdav
+              mountPath: /data
+            {{- if .Values.webdav.extraVolumeMounts }}
+            {{- include "mailu.tplvalues.render" (dict "value" .Values.webdav.extraVolumeMounts "context" $) | nindent 12 }}
+            {{- end }}
+          env:
+            - name: LOG_LEVEL
+              value: {{ default .Values.logLevel .Values.webdav.logLevel }}
+            {{- tpl (include "mailu.envvars.secrets" .) $ | nindent 12 }}
+            {{- if .Values.webdav.extraEnvVars }}
+            {{- include "mailu.tplvalues.render" (dict "value" .Values.webdav.extraEnvVars "context" $) | nindent 12 }}
+            {{- end }}
+          {{- if or .Values.webdav.extraEnvVarsCM .Values.webdav.extraEnvVarsSecret }}
+          envFrom:
+            {{- if .Values.webdav.extraEnvVarsCM }}
+            - configMapRef:
+                name: {{ include "mailu.tplvalues.render" (dict "value" .Values.webdav.extraEnvVarsCM "context" $) }}
+            {{- end }}
+            {{- if .Values.webdav.extraEnvVarsSecret }}
+            - secretRef:
+                name: {{ include "mailu.tplvalues.render" (dict "value" .Values.webdav.extraEnvVarsSecret "context" $) }}
+            {{- end }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: 5232
+              protocol: TCP
+          {{- if .Values.webdav.resources }}
+          resources: {{- toYaml .Values.webdav.resources | nindent 12 }}
+          {{- end }}
+          {{- if .Values.webdav.startupProbe.enabled }}
+          startupProbe: {{- include "mailu.tplvalues.render" (dict "value" (omit .Values.webdav.startupProbe "enabled") "context" $) | nindent 12 }}
+            exec:
+              command:
+                - sh
+                - -c
+                - 'ps ax | grep [/]radicale.conf'
+          {{- end }}
+          {{- if .Values.webdav.livenessProbe.enabled }}
+          livenessProbe: {{- include "mailu.tplvalues.render" (dict "value" (omit .Values.webdav.livenessProbe "enabled") "context" $) | nindent 12 }}
+            exec:
+              command:
+                - sh
+                - -c
+                - 'ps ax | grep [/]radicale.conf'
+          {{- end }}
+          {{- if .Values.webdav.readinessProbe.enabled }}
+          readinessProbe: {{- include "mailu.tplvalues.render" (dict "value" (omit .Values.webdav.readinessProbe "enabled") "context" $) | nindent 12 }}
+            exec:
+              command:
+                - sh
+                - -c
+                - 'ps ax | grep [/]radicale.conf'
+          {{- end }}
+      {{- if .Values.webdav.extraContainers }}
+        {{- toYaml .Values.webdav.extraContainers | nindent 8 }}
+      {{- end }}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "mailu.webdav.claimName" . }}
+        {{- if .Values.webdav.extraVolumes }}
+        {{- include "mailu.tplvalues.render" (dict "value" .Values.webdav.extraVolumes "context" $) | nindent 8 }}
+        {{- end }}
+{{- end }}

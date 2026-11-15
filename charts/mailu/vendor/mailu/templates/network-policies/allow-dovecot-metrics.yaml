@@ -1,0 +1,31 @@
+{{- if and .Values.networkPolicy.enabled .Values.dovecot.enabled .Values.dovecot.serviceMonitor.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ printf "%s-allow-dovecot-metrics" (include "mailu.names.fullname" .) | trunc 63 | trimSuffix "-" }}
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "mailu.labels.standard" . | nindent 4 }}
+    {{- if .Values.commonLabels }}
+    {{- include "mailu.tplvalues.render" (dict "value" .Values.commonLabels "context" $) | nindent 4 }}
+    {{- end }}
+  {{- if .Values.commonAnnotations }}
+  annotations: {{- include "mailu.tplvalues.render" (dict "value" .Values.commonAnnotations "context" $) | nindent 4 }}
+  {{- end }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: dovecot
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.monitoring.namespace }}
+          podSelector:
+            {{- include "mailu.tplvalues.render" (dict "value" .Values.networkPolicy.monitoring.podSelector "context" $) | nindent 10 }}
+      ports:
+        - port: 9900
+          protocol: TCP
+  policyTypes:
+    - Ingress
+{{- end }}
