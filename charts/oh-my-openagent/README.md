@@ -43,8 +43,8 @@ helm install omo apps/oh-my-openagent \
 - `oauth.ownerEmail` (default: empty): OpenShift user name of the only person admitted. Empty: `oauth.allowedGroups`; both empty: everyone who may edit the project.
 - `oauth.allowedGroups`, `oauth.loginClusterRole` (default: empty): groups admitted, through a ClusterRole with verb `login` on `services/proxy` or the chart's own Role.
 - `secrets.type` (default: `kubernetes`): `externalSecret` reads each secret from the password of a vault item in `secrets.externalSecret.storeName`: `secrets.externalSecret.items.cookieSecret` (default `<release>-cookie-secret`) and, with `gateway.auth: apiKey`, `items.gatewayApiKey` (default `<release>-gateway-api-key`).
-- `secrets.cookieSecret` (default: empty): oauth-proxy cookie secret; empty: generated once. Under Argo CD pass it, or it changes on every sync.
-- `gateway.upstream` (default: empty): origin of the OpenAI-compatible gateway; without it OmO has no model.
+- `secrets.cookieSecret` (default: empty): oauth-proxy cookie secret; empty: generated once. Under Argo CD pass it, or it changes on every sync. A value, or a vault password, that is not 16, 24 or 32 characters long is hashed to 32.
+- `gateway.upstream` (default: empty): origin of the OpenAI-compatible gateway; without it OmO gets no provider. Required with `gateway.auth: apiKey`.
 - `gateway.path` (default: `/v1`): path of the OpenAI API.
 - `gateway.auth` (default: `serviceAccountToken`): `apiKey` sends `secrets.gatewayApiKey` instead of the ServiceAccount token.
 - `gateway.audience` (default: empty, the host of `gateway.upstream`): audience of the token.
@@ -57,8 +57,10 @@ helm install omo apps/oh-my-openagent \
 - `omo.env` (default: empty): extra environment of the terminal.
 - `omo.workdir` (default: `work`): directory below HOME the session opens in.
 - `terminal.image` (default: empty): prebuilt terminal image; empty: the build of `builds.enabled`.
-- `terminal.fontSize` (default: 14).
-- `builds.enabled`, `builds.baseImage`, `builds.registry` (default: true, UBI 10 node 24, the internal registry).
+- `terminal.port`, `terminal.fontSize` (default: 7681, 14): ttyd's loopback port and font size.
+- `oauthProxy.image`, `oauthProxy.port` (default: the cluster's `openshift/oauth-proxy:v4.4` image stream tag, 4180).
+- `tokenProxy.image`, `tokenProxy.port` (default: UBI 9 python 3.12 minimal, 8099).
+- `builds.enabled`, `builds.baseImage`, `builds.registry`, `builds.nodeSelector` (default: true, UBI 10 node 24, the internal registry, none). The image is x86_64 only.
 - `storage.size`, `storage.className`, `storage.accessMode` (default: `10Gi`, default class, `ReadWriteOnce`).
 - `terminal.resources`, `oauthProxy.resources`, `tokenProxy.resources`, `builds.resources`: per container.
 - `networkPolicy.enabled` (default: true): only the router reaches the login proxy port.

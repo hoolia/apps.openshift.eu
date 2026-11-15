@@ -5,6 +5,11 @@
 # TERMINAL_FONT_SIZE, GIT_USER_NAME, GIT_USER_EMAIL; configuration files in /etc/omo.
 set -euo pipefail
 
+# ssh refuses to start for a UID without a passwd entry; the image leaves passwd group-writable
+if ! id -un >/dev/null 2>&1 && [ -w /etc/passwd ]; then
+  echo "omo:x:$(id -u):0:OmO:$HOME:/bin/bash" >> /etc/passwd
+fi
+
 lib="$HOME/.local/lib/omo"
 prefix="$lib/$OMO_VERSION"
 mkdir -p "$lib" "$HOME/.local/bin" "$HOME/.omo/agent" "$HOME/$OMO_WORKDIR"

@@ -1,6 +1,7 @@
 {{- $name := include "oh-my-openagent.name" . -}}
 {{- $home := "/home/omo" -}}
 {{- $tokenProxy := include "oh-my-openagent.tokenProxy" . -}}
+{{- if and (eq .Values.gateway.auth "apiKey") (not .Values.gateway.upstream) }}{{ fail "gateway.upstream is required with gateway.auth apiKey" }}{{ end -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:

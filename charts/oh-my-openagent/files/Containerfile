@@ -1,3 +1,4 @@
+# x86_64 only: ttyd, ripgrep and fd are the x86_64 release binaries.
 # Terminal image of the oh-my-openagent chart: node 24, a browser terminal and the tools
 # OmO calls. OmO itself is not in the image; the pod installs the pinned version from npm
 # into its home directory on start.
@@ -9,7 +10,8 @@ ARG RIPGREP_VERSION=15.2.0
 ARG RIPGREP_SHA256=33e15bcf1624b25cdd2a55813a47a2f95dbe126268203e76aa6a585d1e7b149c
 ARG FD_VERSION=10.5.0
 ARG FD_SHA256=761c72dc8e120d85b22292063be8a796e2eeb20eb3e4f38b8fa2343ccf3514a7
-# tmux is not in the UBI repositories; the CentOS Stream 10 build of the RHEL 10 package
+# tmux is not in the UBI repositories; the CentOS Stream 10 build of the RHEL 10 package.
+# The mirror keeps a few builds only: a removed one fails the build, pin the next one then
 ARG TMUX_RPM=tmux-3.3a-14.20230918gitb202a2f.el10.x86_64.rpm
 ARG TMUX_SHA256=d743e90302f2cff76e4ab89788412c83303c91c16df845b4c3a17f4dd170756d
 
@@ -35,6 +37,8 @@ RUN set -eux; \
     tar -xzf /tmp/fd.tgz -C /tmp; \
     install -m 0755 "/tmp/fd-v${FD_VERSION}-x86_64-unknown-linux-musl/fd" /usr/local/bin/fd; \
     rm -rf /tmp/rg.tgz /tmp/fd.tgz /tmp/ripgrep-* /tmp/fd-v*; \
+    # ssh and git need a passwd entry; start.sh adds one for the arbitrary UID
+    chmod g=u /etc/passwd; \
     tmux -V; ttyd --version; rg --version; fd --version; node --version
 
 ENV NPM_CONFIG_UPDATE_NOTIFIER=false NPM_CONFIG_FUND=false NPM_CONFIG_AUDIT=false \

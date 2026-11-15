@@ -43,6 +43,16 @@ check "omo.config wins" 'cm("omo.jsonc")["model_profile"] == "x/y" and cm("setti
 
 OUT=$(render "${G[@]}" --set gateway.auth=apiKey --set secrets.type=externalSecret --set secrets.externalSecret.storeName=v)
 check "api key from the vault" 'kinds.count("ExternalSecret") == 2 and "Secret" not in kinds'
+check "vault cookie hashed to a length oauth-proxy takes" '"sha256sum | trunc 32" in [d for d in docs if d["metadata"]["name"] == "t-cookie-secret"][0]["spec"]["target"]["template"]["data"]["cookie-secret"]'
+
+OUT=$(render)
+check "no provider without a gateway" 'cm("models.json") == {"providers": {}} and "model_profile" not in cm("omo.jsonc") and names == ["terminal", "oauth-proxy"]'
+
+OUT=$(render --set gateway.auth=apiKey --set secrets.gatewayApiKey=k)
+echo "$OUT" | grep -q "gateway.upstream is required" || { echo "FAIL api key without upstream"; fail=1; }
+
+OUT=$(render "${G[@]}" --set omo.workdir=../etc)
+echo "$OUT" | grep -q "workdir" || { echo "FAIL workdir outside HOME accepted"; fail=1; }
 
 OUT=$(render "${G[@]}" --set builds.enabled=false --set terminal.image=registry.example.com/omo-terminal:1)
 check "prebuilt image" '"BuildConfig" not in kinds and ctr("terminal")["image"] == "registry.example.com/omo-terminal:1"'

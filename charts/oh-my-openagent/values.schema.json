@@ -108,7 +108,7 @@
         "config": { "type": "object" },
         "settings": { "type": "object" },
         "env": { "type": "object" },
-        "workdir": { "type": "string", "pattern": "^[^/].*$" }
+        "workdir": { "type": "string", "pattern": "^[^/]", "not": { "pattern": "(^|/)\\.\\.(/|$)" } }
       }
     },
     "terminal": {

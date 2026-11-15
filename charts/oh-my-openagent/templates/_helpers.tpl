@@ -66,7 +66,8 @@ app.kubernetes.io/name: oh-my-openagent
 
 {{/* Model a new session starts on */}}
 {{- define "oh-my-openagent.defaultModel" -}}
-{{- if .Values.gateway.defaultModel -}}
+{{- if not .Values.gateway.upstream -}}
+{{- else if .Values.gateway.defaultModel -}}
 {{- .Values.gateway.defaultModel -}}
 {{- else if .Values.gateway.models -}}
 {{- $m := first .Values.gateway.models -}}
@@ -84,8 +85,11 @@ app.kubernetes.io/name: oh-my-openagent
 {{- end -}}
 {{- /* the token proxy replaces the Authorization header; OmO still wants a key to list the models */ -}}
 {{- $key := ternary "token-proxy" "$GATEWAY_API_KEY" (not (empty (include "oh-my-openagent.tokenProxy" .))) -}}
-{{- $provider := dict "baseUrl" (include "oh-my-openagent.baseUrl" .) "api" "openai-completions" "apiKey" $key "models" $models -}}
-{{- dict "providers" (dict .Values.gateway.provider $provider) | toPrettyJson -}}
+{{- $providers := dict -}}
+{{- if .Values.gateway.upstream -}}
+{{- $_ := set $providers .Values.gateway.provider (dict "baseUrl" (include "oh-my-openagent.baseUrl" .) "api" "openai-completions" "apiKey" $key "models" $models) -}}
+{{- end -}}
+{{- dict "providers" $providers | toPrettyJson -}}
 {{- end -}}
 
 {{/* ~/.omo/omo.jsonc: telemetry and the device service off, the default model pinned */}}
