@@ -130,7 +130,7 @@ identity provider can deliver to or verify, so no login of a person can match it
 {{/* The namespace of the Service that agent.url names, empty for any other address. */}}
 {{- define "wrapper.agentNamespace" -}}
 {{- with .Values.agent.url }}
-{{- $h := first (splitList ":" (urlParse .).host) }}
+{{- $h := first (splitList ":" (urlParse .).host) | lower }}
 {{- if regexMatch "^[a-z0-9-]+\\.[a-z0-9-]+\\.svc(\\.cluster\\.local)?$" $h }}
 {{- index (splitList "." $h) 1 }}
 {{- end }}
