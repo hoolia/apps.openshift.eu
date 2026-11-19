@@ -414,11 +414,14 @@ serviceAccountName: chatwoot-route
 {{- end }}
 {{- end }}
 
-{{/* the Chatwoot users the chart makes, which are agents but not staff */}}
+{{/* the Chatwoot user of the Odoo bridge */}}
+{{- define "wrapper.odooBridgeEmail" -}}odoo-bridge@chatwoot.invalid{{- end }}
+
+{{/* the Chatwoot users the chart makes, which are agents but not staff. The draft user is
+     listed also while draftAgent is off: the prepare Job never removes it, and its old label
+     activities must not count */}}
 {{- define "wrapper.notStaffEmails" -}}
-{{- $emails := list "odoo-bridge@chatwoot.invalid" }}
-{{- if .Values.draftAgent.enabled }}{{- $emails = append $emails .Values.draftAgent.email }}{{- end }}
-{{- join "," $emails }}
+{{- join "," (list (include "wrapper.odooBridgeEmail" .) .Values.draftAgent.email) }}
 {{- end }}
 
 {{/* .job: the prepare Job, which writes no files and must not hold the ReadWriteOnce volume */}}

@@ -138,7 +138,7 @@ spec:
         {{- end }}
         {{- if .Values.odoo.enabled }}
         - name: CHATWOOT_ODOO_BRIDGE_EMAIL
-          value: odoo-bridge@chatwoot.invalid
+          value: {{ include "wrapper.odooBridgeEmail" . }}
         - name: CHATWOOT_ODOO_WEBHOOK_URL
           value: http://chatwoot-odoo-bridge:8080/chatwoot/webhook
         - name: CHATWOOT_ODOO_INBOXES
