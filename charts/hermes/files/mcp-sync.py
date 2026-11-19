@@ -34,6 +34,8 @@ OTHER_PROJECTS = os.environ.get("OTHER_PROJECTS", "true") == "true"
 LABEL_DOMAIN = os.environ.get("LABEL_DOMAIN", "").strip("/")
 BUNDLES = set(filter(None, os.environ.get("BUNDLES", "").split(",")))
 SERVERS = set(filter(None, os.environ.get("SERVERS", "").split(",")))
+# public servers of the platform (mcp.catalog): used only when also in SERVERS
+PUBLIC_SERVERS = set(filter(None, os.environ.get("PUBLIC_SERVERS", "").split(",")))
 EXCLUDE = set(filter(None, os.environ.get("EXCLUDE", "").split(",")))
 AUTH_ANNOTATION = "openhands.dev/auth"
 SCOPES_ANNOTATION = "openhands.dev/oauth-scopes"
@@ -88,9 +90,12 @@ def selected(obj: dict) -> bool:
     if meta["name"] in EXCLUDE or f"{meta['namespace']}/{meta['name']}" in EXCLUDE:
         return False
     labels = meta.get("labels") or {}
+    server = (labels.get(f"{LABEL_DOMAIN}/server") if LABEL_DOMAIN else None) or meta["name"]
+    if server in PUBLIC_SERVERS:
+        # a public server of the platform: only when ticked
+        return server in SERVERS
     if not LABEL_DOMAIN or labels.get(f"{LABEL_DOMAIN}/addon") != "true":
         return True
-    server = labels.get(f"{LABEL_DOMAIN}/server") or obj["metadata"]["name"]
     return server in SERVERS or labels.get(f"{LABEL_DOMAIN}/bundle", "") in BUNDLES
 
 

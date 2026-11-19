@@ -321,6 +321,14 @@ mcp:
   #     tokenKey: JIRA_API_TOKEN
   #     # only the RemoteMCPServer of this namespace gets it; empty: the entry of that name
   #     namespace: ""
+  # Public MCP servers of the platform, each used only when ticked: options names keys of
+  # catalog, whose value is the server name (label <labelDomain>/server of its
+  # RemoteMCPServer, else the object name). A RemoteMCPServer of a catalog server that is
+  # not ticked is never used; nothing ticked: none of them. A name not in catalog fails
+  options: []
+  catalog:
+    playwright: playwright
+    firecrawl: firecrawl
   # ClusterRole, installed with kagent, that reads RemoteMCPServers; bound in the
   # release namespace. Empty: no binding (the ServiceAccount's edit role may cover it)
   clusterRole: kagent-remotemcpserver-view

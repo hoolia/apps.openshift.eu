@@ -17,6 +17,8 @@ data:
 {{ include "oh-my-openagent.omoJson" . | indent 4 }}
   settings.json: |
 {{ include "oh-my-openagent.settingsJson" . | indent 4 }}
+  mcp.json: |
+{{ include "oh-my-openagent.mcpJson" . | indent 4 }}
 ---
 apiVersion: v1
 kind: ConfigMap

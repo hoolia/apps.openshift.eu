@@ -68,4 +68,12 @@ render --set 'approval.approvers={sam}' >/dev/null && { echo "FAIL schema: appro
 render --set approvalSigning.secretName=Bad_Name >/dev/null && { echo "FAIL schema: Bad_Name accepted"; fail=1; }
 render --set approvalSigning.other=x >/dev/null && { echo "FAIL schema: unknown key accepted"; fail=1; }
 
+
+# public MCP servers: the catalog servers are passed as PUBLIC_SERVERS, ticked ones join SERVERS
+OUT=$(render)
+check "public servers listed, none ticked" '{e["name"]: e.get("value") for e in ctr("mcp-sync")["env"]}["PUBLIC_SERVERS"] == "firecrawl,playwright" and {e["name"]: e.get("value") for e in ctr("mcp-sync")["env"]}["SERVERS"] == ""'
+OUT=$(render --set 'mcp.servers={gmail}' --set 'mcp.options={playwright}')
+check "ticked server joins SERVERS" '{e["name"]: e.get("value") for e in ctr("mcp-sync")["env"]}["SERVERS"] == "gmail,playwright"'
+render --set 'mcp.options={nope}' | grep -q 'mcp.options: "nope" is not in mcp.catalog' || { echo "FAIL unknown mcp option accepted"; fail=1; }
+
 [ $fail = 0 ] && echo "RESULT PASS" || { echo "RESULT FAIL"; exit 1; }

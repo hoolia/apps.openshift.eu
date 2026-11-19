@@ -346,4 +346,14 @@ has "authorization through the proxy" "the token proxy sets Authorization to the
 OUT=$(render "${BASE[@]}" "${VS[@]}" --set 'mcp.servers[0].auth.secretRef=nope')
 has "unknown secretRef" 'auth.secretRef "nope" is not a vaultSecrets name'
 
+
+# public MCP servers: ticked in mcp.options only; an explicit mcp.servers entry of that name wins
+OUT=$(render "${BASE[@]}" --set gateway.upstream=https://api.example.com)
+check "no public server by default" 'not any("/mcp/public/" in s.get("url", "") for s in json.loads(cfg()["opencode.json"])["mcp"].values())'
+OUT=$(render "${BASE[@]}" --set gateway.upstream=https://api.example.com --set 'mcp.options={playwright}')
+check "ticked public server" 'json.loads(cfg()["opencode.json"])["mcp"]["playwright"] == {"type": "remote", "url": "http://127.0.0.1:8099/mcp/public/playwright", "enabled": True} and "firecrawl" not in json.loads(cfg()["opencode.json"])["mcp"]'
+OUT=$(render "${BASE[@]}" --set gateway.upstream=https://api.example.com --set 'mcp.options={playwright}' --set 'mcp.servers[0].name=playwright' --set 'mcp.servers[0].path=/mcp/public/playwright' --set 'mcp.servers[0].enabled=false')
+check "explicit entry wins" 'json.loads(cfg()["opencode.json"])["mcp"]["playwright"]["enabled"] is False'
+render "${BASE[@]}" --set gateway.upstream=https://api.example.com --set 'mcp.options={nope}' | grep -q 'mcp.options: "nope" is not in mcp.catalog' || { echo "FAIL unknown mcp option accepted"; fail=1; }
+
 [ $fail = 0 ] && echo "RESULT PASS" || { echo "RESULT FAIL"; exit 1; }

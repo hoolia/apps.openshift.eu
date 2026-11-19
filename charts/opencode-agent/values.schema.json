@@ -534,6 +534,20 @@
               }
             }
           }
+        },
+        "options": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "ticked public MCP servers: names of mcp.catalog"
+        },
+        "catalog": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "name to public server (RemoteMCPServer server label, path /mcp/public/<server>)"
         }
       }
     }

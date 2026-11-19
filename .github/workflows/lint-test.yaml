@@ -49,7 +49,7 @@ jobs:
     - name: Test oh-my-openagent chart
       run: ci/test-oh-my-openagent.sh
     - name: Test hermes private skill repositories
-      run: python3 -m unittest ci/test_hermes_seed_config.py
+      run: python3 -m unittest ci/test_hermes_seed_config.py ci/test_hermes_mcp_sync.py
     - name: Test chatwoot chart
       run: ci/test-chatwoot.sh
     - name: Test kagent chart

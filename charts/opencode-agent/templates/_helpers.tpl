@@ -236,6 +236,14 @@ header value is a {file:} reference to what mcp-headers.sh writes, never the cre
 {{- end -}}
 {{- $_ := set $out $name $s -}}
 {{- end -}}
+{{- range (.Values.mcp.options | default list) -}}
+{{- $server := index ($.Values.mcp.catalog | default dict) . -}}
+{{- if not $server }}{{ fail (printf "mcp.options: %q is not in mcp.catalog" .) }}{{ end -}}
+{{- if not $.Values.gateway.upstream }}{{ fail (printf "mcp.options %s: needs gateway.upstream" .) }}{{ end -}}
+{{- if not (hasKey $out .) -}}
+{{- $_ := set $out . (dict "type" "remote" "url" (printf "http://127.0.0.1:%v/mcp/public/%s" $.Values.tokenProxy.port $server) "enabled" true) -}}
+{{- end -}}
+{{- end -}}
 {{- toJson $out -}}
 {{- end -}}
 
