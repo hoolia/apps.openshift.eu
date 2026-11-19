@@ -387,7 +387,9 @@ conversations of the Website inbox.
   not count as staff: the triage writes back labels it read, which a visitor can have set.
   A visitor's label leaves no activity: the chat stays a ticket and staff get a private
   note. The AI triage never chooses the label: the chart refuses a sales label that is also
-  a triage label. Staff whose Chatwoot language is not English or Dutch move nothing with
+  a triage label. An automation rule counts as staff: one that adds the sales label on a
+  condition the visitor controls (message text, contact attributes) lets the visitor move the
+  chat, so do not make one. Staff whose Chatwoot language is not English or Dutch move nothing with
   the label, and a removal they make is not seen.
 - The widget API lets a visitor set and clear the conversation's custom attributes. The
   bridge therefore follows only the record whose `x_chatwoot_url` names the conversation and

@@ -1181,6 +1181,20 @@ class BridgeTest(unittest.TestCase):
         self.assertEqual(self.state["odoo"]["helpdesk.ticket"][rid]["stage_id"], 3)
         self.assertNotEqual(self.state["odoo"]["helpdesk.ticket"][7].get("stage_id"), 3)
 
+    def test_website_resolve_with_an_empty_or_lead_ref_solves_the_linked_ticket(self):
+        for attrs in ({}, {"odoo_ref": "crm.lead:9"}, {"odoo_ref": "nonsense"}):
+            with self.subTest(attrs=attrs):
+                self.website()
+                cid, first = self.chat_start()
+                self.hook(first)
+                rid = max(self.tickets())
+                self.conversations()[cid]["custom_attributes"] = dict(attrs)
+                self.conversations()[cid]["status"] = "resolved"
+                self.assertEqual(self.hook({"event": "conversation_status_changed", "id": cid, "status": "resolved"}),
+                                 "done")
+                self.assertEqual(self.state["odoo"]["helpdesk.ticket"][rid]["stage_id"], 3)
+                self.assertEqual(self.conversations()[cid]["custom_attributes"]["odoo_ref"], f"helpdesk.ticket:{rid}")
+
     def test_website_odoo_ref_of_a_missing_record_does_not_block_the_chat(self):
         self.website()
         cid, first = self.chat_start()

@@ -741,19 +741,32 @@ class Bridge:
         if payload.get("status") != "resolved" or not isinstance(payload.get("id"), int):
             return "ignored"
         conv = self.chatwoot.conversation(payload["id"])
+        if not conv or conv.get("status") != "resolved":
+            return "ignored"
+        if self._website_conv(conv):
+            # the visitor can change odoo_ref: the ticket whose link names the chat decides, and
+            # naming it on the chat again is a chat write, under the chat's lock
+            with self.lock(f"website:{conv['id']}"):
+                target = self._bridged(conv)
+                ticket = None
+                if target and target[0] == "helpdesk.ticket":
+                    ticket = self._record_of(conv, target, ["stage_id", "team_id"])
+                if not ticket:
+                    target = self._chat_linked(conv["id"])
+                    if target and target[0] == "helpdesk.ticket":
+                        ticket = self._record_of(conv, target, ["stage_id", "team_id"])
+                if not ticket:
+                    return "ignored"
+                return self._solve_ticket(conv, target[1], ticket)
         target = self._bridged(conv)
-        if not target or target[0] != "helpdesk.ticket" or conv.get("status") != "resolved":
+        if not target or target[0] != "helpdesk.ticket":
             return "ignored"
         ticket = self._record_of(conv, target, ["stage_id", "team_id"])
-        if not ticket and self._website_conv(conv):
-            # the visitor can change odoo_ref: the ticket whose link names the chat decides
-            target = self._chat_linked(conv["id"])
-            if not target or target[0] != "helpdesk.ticket":
-                return "ignored"
-            ticket = self._record_of(conv, target, ["stage_id", "team_id"])
         if not ticket:
             return "ignored"
-        rid = target[1]
+        return self._solve_ticket(conv, target[1], ticket)
+
+    def _solve_ticket(self, conv, rid, ticket):
         if ticket.get("stage_id"):
             stage = self.odoo.read("helpdesk.stage", ticket["stage_id"][0], ["fold"])
             if stage.get("fold"):
