@@ -35,16 +35,29 @@ install -m 0600 /etc/omo/omo.jsonc "$HOME/.omo/omo.jsonc"
 [ -e "$HOME/.omo/agent/settings.json" ] || install -m 0600 /etc/omo/settings.json "$HOME/.omo/agent/settings.json"
 
 # MCP servers: the chart's entries (mcp.options) replace those it wrote on the last start,
-# listed in .chart-mcp-servers; servers the user added to mcp.json stay
-[ ! -f /etc/omo/mcp.json ] || node - "$HOME/.omo/agent/mcp.json" "$HOME/.omo/agent/.chart-mcp-servers" /etc/omo/mcp.json <<'EOF'
+# listed in .chart-mcp-servers; servers the user added to mcp.json stay, and a user entry of
+# a ticked name wins. A mcp.json that is not a JSON object is left alone. Never stops the start
+[ ! -f /etc/omo/mcp.json ] || node - "$HOME/.omo/agent/mcp.json" "$HOME/.omo/agent/.chart-mcp-servers" /etc/omo/mcp.json <<'EOF' || echo "start: mcp.json not updated" >&2
 const fs = require("fs");
 const [file, owned, chart] = process.argv.slice(2);
-const read = (p, d) => { try { return JSON.parse(fs.readFileSync(p, "utf8")); } catch { return d; } };
-const cfg = read(file, {});
-const servers = cfg.mcpServers && typeof cfg.mcpServers === "object" ? cfg.mcpServers : {};
-for (const name of read(owned, [])) delete servers[name];
-const ours = read(chart, {}).mcpServers || {};
-Object.assign(servers, ours);
+const isObj = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
+let cfg = {};
+if (fs.existsSync(file)) {
+  try { cfg = JSON.parse(fs.readFileSync(file, "utf8")); } catch { cfg = undefined; }
+  if (!isObj(cfg)) { console.error("start: " + file + " is not a JSON object; left as it is"); process.exit(0); }
+}
+let mine = [];
+try { mine = JSON.parse(fs.readFileSync(owned, "utf8")); } catch {}
+if (!Array.isArray(mine)) mine = [];
+const servers = isObj(cfg.mcpServers) ? cfg.mcpServers : {};
+for (const name of mine) delete servers[name];
+const theirs = new Set(Object.keys(servers));
+const ours = {};
+for (const [name, entry] of Object.entries((JSON.parse(fs.readFileSync(chart, "utf8")) || {}).mcpServers || {})) {
+  if (theirs.has(name)) { console.error("start: mcp.json has its own " + name + "; the chart's entry is not written"); continue; }
+  servers[name] = entry;
+  ours[name] = entry;
+}
 cfg.mcpServers = servers;
 fs.writeFileSync(file, JSON.stringify(cfg, null, 2) + "\n", { mode: 0o600 });
 fs.writeFileSync(owned, JSON.stringify(Object.keys(ours)) + "\n", { mode: 0o600 });

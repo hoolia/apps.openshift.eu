@@ -79,14 +79,22 @@ check "ticked public server" 'cm("mcp.json")["mcpServers"] == {"firecrawl": {"ty
 render --set 'mcp.options={firecrawl}' | grep -q 'needs gateway.upstream' || { echo "FAIL public server without token proxy accepted"; fail=1; }
 render "${G[@]}" --set 'mcp.options={nope}' | grep -q 'mcp.options: "nope" is not in mcp.catalog' || { echo "FAIL unknown mcp option accepted"; fail=1; }
 T=$(mktemp -d)
-sed -n "/^\[ ! -f \/etc\/omo\/mcp.json \]/,/^EOF$/p" $C/files/start.sh | sed '1d;$d' > "$T/merge.js"
-echo '{"mcpServers": {"mine": {"type": "http", "url": "https://x.example.com/mcp"}, "playwright": {"type": "http", "url": "old"}}}' > "$T/user.json"
-echo '["playwright"]' > "$T/owned"
-echo '{"mcpServers": {"firecrawl": {"type": "http", "url": "new"}}}' > "$T/chart.json"
-node "$T/merge.js" "$T/user.json" "$T/owned" "$T/chart.json" && python3 -c '
-import json, sys
-u = json.load(open(sys.argv[1])); o = json.load(open(sys.argv[2]))
-sys.exit(0 if sorted(u["mcpServers"]) == ["firecrawl", "mine"] and o == ["firecrawl"] else 1)' "$T/user.json" "$T/owned" || { echo "FAIL mcp.json merge"; fail=1; }
+# the real block of start.sh, with /etc/omo and HOME moved into $T, under set -euo pipefail
+{ echo 'set -euo pipefail'; sed -n '/^\[ ! -f \/etc\/omo\/mcp.json \]/,/^EOF$/p' $C/files/start.sh; echo 'echo after'; } \
+  | sed "s#/etc/omo/mcp.json#$T/chart.json#g; s#\$HOME/.omo/agent#$T#g" > "$T/block.sh"
+merge() { printf '%s' "$1" > "$T/mcp.json"; printf '%s' "$2" > "$T/.chart-mcp-servers"; printf '%s' "$3" > "$T/chart.json"; bash "$T/block.sh" 2>/dev/null; }
+pyc() { python3 -c "import json, sys; u = json.load(open('$T/mcp.json')); o = json.load(open('$T/.chart-mcp-servers')); sys.exit(0 if ($1) else 1)" || { echo "FAIL $2"; fail=1; }; }
+[ "$(merge '{"mcpServers": {"mine": {"url": "x"}, "playwright": {"url": "old"}}}' '["playwright"]' '{"mcpServers": {"firecrawl": {"url": "new"}}}')" = after ] || { echo "FAIL merge stops the start"; fail=1; }
+pyc 'sorted(u["mcpServers"]) == ["firecrawl", "mine"] and o == ["firecrawl"]' "merge replaces the chart entries only"
+[ "$(merge 'null' '[]' '{"mcpServers": {"firecrawl": {"url": "new"}}}')" = after ] || { echo "FAIL null mcp.json stops the start"; fail=1; }
+[ "$(cat "$T/mcp.json")" = null ] || { echo "FAIL null mcp.json changed"; fail=1; }
+merge '{"mcpServers": {"mine": {"url": "x"}},}' '[]' '{"mcpServers": {"firecrawl": {"url": "new"}}}' >/dev/null
+[ "$(cat "$T/mcp.json")" = '{"mcpServers": {"mine": {"url": "x"}},}' ] || { echo "FAIL unreadable mcp.json overwritten"; fail=1; }
+merge '{"mcpServers": {"firecrawl": {"url": "mine"}}}' '{}' '{"mcpServers": {"firecrawl": {"url": "new"}}}' >/dev/null
+pyc 'u["mcpServers"]["firecrawl"]["url"] == "mine" and o == []' "user entry of a ticked name taken over"
+rm -f "$T/mcp.json"; merge2() { :; }
+printf '[]' > "$T/.chart-mcp-servers"; printf '{"mcpServers": {"firecrawl": {"url": "new"}}}' > "$T/chart.json"
+[ "$(bash "$T/block.sh" 2>/dev/null)" = after ] && pyc 'list(u["mcpServers"]) == ["firecrawl"]' "no mcp.json yet" || { echo "FAIL first start without mcp.json"; fail=1; }
 rm -rf "$T"
 
 [ $fail = 0 ] && echo "PASS oh-my-openagent" || exit 1

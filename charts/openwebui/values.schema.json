@@ -239,6 +239,25 @@
     "tenant": {
       "type": "string",
       "pattern": "^([a-z0-9]([a-z0-9-]*[a-z0-9])?)?$"
+    },
+    "mcp": {
+      "type": "object",
+      "properties": {
+        "options": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "ticked public MCP servers: names of mcp.catalog"
+        },
+        "catalog": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "name to public server at /mcp/public/<server>"
+        }
+      }
     }
   }
 }

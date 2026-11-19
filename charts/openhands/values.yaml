@@ -322,9 +322,9 @@ mcp:
   #     # only the RemoteMCPServer of this namespace gets it; empty: the entry of that name
   #     namespace: ""
   # Public MCP servers of the platform, each used only when ticked: options names keys of
-  # catalog, whose value is the server name (label <labelDomain>/server of its
-  # RemoteMCPServer, else the object name). A RemoteMCPServer of a catalog server that is
-  # not ticked is never used; nothing ticked: none of them. A name not in catalog fails
+  # catalog, whose value is the server name. The platform's RemoteMCPServer
+  # public-<server> of a catalog server is used only when ticked; nothing ticked: none of
+  # them. Other RemoteMCPServers are not affected. A name not in catalog fails
   options: []
   catalog:
     playwright: playwright

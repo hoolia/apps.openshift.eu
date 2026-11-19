@@ -90,10 +90,12 @@ def selected(obj: dict) -> bool:
     if meta["name"] in EXCLUDE or f"{meta['namespace']}/{meta['name']}" in EXCLUDE:
         return False
     labels = meta.get("labels") or {}
-    server = (labels.get(f"{LABEL_DOMAIN}/server") if LABEL_DOMAIN else None) or meta["name"]
-    if server in PUBLIC_SERVERS:
-        # a public server of the platform: only when ticked
-        return server in SERVERS
+    name = meta["name"]
+    server = (labels.get(f"{LABEL_DOMAIN}/server") if LABEL_DOMAIN else None) or name
+    public = name.removeprefix("public-") if name.startswith("public-") else None
+    if public in PUBLIC_SERVERS and server in (public, name):
+        # the platform's RemoteMCPServer public-<server> of a catalog server: only when ticked
+        return public in SERVERS
     if not LABEL_DOMAIN or labels.get(f"{LABEL_DOMAIN}/addon") != "true":
         return True
     return server in SERVERS or labels.get(f"{LABEL_DOMAIN}/bundle", "") in BUNDLES
