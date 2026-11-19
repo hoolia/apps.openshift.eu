@@ -43,6 +43,8 @@ data:
 {{ include "openhands.vscodeExtensionsTxt" . | indent 4 }}
   mcp_oauth_redirect.py: |
 {{ .Files.Get "files/mcp_oauth_redirect.py" | indent 4 }}
+  mcp_oauth_refresh.py: |
+{{ .Files.Get "files/mcp_oauth_refresh.py" | indent 4 }}
   patch-mcp-icons.py: |
 {{ .Files.Get "files/patch-mcp-icons.py" | indent 4 }}
   patch-acp-usage.py: |
