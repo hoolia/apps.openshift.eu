@@ -66,11 +66,16 @@ MAX_EVENTS = 64
 # seconds a stopping pod spends on notes and running work; terminationGracePeriodSeconds is 30
 STOP_BUDGET = 15
 INBOX_CACHE_SECONDS = 300
+INBOX_MISS_SECONDS = 30
 ODOO_SOURCE = "odoo:mail.message:"
 # name prefix of a ticket opened from a website chat; the per-address limit counts these
 CHAT_PREFIX = "Chat: "
 # a customer mail on the record of a website chat, as a private note of the chat
 MAIL_NOTE = "Mail on the Odoo record, not shown to the visitor:"
+# a sales label that moved nothing, as a private note of the chat
+NOT_MOVED_NOTE = "This chat did not move to sales."
+# the names Chatwoot 4.19 logs for a label change by an automation rule (automation.system_name)
+AUTOMATION_ACTORS = ("Automation System",)
 # Odoo context of the records the bridge creates and moves for a website chat: no stage
 # template mails the address the visitor typed
 NO_MAIL = {"mail_notrack": True}
@@ -314,15 +319,20 @@ class Chatwoot:
     def __init__(self, cfg):
         self.cfg = cfg
         self._inboxes = {}
-        self._inboxes_at = 0.0
+        self._inboxes_at = -INBOX_CACHE_SECONDS - 1.0
 
     def api(self, method, path, body=None):
         # a 404 stays an error: a wrong account or a missing right must not end Odoo's retries
         url = f"{self.cfg.chatwoot_url}/api/v1/accounts/{self.cfg.account_id}{path}"
         return http_json(method, url, body, {"api_access_token": read_file(self.cfg.token_file)})
 
+    def agents(self):
+        return self.api("GET", "/agents") or []
+
     def inbox_id(self, name):
-        if name not in self._inboxes or time.monotonic() - self._inboxes_at > INBOX_CACHE_SECONDS:
+        age = time.monotonic() - self._inboxes_at
+        # a missing inbox is looked up again at most every INBOX_MISS_SECONDS
+        if age > INBOX_CACHE_SECONDS or (name not in self._inboxes and age > INBOX_MISS_SECONDS):
             self._inboxes = {i["name"]: i["id"] for i in (self.api("GET", "/inboxes") or {}).get("payload", [])}
             self._inboxes_at = time.monotonic()
         if name not in self._inboxes:
@@ -440,8 +450,11 @@ class Bridge:
         self._chat_starts = collections.deque()
         self._chat_lock = threading.Lock()
         self._team = None
-        # seconds before each look for the activity of the sales label
-        self.activity_waits = (0, 2, 4)
+        # seconds until the second look for the activity of a sales label, and the chats waiting
+        self.sales_recheck = 10
+        self._sales_waiting = set()
+        # one lock for the per-address limit: a striped lock nested in another can deadlock
+        self._email_lock = threading.Lock()
         for name, result in (("webhooks", "given_up"), ("events", "error")):
             self.metrics.seed(name, result=result)
 
@@ -533,10 +546,9 @@ class Bridge:
         if linked == ref:
             return conv["id"]
         # a website chat: the visitor can change odoo_ref, so the record's link decides, and
-        # Odoo's event of a new record may come before the bridge named it on the chat
+        # Odoo's event of a new record may come before the bridge named it on the chat. The
+        # chat path writes odoo_ref back, under the chat's lock
         if self._website_conv(conv):
-            model, _, rid = ref.partition(":")
-            self._name_record(conv["id"], model, int(rid))
             return conv["id"]
         return None
 
@@ -624,7 +636,14 @@ class Bridge:
     def _record_of(self, conv, target, fields):
         """The record, when its x_chatwoot_url names this conversation; staff can edit odoo_ref."""
         model, rid = target
-        record = self.odoo.read(model, rid, ["x_chatwoot_url", *fields])
+        try:
+            record = self.odoo.read(model, rid, ["x_chatwoot_url", *fields])
+        except Gone:
+            if not self._website_conv(conv):
+                raise
+            # the visitor can name a record that does not exist
+            LOG.warning("conversation %s names %s:%s, which does not exist; not acted on", conv["id"], model, rid)
+            return None
         match = CONVERSATION_PATH.search(record.get("x_chatwoot_url") or "")
         if not match or int(match.group(1)) != conv["id"]:
             LOG.warning("conversation %s names %s:%s, which links another conversation; not acted on",
@@ -812,7 +831,7 @@ class Bridge:
                 self.metrics.inc("chats", result="no_email")
                 return "ignored"
             # one address at a time: two first messages must not both pass the limit
-            with self.lock(f"website-email:{email.lower()}"):
+            with self._email_lock:
                 why = self._chat_limit(email)
                 if why:
                     self._tell_limit(cid, why)
@@ -935,7 +954,7 @@ class Bridge:
         self.metrics.inc("messages_mirrored", direction="chat_to_odoo")
         return "done"
 
-    def move_to_sales(self, conv):
+    def move_to_sales(self, conv, recheck=False):
         """The label SALES_LABEL: a crm.lead with the transcript takes over the chat from its ticket."""
         if not self.cfg.sales_label or self.cfg.sales_label not in [str(x).lower() for x in conv.get("labels") or []]:
             return "ignored"
@@ -953,8 +972,12 @@ class Bridge:
                     self._cancel(stale[0], target[1])
                 return "done"
             if not self._labelled_by_staff(cid):
+                if not recheck:
+                    self._sales_later(cid)
+                    return "ignored"
                 LOG.warning("conversation %s: label %s without an activity of staff; not moved to sales",
                             cid, self.cfg.sales_label)
+                self._tell_not_moved(cid)
                 return "ignored"
             if target:
                 ticket = self._record_of(conv, target, ["name", "partner_id", "partner_email", "partner_name", "team_id"])
@@ -988,19 +1011,61 @@ class Bridge:
         return "done"
 
     def _labelled_by_staff(self, cid):
-        """True when Chatwoot logged an activity that names the sales label.
+        """True when the newest label activity naming the sales label says staff added it.
 
-        Chatwoot writes "<user> added <label>" for a user or an automation only; a label the
-        visitor sets through the widget API leaves no activity. A background job writes it, so
-        it may come a moment after the webhook.
+        Chatwoot writes "<user> added <labels>" and "<user> removed <labels>" with the name of
+        the user, or of its automation, that changed the labels; a label the visitor sets
+        through the widget API leaves no activity. Other activities can carry names the
+        visitor chose (the contact name), so only that exact form, with the name of a current
+        agent, counts.
         """
-        word = re.compile(rf"(?<![\w-]){re.escape(self.cfg.sales_label)}(?![\w-])", re.IGNORECASE)
-        for wait in self.activity_waits:
-            time.sleep(wait)
-            for m in self.chatwoot.messages(cid):
-                if m.get("message_type") in (2, "activity") and word.search(m.get("content") or ""):
-                    return True
+        label = self.cfg.sales_label
+        actors = sorted({a.get("name") for a in self.chatwoot.agents() if a.get("name")} | set(AUTOMATION_ACTORS),
+                        key=len, reverse=True)
+        for m in self.chatwoot.messages(cid):  # newest first
+            if m.get("message_type") not in (2, "activity"):
+                continue
+            text = m.get("content") or ""
+            for actor in actors:
+                for verb in ("added", "removed"):
+                    prefix = f"{actor} {verb} "
+                    if text.startswith(prefix) and label in [x.strip().lower() for x in text[len(prefix):].split(",")]:
+                        return verb == "added"
         return False
+
+    def _sales_later(self, cid):
+        """Look once more after SALES_RECHECK seconds: Chatwoot writes the activity in a job."""
+        with self._chat_lock:
+            if cid in self._sales_waiting:
+                return
+            self._sales_waiting.add(cid)
+
+        def submit():
+            try:
+                self.pool.submit(self._guarded, "webhooks", self._sales_recheck, cid)
+            except RuntimeError:  # the pool is shut down
+                with self._chat_lock:
+                    self._sales_waiting.discard(cid)
+        timer = threading.Timer(self.sales_recheck, submit)
+        timer.daemon = True
+        timer.start()
+
+    def _sales_recheck(self, cid):
+        with self._chat_lock:
+            self._sales_waiting.discard(cid)
+        conv = self.chatwoot.conversation(cid)
+        if not self._website_conv(conv):
+            return "ignored"
+        return self.move_to_sales(conv, recheck=True)
+
+    def _tell_not_moved(self, cid):
+        if any(m.get("private") and (m.get("content") or "").startswith(NOT_MOVED_NOTE)
+               for m in self.chatwoot.messages(cid)):
+            return
+        self.chatwoot.create_message(
+            cid, f"{NOT_MOVED_NOTE} Chatwoot logged no \"<agent> added {self.cfg.sales_label}\" for it, and a "
+            "label the visitor sets moves nothing. Remove the label and add it again, or create the lead in Odoo.",
+            "outgoing", private=True)
 
     def _transcript(self, cid):
         lines = []
