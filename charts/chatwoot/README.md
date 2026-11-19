@@ -68,6 +68,10 @@ a super admin.
 | `odoo.url`, `odoo.database` | empty | https address of Odoo, and its database (empty: the server's only database). |
 | `odoo.ticketInbox`, `odoo.leadInbox` | `Support`, `Sales` | API inboxes of tickets and of leads. An empty `leadInbox` mirrors no leads. |
 | `odoo.solvedStage` | `Solved` | Stage a ticket moves to when its conversation is resolved. |
+| `odoo.website.enabled` | `false` | Website inbox `odoo.website.inbox` (`Website`) for the widget on `odoo.website.url`; each chat becomes an Odoo ticket. |
+| `odoo.website.team` | empty | Helpdesk team of chat tickets; empty: Odoo's default team. |
+| `odoo.website.ticketsPerEmail`, `odoo.website.ticketsPerHour` | `3`, `20` | New chat tickets per address in 24 hours, and in all in one hour. |
+| `odoo.website.salesLabel`, `odoo.website.cancelledStage` | `sales`, `Cancelled` | The label that moves a chat to a new lead, and the stage its ticket moves to. Empty label: chats stay tickets. |
 | `monitoring.enabled` | `false` | A ServiceMonitor of the Odoo bridge; `monitoring.namespaceLabels` names the namespaces that may scrape it. |
 | `monitoring.alerts` | `true` | Alert rules of the Odoo bridge next to the ServiceMonitor; false where the platform alerts centrally. |
 | `agentBridge.standalone.enabled` | `false` | A release of the bridge alone, next to the agent; needs `standalone.chatwootUrl`, and for the panel `standalone.staff.issuerUrl` and `standalone.staff.clientIds`. |
@@ -343,6 +347,33 @@ flowchart LR
   failures and retries waiting; with `monitoring.enabled` the scraping namespaces may reach
   it, and `monitoring.alerts` adds ChatwootOdooBridgeDown, ChatwootOdooBridgeReplyLost and
   ChatwootOdooBridgeEventsFailing.
+
+#### Website chat
+
+With `odoo.website.enabled`, the Job keeps a Website inbox whose pre-chat form requires an
+email address, and an account webhook to the bridge path `/chatwoot/website`, signed with
+the inbox secret. Chatwoot sends an account webhook for every inbox; the bridge acts only on
+conversations of the Website inbox.
+
+- The first visitor message opens a `helpdesk.ticket` named `Chat: <first line>` for the
+  partner of the address the visitor typed, which Odoo finds or creates, in team
+  `odoo.website.team`. A private note links the ticket and tells staff that the address is
+  not verified.
+- Every public chat message, the visitor's and staff's, is copied to the record as an
+  internal note, once. Odoo mails nobody: the widget already showed the message. A customer
+  mail on the ticket appears in the chat as usual.
+- An address opens at most `odoo.website.ticketsPerEmail` chat tickets in 24 hours, and the
+  instance at most `odoo.website.ticketsPerHour` in one hour. Over a limit the chat gets a
+  private note instead of a ticket. Chatwoot 4.19 webhooks carry no visitor IP address, so
+  there is no limit per address of origin.
+- The label `odoo.website.salesLabel` moves the chat to a new `crm.lead` with the
+  transcript; the ticket loses its link, moves to `odoo.website.cancelledStage` and gets a
+  note with the lead's address.
+- The widget API lets a visitor set and clear the conversation's custom attributes. The
+  bridge therefore follows only the record whose `x_chatwoot_url` names the conversation and
+  writes `odoo_ref` back from it.
+- Embed the widget with the script that Chatwoot shows in the inbox settings. With
+  `sso.public.widget` (the default) the widget paths are reachable without a login.
 
 ### Agent credentials
 

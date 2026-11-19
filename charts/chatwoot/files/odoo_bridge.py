@@ -15,6 +15,15 @@ Odoo record with message_post, so Odoo mails the customer, with x_chatwoot_messa
 a resolved conversation moves its ticket to the solved stage. Private notes, bot messages
 and the bridge's own incoming messages are never mirrored.
 
+Website chat, with WEBSITE_INBOX: the account webhook posts to /chatwoot/website, signed with
+the same secret; the bridge acts only on conversations of that inbox. The first visitor
+message creates a helpdesk.ticket for the visitor's address (the pre-chat form asks for it),
+at most WEBSITE_TICKETS_PER_EMAIL per address in 24 hours and WEBSITE_TICKETS_PER_HOUR in
+all; over a limit staff get a private note instead. Every public chat message, the
+visitor's and staff's, is copied to the record as an internal note, so Odoo mails nobody:
+the widget already showed it. The label SALES_LABEL moves the chat to a new crm.lead with
+the transcript and cancels the ticket.
+
 An Odoo event is answered 200 only once it is done, 503 while it still runs and 502 on an
 error: Odoo's outbox retries it. Chatwoot never retries a webhook and marks a message failed
 on any other answer, so a valid webhook is answered 200 at once and retried here, with
@@ -27,6 +36,7 @@ import hashlib
 import hmac
 import html
 import http.server
+import collections
 import json
 import email.utils
 import logging
@@ -57,6 +67,9 @@ MAX_EVENTS = 64
 STOP_BUDGET = 15
 INBOX_CACHE_SECONDS = 300
 ODOO_SOURCE = "odoo:mail.message:"
+# name prefix of a ticket opened from a website chat; the per-address limit counts these
+CHAT_PREFIX = "Chat: "
+LIMIT_NOTE = "No Odoo ticket for this chat"
 CONVERSATION_PATH = re.compile(r"/conversations/(\d+)/?$")
 MODELS = {
     "helpdesk.ticket": {
@@ -98,6 +111,15 @@ class Config:
         self.event_deadline = float(env.get("EVENT_DEADLINE", "2.5"))
         self.webhook_retries = tuple(float(x) for x in env.get("WEBHOOK_RETRIES", "").split(",") if x.strip()) \
             or WEBHOOK_RETRIES
+        # the Website (live chat) inbox; empty: website chats are not bridged
+        self.website_inbox = env.get("WEBSITE_INBOX", "").strip()
+        # helpdesk team of chat tickets; empty: Odoo's default team
+        self.website_team = env.get("WEBSITE_TEAM", "").strip()
+        self.website_per_email = int(env.get("WEBSITE_TICKETS_PER_EMAIL", "3"))
+        self.website_per_hour = int(env.get("WEBSITE_TICKETS_PER_HOUR", "20"))
+        # a chat with this label becomes a crm.lead; empty: chats stay tickets
+        self.sales_label = env.get("SALES_LABEL", "sales").strip().lower()
+        self.cancelled_stage = env.get("CANCELLED_STAGE", "Cancelled")
         if not self.public_url.startswith("https://"):
             raise ValueError("PUBLIC_URL must be an https address")
         if not self.odoo_url.startswith("https://") and not env.get("ODOO_ALLOW_HTTP"):
@@ -196,6 +218,11 @@ def bare_email(value):
     """The address alone: a mailed-in lead keeps the whole From header ("Bob" <bob@example.org>)."""
     address = email.utils.parseaddr(value or "")[1].strip()
     return address if re.fullmatch(r"[^@\s]+@[^@\s]+", address) else None
+
+
+def like_escape(value):
+    """value for Odoo's =ilike, which is a LIKE: _ and % in an address would match others."""
+    return value.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
 def clip(text):
@@ -404,6 +431,10 @@ class Bridge:
         self._queued = {}  # token -> payload of a webhook attempt not started yet
         self._stopping = False
         self._events = 0
+        # start times of the chat tickets of the last hour, for WEBSITE_TICKETS_PER_HOUR
+        self._chat_starts = collections.deque()
+        self._chat_lock = threading.Lock()
+        self._team = None
         for name, result in (("webhooks", "given_up"), ("events", "error")):
             self.metrics.seed(name, result=result)
 
@@ -489,9 +520,18 @@ class Bridge:
         if not match:
             return None
         conv = self.chatwoot.conversation(int(match.group(1)))
-        if not conv or (conv.get("custom_attributes") or {}).get("odoo_ref") != ref:
+        if not conv:
             return None
-        return conv["id"]
+        linked = (conv.get("custom_attributes") or {}).get("odoo_ref")
+        # a website chat the bridge is linking: it names the record on the conversation next,
+        # and Odoo's event of the new record may come first
+        if linked == ref or (not linked and self._website_conv(conv)):
+            return conv["id"]
+        return None
+
+    def _website_conv(self, conv):
+        return bool(self.cfg.website_inbox and conv
+                    and conv.get("inbox_id") == self.chatwoot.inbox_id(self.cfg.website_inbox))
 
     def _link(self, model, rid, cid):
         self.odoo.call(model, "write", ids=[rid], vals={"x_chatwoot_url": self.conversation_url(cid)})
@@ -537,6 +577,8 @@ class Bridge:
     # ------------------------------------------------------------ Chatwoot to Odoo
 
     def handle_webhook(self, payload):
+        if payload.get("bridge_path") == "website":
+            return self.website(payload)
         event = payload.get("event")
         if event == "message_created":
             return self.reply(payload)
@@ -550,9 +592,11 @@ class Bridge:
             return None
         ref = (conv.get("custom_attributes") or {}).get("odoo_ref") or ""
         model, _, rid = ref.partition(":")
-        if model not in MODELS or not rid.isdigit() or not self.cfg.inboxes.get(model):
+        if model not in MODELS or not rid.isdigit():
             return None
-        if conv.get("inbox_id") != self.chatwoot.inbox_id(self.cfg.inboxes[model]):
+        if self._website_conv(conv):
+            return model, int(rid)
+        if not self.cfg.inboxes.get(model) or conv.get("inbox_id") != self.chatwoot.inbox_id(self.cfg.inboxes[model]):
             return None
         return model, int(rid)
 
@@ -589,7 +633,8 @@ class Bridge:
         # webhooks carry what Chatwoot sent; act only on what the API says now
         conv = self.chatwoot.conversation(cid)
         target = self._bridged(conv)
-        if not target:
+        # a website chat is answered in the widget: Odoo must not mail it as well
+        if not target or self._website_conv(conv):
             return "ignored"
         msg = next((m for m in self.chatwoot.messages(cid) if m.get("id") == mid), None)
         if not msg or msg.get("private") or msg.get("message_type") not in (1, "outgoing"):
@@ -641,8 +686,7 @@ class Bridge:
         """The res.partner of the Odoo user with this login or email, or None."""
         if not email:
             return None
-        # =ilike is a LIKE: an address with _ or % would match other users
-        exact = email.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        exact = like_escape(email)
         for domain in ([["login", "=ilike", exact]], [["email", "=ilike", exact]]):
             users = self.odoo.search_read("res.users", domain, ["partner_id"])
             if users and users[0].get("partner_id"):
@@ -675,6 +719,266 @@ class Bridge:
         self.odoo.call("helpdesk.ticket", "write", ids=[rid], vals={"stage_id": stage["id"]})
         LOG.info("conversation %s resolved; helpdesk.ticket %s moved to %s", conv["id"], rid, stage["name"])
         return "done"
+
+    # ------------------------------------------------------------ website chat
+
+    def website(self, payload):
+        """An account webhook: acts only on conversations of the Website inbox."""
+        if not self.cfg.website_inbox:
+            return "ignored"
+        event = payload.get("event")
+        cid = (payload.get("conversation") or {}).get("id") if event == "message_created" else payload.get("id")
+        if not isinstance(cid, int) or isinstance(cid, bool):
+            return "ignored"
+        conv = self.chatwoot.conversation(cid)
+        if not self._website_conv(conv):
+            return "ignored"
+        if event == "message_created":
+            return self.chat_message(conv, payload)
+        if event == "conversation_status_changed":
+            return self.solve(payload)
+        if event == "conversation_updated":
+            return self.move_to_sales(conv)
+        return "ignored"
+
+    def chat_message(self, conv, payload):
+        mid = payload.get("id")
+        if not isinstance(mid, int) or isinstance(mid, bool):
+            return "ignored"
+        msg = next((m for m in self.chatwoot.messages(conv["id"]) if m.get("id") == mid), None)
+        if not msg or msg.get("private"):
+            return "ignored"
+        # a customer mail the bridge put in the chat came from Odoo already
+        if str(msg.get("source_id") or "").startswith(ODOO_SOURCE):
+            return "ignored"
+        kind, sender = msg.get("message_type"), msg.get("sender") or {}
+        if kind in (0, "incoming") and sender.get("type") == "contact":
+            visitor = True
+        elif kind in (1, "outgoing") and sender.get("type") == "user":
+            visitor = False
+        else:
+            return "ignored"
+        # the visitor can set and clear custom attributes through the widget API: odoo_ref counts
+        # only when the record's x_chatwoot_url names this conversation
+        target = self._bridged(conv)
+        if target and not self._record_of(conv, target, []):
+            target = None
+        if not target and not visitor:
+            target = self._chat_linked(conv["id"])
+            if not target:
+                return "ignored"
+        if not target:
+            target = self.chat_ticket(conv)
+            if not isinstance(target, tuple):
+                return target
+            conv = self.chatwoot.conversation(conv["id"]) or conv
+        return self._chat_note(conv, target, msg, visitor, payload.get("sender") or {})
+
+    def chat_ticket(self, conv):
+        """(model, id) of the chat's new ticket, or why there is none: "ignored" or "limited"."""
+        cid = conv["id"]
+        with self.lock(f"website:{cid}"):
+            conv = self.chatwoot.conversation(cid) or conv
+            url = self.conversation_url(cid)
+            target = self._chat_linked(cid)
+            if target:
+                return target
+            sender = (conv.get("meta") or {}).get("sender") or {}
+            email = bare_email(sender.get("email"))
+            if not email:
+                LOG.info("website conversation %s has no visitor address; no ticket", cid)
+                self.metrics.inc("chats", result="no_email")
+                return "ignored"
+            why = self._chat_limit(email)
+            if why:
+                self._tell_limit(cid, why)
+                self.metrics.inc("chats", result="limited")
+                return "limited"
+            rid = self._chat_create(conv, sender, email, url)
+            self._name_record(cid, "helpdesk.ticket", rid)
+            # the pre-chat form takes any address: staff check who they talk to
+            self.chatwoot.create_message(
+                cid, f"Odoo ticket {self.odoo.url('helpdesk.ticket', rid)} opened for {email}. The visitor typed "
+                "this address in the chat form and it is not verified: check who you talk to before you share "
+                "account details.", "outgoing", private=True)
+            return "helpdesk.ticket", rid
+
+    def _chat_linked(self, cid):
+        """(model, id) of the record whose x_chatwoot_url names the chat, named on it again; else None.
+
+        Odoo's link decides, not the conversation's attributes.
+        """
+        url = self.conversation_url(cid)
+        for model in ("crm.lead", "helpdesk.ticket"):
+            found = self.odoo.search_read(model, [["x_chatwoot_url", "=", url]], ["id"])
+            if found:
+                self._name_record(cid, model, found[0]["id"])
+                return model, found[0]["id"]
+        return None
+
+    def _chat_limit(self, email):
+        """Why this address may not open a ticket now, or None."""
+        since = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(time.time() - 86400))
+        domain = [["partner_email", "=ilike", like_escape(email)], ["name", "=ilike", like_escape(CHAT_PREFIX) + "%"],
+                  ["create_date", ">=", since]]
+        if len(self.odoo.search_read("helpdesk.ticket", domain, ["id"], limit=self.cfg.website_per_email)) \
+                >= self.cfg.website_per_email:
+            return f"this address opened {self.cfg.website_per_email} chat tickets in 24 hours"
+        with self._chat_lock:
+            while self._chat_starts and time.monotonic() - self._chat_starts[0] > 3600:
+                self._chat_starts.popleft()
+            if len(self._chat_starts) >= self.cfg.website_per_hour:
+                return f"{self.cfg.website_per_hour} chat tickets were opened in the last hour"
+        return None
+
+    def _tell_limit(self, cid, why):
+        if any(m.get("private") and (m.get("content") or "").startswith(LIMIT_NOTE) for m in self.chatwoot.messages(cid)):
+            return
+        self.chatwoot.create_message(cid, f"{LIMIT_NOTE}: {why}. Create one in Odoo when it is needed.",
+                                     "outgoing", private=True)
+
+    def _chat_create(self, conv, sender, email, url):
+        name = (sender.get("name") or "").replace('"', "").replace("\\", "").strip()
+        found = self.odoo.call("res.partner", "find_or_create", email=f'"{name}" <{email}>' if name else email)
+        partner = found[0] if isinstance(found, list) else found
+        first = next((m for m in reversed(list(self.chatwoot.messages(conv["id"])))
+                      if m.get("message_type") in (0, "incoming") and not m.get("private")), {})
+        title = ((first.get("content") or "").strip().splitlines() or ["website chat"])[0][:80]
+        page = (conv.get("additional_attributes") or {}).get("referer") or ""
+        vals = {"name": CHAT_PREFIX + title, "partner_id": partner, "x_chatwoot_url": url,
+                "description": text_to_html("Website chat" + (f" from {page}"[:300] if page else ""))}
+        team = self._team_id()
+        if team:
+            vals["team_id"] = team
+        rid = self.odoo.call("helpdesk.ticket", "create", vals_list=[vals])[0]
+        with self._chat_lock:
+            self._chat_starts.append(time.monotonic())
+        self.metrics.inc("chats", result="ticket")
+        LOG.info("website conversation %s opened helpdesk.ticket %s", conv["id"], rid)
+        return rid
+
+    def _team_id(self):
+        if self._team is None and self.cfg.website_team:
+            teams = self.odoo.search_read("helpdesk.team", [["name", "=", self.cfg.website_team]], ["id"])
+            if not teams:
+                LOG.warning("no helpdesk team named %r; chat tickets get Odoo's default", self.cfg.website_team)
+            self._team = teams[0]["id"] if teams else 0
+        return self._team or None
+
+    def _name_record(self, cid, model, rid):
+        """odoo_ref and odoo_url on the conversation; the call replaces every custom attribute."""
+        conv = self.chatwoot.conversation(cid) or {}
+        custom = dict(conv.get("custom_attributes") or {})
+        want = {"odoo_ref": f"{model}:{rid}", "odoo_url": self.odoo.url(model, rid)} if model else {}
+        if model and all(custom.get(k) == v for k, v in want.items()):
+            return
+        for key in ("odoo_ref", "odoo_url"):
+            custom.pop(key, None)
+        custom.update(want)
+        self.chatwoot.api("POST", f"/conversations/{cid}/custom_attributes", {"custom_attributes": custom})
+
+    def _chat_note(self, conv, target, msg, visitor, hooked):
+        """A public chat message as an internal note on the record: Odoo mails nobody."""
+        model, rid = target
+        mid = msg["id"]
+        key = self.message_key(mid)
+        with self.lock(f"chatwoot:{mid}"):
+            if self.odoo.search_read("mail.message", [["x_chatwoot_message_id", "=", key]], ["id"]):
+                return "done"
+            record = self._record_of(conv, target, ["partner_id"])
+            if not record:
+                return "ignored"
+            text = msg.get("content") or ""
+            if msg.get("attachments"):
+                text += f"\n\n[{len(msg['attachments'])} attachment(s) in Chatwoot: {self.conversation_url(conv['id'])}]"
+            kwargs = {
+                "ids": [rid],
+                "body": text_to_html(("Website chat, visitor:" if visitor else "Website chat, staff:") + "\n" + text),
+                "body_is_html": True,
+                "message_type": "comment",
+                "subtype_xmlid": "mail.mt_note",
+                "x_chatwoot_message_id": key,
+            }
+            if visitor:
+                author = record["partner_id"][0] if record.get("partner_id") else None
+            elif hooked.get("type") == "user" and hooked.get("id") == (msg.get("sender") or {}).get("id"):
+                author = self._staff_partner(hooked.get("email"))
+            else:
+                author = None
+            if author:
+                kwargs["author_id"] = author
+            self.odoo.call(model, "message_post", **kwargs)
+        self.metrics.inc("messages_mirrored", direction="chat_to_odoo")
+        return "done"
+
+    def move_to_sales(self, conv):
+        """The label SALES_LABEL: a crm.lead with the transcript takes over the chat from its ticket."""
+        if not self.cfg.sales_label or self.cfg.sales_label not in [str(x).lower() for x in conv.get("labels") or []]:
+            return "ignored"
+        cid = conv["id"]
+        url = self.conversation_url(cid)
+        with self.lock(f"website:{cid}"):
+            conv = self.chatwoot.conversation(cid) or conv
+            target = self._bridged(conv)
+            if target and target[0] == "crm.lead":
+                return "done"
+            if target:
+                ticket = self._record_of(conv, target, ["name", "partner_id", "partner_email", "partner_name", "team_id"])
+            else:
+                # a retry after the conversation was unlinked: the ticket still names it
+                found = self.odoo.search_read("helpdesk.ticket", [["x_chatwoot_url", "=", url]],
+                                              ["name", "partner_id", "partner_email", "partner_name", "team_id",
+                                               "x_chatwoot_url"])
+                ticket = found[0] if found else None
+            leads = self.odoo.search_read("crm.lead", [["x_chatwoot_url", "=", url]], ["id"])
+            if leads:
+                lid = leads[0]["id"]
+            elif not ticket:
+                return "ignored"
+            else:
+                # unlink first: Odoo's event of the new lead must find the chat free, not the ticket's
+                self._name_record(cid, None, None)
+                name = ticket.get("name") or "Website chat"
+                vals = {"name": name[len(CHAT_PREFIX):] if name.startswith(CHAT_PREFIX) else name,
+                        "email_from": ticket.get("partner_email") or False,
+                        "contact_name": ticket.get("partner_name") or False,
+                        "x_chatwoot_url": url, "description": self._transcript(cid)}
+                if ticket.get("partner_id"):
+                    vals["partner_id"] = ticket["partner_id"][0]
+                lid = self.odoo.call("crm.lead", "create", vals_list=[vals])[0]
+                self.metrics.inc("chats", result="lead")
+                LOG.info("website conversation %s moved to crm.lead %s", cid, lid)
+            self._name_record(cid, "crm.lead", lid)
+            if ticket:
+                self._cancel(ticket, lid)
+        return "done"
+
+    def _transcript(self, cid):
+        lines = []
+        for m in reversed(list(self.chatwoot.messages(cid))):
+            kind, sender = m.get("message_type"), (m.get("sender") or {}).get("type")
+            if m.get("private") or not (m.get("content") or "").strip():
+                continue
+            if kind in (0, "incoming") and sender == "contact":
+                lines.append("Visitor: " + m["content"].strip())
+            elif kind in (1, "outgoing") and sender == "user":
+                lines.append("Staff: " + m["content"].strip())
+        return text_to_html("Website chat\n\n" + "\n\n".join(lines))
+
+    def _cancel(self, ticket, lid):
+        """The ticket of a chat that became a lead: unlinked, cancelled, with a note to the lead."""
+        rid = ticket["id"]
+        vals = {"x_chatwoot_url": False}
+        domain = [["fold", "=", True], ["name", "=", self.cfg.cancelled_stage]]
+        if ticket.get("team_id"):
+            domain.append(["team_ids", "in", [ticket["team_id"][0]]])
+        stages = self.odoo.search_read("helpdesk.stage", domain, ["id"])
+        if stages:
+            vals["stage_id"] = stages[0]["id"]
+        self.odoo.call("helpdesk.ticket", "write", ids=[rid], vals=vals)
+        self.odoo.call("helpdesk.ticket", "message_post", ids=[rid], body_is_html=True, message_type="comment",
+                       subtype_xmlid="mail.mt_note",
+                       body=text_to_html(f"The chat moved to sales: {self.odoo.url('crm.lead', lid)}"))
 
     # ------------------------------------------------------------ run with a deadline
 
@@ -764,9 +1068,13 @@ class Bridge:
         if payload.get("event") != "message_created":
             return
         cid = (payload.get("conversation") or {}).get("id")
+        if payload.get("bridge_path") == "website":
+            # the widget showed the message; only Odoo's copy is missing
+            text = "This chat message was not copied to Odoo. Copy it to the Odoo record by hand."
+        else:
+            text = f"{why} and was not sent to the customer. Send it again, or answer in Odoo."
         try:
-            self.chatwoot.create_message(cid, f"{why} and was not sent to the customer. "
-                                         "Send it again, or answer in Odoo.", "outgoing", private=True)
+            self.chatwoot.create_message(cid, text, "outgoing", private=True)
         except Exception as e:  # noqa: BLE001
             LOG.error("conversation %s: no note about the lost reply either: %s", cid, type(e).__name__)
 
@@ -873,8 +1181,8 @@ def make_handler(bridge, port_kind):
                 busy.release()
 
         def _post(self):
-            expected = "/odoo/events" if port_kind == "event" else "/chatwoot/webhook"
-            if self.path != expected:
+            expected = ("/odoo/events",) if port_kind == "event" else ("/chatwoot/webhook", "/chatwoot/website")
+            if self.path not in expected:
                 return self._send(404, "not found")
             body = self._body()
             if body is None:
@@ -894,6 +1202,9 @@ def make_handler(bridge, port_kind):
                 return self._send(400, "bad json")
             if not isinstance(payload, dict):
                 return self._send(400, "bad json")
+            if port_kind == "webhook":
+                # the path says which webhook this is, never the body
+                payload["bridge_path"] = "website" if self.path == "/chatwoot/website" else "inbox"
             if port_kind == "event":
                 status, text = bridge.run("events", bridge.handle_event, payload, cfg.event_deadline)
             elif bridge.accept_webhook(payload):

@@ -57,6 +57,9 @@ def match(row, domain):
             return False
         if op == "in" and not set(have if isinstance(have, list) else [have]) & set(value):
             return False
+        # Odoo datetimes are "YYYY-MM-DD HH:MM:SS" strings: they compare as text
+        if op == ">=" and not (have and have >= value):
+            return False
     return True
 
 
@@ -117,13 +120,32 @@ class Fake(http.server.BaseHTTPRequestHandler):
                 rows.append({"id": rid, **{f: table[rid].get(f, False) for f in kw["fields"]}})
             return self._json(200, rows)
         if method == "search_read":
-            rows = [{"id": rid, **{f: r.get(f, False) for f in kw["fields"]}}
+            # as Odoo: id is always there, also when it is asked for
+            rows = [{**{f: r.get(f, False) for f in kw["fields"]}, "id": rid}
                     for rid, r in sorted(table.items()) if match(r, kw["domain"])]
             return self._json(200, rows[: kw.get("limit") or None])
         if method == "write":
             for rid in kw["ids"]:
                 table[rid].update(kw["vals"])
             return self._json(200, True)
+        if method == "create":
+            ids = []
+            partners = s["odoo"].setdefault("res.partner", {})
+            for vals in kw["vals_list"]:
+                rid = max(table, default=1000) + 1
+                row = {"create_date": time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime()), "x_chatwoot_url": False, **vals}
+                # as Odoo: a many2one reads back as [id, name], and a ticket shows its partner's address
+                for field in ("partner_id", "team_id", "stage_id"):
+                    if isinstance(row.get(field), int):
+                        row[field] = [row[field], "name"]
+                if model == "helpdesk.ticket" and row.get("partner_id"):
+                    partner = partners.get(row["partner_id"][0], {})
+                    row.setdefault("partner_email", partner.get("email"))
+                    row.setdefault("partner_name", partner.get("name"))
+                    row.setdefault("stage_id", [1, "New"])
+                table[rid] = row
+                ids.append(rid)
+            return self._json(200, ids)
         if model == "res.partner" and method == "find_or_create":
             email = re.search(r"<([^>]+)>", kw["email"])
             email = email.group(1) if email else kw["email"]
@@ -135,7 +157,9 @@ class Fake(http.server.BaseHTTPRequestHandler):
             return self._json(200, [pid])
         if method == "message_post":
             messages = s["odoo"].setdefault("mail.message", {})
-            if any(m.get("x_chatwoot_message_id") == kw.get("x_chatwoot_message_id") for m in messages.values()):
+            # as the unique index: empty values never collide
+            if kw.get("x_chatwoot_message_id") and any(
+                    m.get("x_chatwoot_message_id") == kw["x_chatwoot_message_id"] for m in messages.values()):
                 return self._json(422, {"name": "psycopg2.errors.UniqueViolation"})
             mid = max(messages, default=100) + 1
             messages[mid] = {"model": model, "res_id": kw["ids"][0], **{k: v for k, v in kw.items() if k != "ids"}}
@@ -223,11 +247,16 @@ class Fake(http.server.BaseHTTPRequestHandler):
         if method == "POST" and rest == "/toggle_status":
             conv["status"] = body["status"]
             return self._json(200, {"payload": {"current_status": body["status"]}})
+        if method == "POST" and rest == "/custom_attributes":
+            # as Chatwoot: the body replaces every custom attribute of the conversation
+            conv["custom_attributes"] = body["custom_attributes"]
+            return self._json(200, {"custom_attributes": conv["custom_attributes"]})
         return self._json(404, {})
 
     def _conv(self, conv):
         contact = self.state["chatwoot"]["contacts"][conv["contact_id"]]
-        return {**conv, "meta": {"sender": {"id": contact["id"], "email": contact.get("email")}}}
+        return {"labels": [], **conv,
+                "meta": {"sender": {"id": contact["id"], "email": contact.get("email"), "name": contact.get("name")}}}
 
 
 def sign(secret, body, ts=None):
@@ -692,7 +721,246 @@ class BridgeTest(unittest.TestCase):
         [t.join() for t in threads]
         self.assertEqual(len(self.chat(next(iter(self.conversations())))), 1)
 
+    # ------------------------------------------------------------ website chat
+
+    def website(self, **extra):
+        """The bridge with the Website inbox on, as the chart sets it."""
+        self.bridge.stop(budget=0)
+        self.bridge.pool.shutdown(wait=True)
+        env = {**self.env, "WEBSITE_INBOX": "Website", "WEBSITE_TEAM": "Customer Care", **extra}
+        self.bridge = odoo_bridge.Bridge(odoo_bridge.Config(env))
+        self.state["odoo"]["helpdesk.team"] = {3: {"name": "Customer Care"}, 5: {"name": "Other"}}
+        self.state["odoo"]["res.partner"] = {42: {"email": "ada@example.org", "name": "Ada"}}
+
+    def chat_start(self, email="ada@example.org", name="Ada", content="Hi, my site is down"):
+        """A visitor's new Website conversation and the webhook of its first message."""
+        contacts = self.state["chatwoot"]["contacts"]
+        contact = len(contacts) + 1
+        contacts[contact] = {"id": contact, "name": name, "email": email}
+        cid = len(self.conversations()) + 11
+        self.conversations()[cid] = {"id": cid, "inbox_id": WEBSITE, "contact_id": contact, "status": "open",
+                                     "custom_attributes": {}, "additional_attributes": {"referer": "https://www.example.org/"}}
+        self.state["chatwoot"]["messages"][cid] = []
+        return cid, self.visitor(cid, content)
+
+    def visitor(self, cid, content, **extra):
+        mid = self.state["next_message"]
+        self.state["next_message"] += 1
+        contact = self.conversations()[cid]["contact_id"]
+        msg = {"id": mid, "content": content, "message_type": 0, "private": False, "source_id": None,
+               "sender": {"id": contact, "type": "contact"}, **extra}
+        self.chat(cid).append(msg)
+        return {"event": "message_created", "id": mid, "message_type": "incoming", "private": False,
+                "content": content, "conversation": {"id": cid}, "sender": {"id": contact, "type": "contact"}}
+
+    def hook(self, payload):
+        """A webhook as the account webhook delivers it on the website path."""
+        return self.bridge.handle_webhook({**payload, "bridge_path": "website"})
+
+    def tickets(self):
+        return {rid: t for rid, t in self.state["odoo"]["helpdesk.ticket"].items() if rid != 7}
+
+    def notes(self):
+        return [m for m in self.state["odoo"]["mail.message"].values() if m.get("subtype_xmlid") == "mail.mt_note"]
+
+    def test_website_first_message_creates_one_linked_ticket(self):
+        self.website()
+        cid, first = self.chat_start()
+        self.assertEqual(self.hook(first), "done")
+        self.assertEqual(self.hook(first), "done")
+        (rid, ticket), = self.tickets().items()
+        self.assertEqual(ticket["partner_id"][0], 42)
+        self.assertEqual(ticket["team_id"][0], 3)
+        self.assertTrue(ticket["x_chatwoot_url"].endswith(f"/conversations/{cid}"))
+        self.assertIn("my site is down", ticket["name"])
+        self.assertEqual(self.conversations()[cid]["custom_attributes"]["odoo_ref"], f"helpdesk.ticket:{rid}")
+        (note,) = self.notes()
+        self.assertEqual((note["model"], note["res_id"]), ("helpdesk.ticket", rid))
+        self.assertNotIn("partner_ids", note)
+        self.assertIn("my site is down", note["body"])
+        # later messages of the same chat go to the same ticket
+        self.assertEqual(self.hook(self.visitor(cid, "It shows error 502")), "done")
+        self.assertEqual(len(self.tickets()), 1)
+        self.assertEqual(len(self.notes()), 2)
+
+    def test_website_new_visitor_gets_a_partner(self):
+        self.website()
+        _, first = self.chat_start(email="new@example.org", name="New Person")
+        self.assertEqual(self.hook(first), "done")
+        (ticket,) = self.tickets().values()
+        self.assertEqual(self.state["odoo"]["res.partner"][ticket["partner_id"][0]]["email"], "new@example.org")
+
+    def test_website_ticket_event_opens_no_support_conversation(self):
+        self.website()
+        cid, first = self.chat_start()
+        self.hook(first)
+        (rid,) = self.tickets()
+        self.assertEqual(self.event("ticket.created", rid=rid), "done")
+        self.assertEqual(list(self.conversations()), [cid])
+        # Odoo may send the event before the bridge names the ticket on the conversation
+        self.conversations()[cid]["custom_attributes"] = {}
+        self.assertEqual(self.event("ticket.created", rid=rid), "done")
+        self.assertEqual(list(self.conversations()), [cid])
+        self.assertTrue(self.tickets()[rid]["x_chatwoot_url"].endswith(f"/conversations/{cid}"))
+
+    def test_website_customer_mail_reaches_the_chat_once(self):
+        self.website()
+        cid, first = self.chat_start()
+        self.hook(first)
+        (rid,) = self.tickets()
+        self.state["odoo"]["mail.message"][80] = {"model": "helpdesk.ticket", "res_id": rid, "email_from": "ada@example.org",
+                                                  "attachment_ids": [], "body": "<p>Any news?</p>"}
+        self.assertEqual(self.event("message.created", rid=rid, message_id=80), "done")
+        mirrored = [m for m in self.chat(cid) if m.get("source_id") == "odoo:mail.message:80"]
+        self.assertEqual(len(mirrored), 1)
+        # its webhook comes back on the website path: not copied to Odoo again
+        echo = {"event": "message_created", "id": mirrored[0]["id"], "message_type": "incoming", "private": False,
+                "conversation": {"id": cid}}
+        self.assertEqual(self.hook(echo), "ignored")
+        self.assertEqual(len(self.notes()), 1)
+
+    def test_website_staff_reply_is_a_note_not_a_mail(self):
+        self.website()
+        cid, first = self.chat_start()
+        self.hook(first)
+        self.assertEqual(self.hook(self.staff_reply(cid, "We restarted it.")), "done")
+        reply = self.notes()[-1]
+        self.assertIn("We restarted it.", reply["body"])
+        self.assertEqual(reply["author_id"], 3)
+        self.assertNotIn("partner_ids", reply)
+        self.assertEqual(self.posts(), self.notes())
+
+    def test_website_private_notes_and_bots_are_not_copied(self):
+        self.website()
+        cid, first = self.chat_start()
+        self.hook(first)
+        self.assertEqual(self.hook(self.staff_reply(cid, "internal", private=True)), "ignored")
+        bot = self.staff_reply(cid, "I am a bot", sender={"id": 9, "type": "agent_bot"})
+        self.assertEqual(self.hook(bot), "ignored")
+        self.assertEqual(len(self.notes()), 1)
+
+    def test_website_new_ticket_warns_that_the_address_is_not_verified(self):
+        self.website()
+        cid, first = self.chat_start()
+        self.hook(first)
+        self.hook(self.visitor(cid, "still there?"))
+        notes = [m for m in self.chat(cid) if m["private"]]
+        self.assertEqual(len(notes), 1)
+        self.assertIn("not verified", notes[0]["content"])
+        self.assertIn("ada@example.org", notes[0]["content"])
+
+    def test_website_odoo_ref_set_by_the_visitor_is_not_followed(self):
+        # the widget API lets a visitor set the conversation's custom attributes
+        self.website()
+        cid, first = self.chat_start()
+        self.conversations()[cid]["custom_attributes"] = {"odoo_ref": "helpdesk.ticket:7"}
+        self.assertEqual(self.hook(first), "done")
+        (rid,) = self.tickets()
+        self.assertEqual(self.conversations()[cid]["custom_attributes"]["odoo_ref"], f"helpdesk.ticket:{rid}")
+        self.assertEqual([n["res_id"] for n in self.notes()], [rid])
+        # pointing it at another record later, or clearing it, keeps the chat on its own ticket
+        for forged in ({"odoo_ref": "helpdesk.ticket:7"}, {}):
+            self.conversations()[cid]["custom_attributes"] = forged
+            self.assertEqual(self.hook(self.visitor(cid, "again")), "done")
+        self.assertEqual(len(self.tickets()), 1)
+        self.assertEqual({n["res_id"] for n in self.notes()}, {rid})
+        staff = self.staff_reply(cid, "hello")
+        self.conversations()[cid]["custom_attributes"] = {"odoo_ref": "helpdesk.ticket:7"}
+        self.assertEqual(self.hook(staff), "done")
+        self.assertEqual({n["res_id"] for n in self.notes()}, {rid})
+
+    def test_website_without_email_makes_no_ticket(self):
+        self.website()
+        _, first = self.chat_start(email=None)
+        self.assertEqual(self.hook(first), "ignored")
+        self.assertEqual(self.tickets(), {})
+
+    def test_website_tickets_per_email_are_limited(self):
+        self.website(WEBSITE_TICKETS_PER_EMAIL="2")
+        now = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
+        for rid in (201, 202):
+            self.state["odoo"]["helpdesk.ticket"][rid] = {
+                "name": "Chat: old question", "partner_email": "ada@example.org", "create_date": now,
+                "x_chatwoot_url": f"https://support.example.org/app/accounts/1/conversations/{rid}"}
+        cid, first = self.chat_start()
+        self.assertEqual(self.hook(first), "limited")
+        self.assertEqual(self.hook(self.visitor(cid, "hello?")), "limited")
+        self.assertEqual(len(self.tickets()), 2)
+        notes = [m for m in self.chat(cid) if m["private"]]
+        self.assertEqual(len(notes), 1, "one note for staff, not one per message")
+        self.assertIn("No Odoo ticket", notes[0]["content"])
+
+    def test_website_tickets_per_hour_are_limited(self):
+        self.website(WEBSITE_TICKETS_PER_HOUR="1")
+        self.assertEqual(self.hook(self.chat_start(email="a@example.org")[1]), "done")
+        self.assertEqual(self.hook(self.chat_start(email="b@example.org")[1]), "limited")
+        self.assertEqual(len(self.tickets()), 1)
+
+    def test_website_resolve_solves_the_ticket(self):
+        self.website()
+        cid, first = self.chat_start()
+        self.hook(first)
+        (rid,) = self.tickets()
+        self.conversations()[cid]["status"] = "resolved"
+        self.assertEqual(self.hook({"event": "conversation_status_changed", "id": cid, "status": "resolved"}), "done")
+        self.assertEqual(self.state["odoo"]["helpdesk.ticket"][rid]["stage_id"], 3)
+
+    def test_website_sales_label_moves_the_chat_to_a_lead(self):
+        self.website()
+        cid, first = self.chat_start(content="What does a 3-node cluster cost?")
+        self.hook(first)
+        (rid,) = self.tickets()
+        self.hook(self.staff_reply(cid, "Let me ask sales."))
+        self.conversations()[cid]["labels"] = ["sales"]
+        update = {"event": "conversation_updated", "id": cid}
+        self.assertEqual(self.hook(update), "done")
+        self.assertEqual(self.hook(update), "done")
+        (lid, lead), = {k: v for k, v in self.state["odoo"]["crm.lead"].items() if k != 9}.items()
+        self.assertEqual(lead["partner_id"][0], 42)
+        self.assertEqual(lead["email_from"], "ada@example.org")
+        self.assertIn("3-node cluster", lead["description"])
+        self.assertIn("Let me ask sales.", lead["description"])
+        self.assertTrue(lead["x_chatwoot_url"].endswith(f"/conversations/{cid}"))
+        self.assertEqual(self.conversations()[cid]["custom_attributes"]["odoo_ref"], f"crm.lead:{lid}")
+        ticket = self.state["odoo"]["helpdesk.ticket"][rid]
+        self.assertFalse(ticket["x_chatwoot_url"])
+        self.assertEqual(ticket["stage_id"], 4)
+        # Odoo's events of both records open no other conversation and resolve nothing
+        self.event("lead.created", model="crm.lead", rid=lid)
+        self.event("ticket.closed", rid=rid)
+        self.assertEqual(list(self.conversations()), [cid])
+        self.assertEqual(self.conversations()[cid]["status"], "open")
+        # the chat now goes to the lead
+        self.hook(self.visitor(cid, "And with GPUs?"))
+        self.assertEqual(self.notes()[-1]["model"], "crm.lead")
+
+    def test_website_path_ignores_other_inboxes(self):
+        self.website()
+        self.event("ticket.created")
+        cid = next(iter(self.conversations()))
+        self.assertEqual(self.hook(self.staff_reply(cid)), "ignored")
+        self.assertEqual(self.posts(), [])
+
+    def test_website_path_is_off_without_a_website_inbox(self):
+        cid, first = self.chat_start()
+        self.assertEqual(self.hook(first), "ignored")
+        self.assertEqual(self.tickets(), {})
+
     # ------------------------------------------------------------ HTTP
+
+    def test_website_path_checks_the_signature(self):
+        self.website()
+        ports = self.serve()
+        _, first = self.chat_start()
+        body = json.dumps(first).encode()
+        ts, sig = sign(INBOX_SECRET, body)
+        bad = {"X-Chatwoot-Timestamp": ts, "X-Chatwoot-Signature": "sha256=" + "0" * 64}
+        self.assertEqual(self.post(ports["webhook"], "/chatwoot/website", body, bad)[0], 401)
+        good = {"X-Chatwoot-Timestamp": ts, "X-Chatwoot-Signature": sig}
+        self.assertEqual(self.post(ports["event"], "/chatwoot/website", body, good)[0], 404)
+        self.assertEqual(self.post(ports["webhook"], "/chatwoot/website", body, good), (200, "accepted"))
+        self.wait_idle()
+        self.assertEqual(len(self.tickets()), 1)
 
     def serve(self, **cfg):
         for key, value in cfg.items():
