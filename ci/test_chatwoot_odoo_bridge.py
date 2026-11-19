@@ -180,6 +180,9 @@ class Fake(http.server.BaseHTTPRequestHandler):
         cw = s["chatwoot"]
         if s.get("chatwoot_404") and path.startswith("/contacts"):
             return self._json(404, {})
+        if method == "GET" and path == "/agents":
+            return self._json(200, [{"id": 7, "name": "Staff Member", "role": "agent"},
+                                    {"id": 8, "name": "Ann Admin", "role": "administrator"}])
         if method == "GET" and path == "/inboxes":
             inboxes = [{"id": SUPPORT, "name": "Support"}, {"id": SALES, "name": "Sales"}]
             if not s.get("no_website_inbox"):
@@ -731,7 +734,7 @@ class BridgeTest(unittest.TestCase):
         self.bridge.pool.shutdown(wait=True)
         env = {**self.env, "WEBSITE_INBOX": "Website", "WEBSITE_TEAM": "Customer Care", **extra}
         self.bridge = odoo_bridge.Bridge(odoo_bridge.Config(env))
-        self.bridge.activity_waits = (0,)
+        self.bridge.sales_recheck = 0.05
         self.state["odoo"]["helpdesk.team"] = {3: {"name": "Customer Care"}, 5: {"name": "Other"}}
         self.state["odoo"]["res.partner"] = {42: {"email": "ada@example.org", "name": "Ada"}}
 
@@ -760,15 +763,28 @@ class BridgeTest(unittest.TestCase):
         """A webhook as the account webhook delivers it on the website path."""
         return self.bridge.handle_webhook({**payload, "bridge_path": "website"})
 
+    def activity(self, cid, content):
+        mid = self.state["next_message"]
+        self.state["next_message"] += 1
+        self.chat(cid).append({"id": mid, "content": content, "message_type": 2, "private": False,
+                               "source_id": None, "sender": None})
+
     def label(self, cid, label="sales", by_staff=True):
-        """A label on the chat; Chatwoot logs an activity for a user or an automation only."""
+        """A label on the chat; Chatwoot logs "<user> added <labels>" for a user or an automation only."""
         self.conversations()[cid]["labels"] = [*self.conversations()[cid].get("labels", []), label]
         if by_staff:
-            mid = self.state["next_message"]
-            self.state["next_message"] += 1
-            self.chat(cid).append({"id": mid, "content": f"Sam added {label}", "message_type": 2,
-                                   "private": False, "source_id": None, "sender": None})
+            self.activity(cid, f"Staff Member added urgent, {label}")
         return {"event": "conversation_updated", "id": cid}
+
+    def not_moved(self, cid, timeout=3):
+        """The private notes that a sales label moved nothing, once the second look ran."""
+        end = time.time() + timeout
+        while time.time() < end:
+            notes = [m for m in self.chat(cid) if m["private"] and m["content"].startswith("This chat did not move")]
+            if notes:
+                return notes
+            time.sleep(0.02)
+        return []
 
     def contexts(self, method):
         return [(model, kw.get("context")) for model, m, kw in self.state["odoo_calls"] if m == method]
@@ -920,7 +936,10 @@ class BridgeTest(unittest.TestCase):
         self.assertEqual(self.event("ticket.created", rid=rid), "done")
         self.assertEqual(list(self.conversations()), [cid], "no Support conversation takes the ticket")
         self.assertTrue(self.tickets()[rid]["x_chatwoot_url"].endswith(f"/conversations/{cid}"))
+        # the chat path, under the chat's lock, writes odoo_ref back
+        self.assertEqual(self.hook(self.visitor(cid, "hello?")), "done")
         self.assertEqual(self.conversations()[cid]["custom_attributes"]["odoo_ref"], f"helpdesk.ticket:{rid}")
+        self.assertEqual(self.notes()[-1]["res_id"], rid)
 
     def test_website_retry_after_a_crash_before_naming_the_ticket(self):
         self.website()
@@ -1016,14 +1035,63 @@ class BridgeTest(unittest.TestCase):
         self.hook(self.visitor(cid, "And with GPUs?"))
         self.assertEqual(self.notes()[-1]["model"], "crm.lead")
 
+    def assert_no_lead(self, cid):
+        self.assertEqual(len(self.not_moved(cid)), 1, "one note for staff")
+        self.assertEqual({k for k in self.state["odoo"]["crm.lead"] if k != 9}, set())
+        self.assertTrue(next(iter(self.tickets().values()))["x_chatwoot_url"])
+
     def test_website_sales_label_set_by_the_visitor_moves_nothing(self):
         # the widget API lets a visitor add any label of the account; Chatwoot logs no activity then
         self.website()
         cid, first = self.chat_start()
         self.hook(first)
-        self.assertEqual(self.hook(self.label(cid, by_staff=False)), "ignored")
-        self.assertEqual({k for k in self.state["odoo"]["crm.lead"] if k != 9}, set())
-        self.assertTrue(next(iter(self.tickets().values()))["x_chatwoot_url"])
+        update = self.label(cid, by_staff=False)
+        self.assertEqual(self.hook(update), "ignored")
+        self.assertEqual(self.hook(update), "ignored")
+        self.assert_no_lead(cid)
+
+    def test_website_activities_with_visitor_names_move_nothing(self):
+        # the visitor names the contact "Sales" and ends the chat: Chatwoot logs that name
+        self.website()
+        cid, first = self.chat_start(name="Sales")
+        self.hook(first)
+        for text in ("Conversation was resolved by Sales", "Assigned to Sales by Staff Member",
+                     "Sales added sales", "Staff Member added salesforce"):
+            self.activity(cid, text)
+        self.hook(self.label(cid, by_staff=False))
+        self.assert_no_lead(cid)
+
+    def test_website_sales_label_removed_by_staff_and_added_by_the_visitor_moves_nothing(self):
+        self.website()
+        cid, first = self.chat_start()
+        self.hook(first)
+        self.activity(cid, "Staff Member added sales")
+        self.activity(cid, "Staff Member removed sales")
+        self.hook(self.label(cid, by_staff=False))
+        self.assert_no_lead(cid)
+
+    def test_website_sales_label_of_an_automation_or_a_late_activity_moves_the_chat(self):
+        self.website()
+        cid, first = self.chat_start()
+        self.hook(first)
+        update = self.label(cid, by_staff=False)
+        self.assertEqual(self.hook(update), "ignored")
+        # Chatwoot's job writes the activity a moment after the webhook: the second look finds it
+        self.activity(cid, "Automation System added sales")
+        end = time.time() + 3
+        while time.time() < end and not {k for k in self.state["odoo"]["crm.lead"] if k != 9}:
+            time.sleep(0.02)
+        self.assertEqual(len({k for k in self.state["odoo"]["crm.lead"] if k != 9}), 1)
+        self.assertEqual(self.not_moved(cid, timeout=0.2), [])
+
+    def test_website_odoo_ref_of_a_missing_record_does_not_block_the_chat(self):
+        self.website()
+        cid, first = self.chat_start()
+        self.hook(first)
+        (rid,) = self.tickets()
+        self.conversations()[cid]["custom_attributes"] = {"odoo_ref": "helpdesk.ticket:99999"}
+        self.assertEqual(self.hook(self.visitor(cid, "still broken")), "done")
+        self.assertEqual(self.notes()[-1]["res_id"], rid)
 
     def test_website_forged_lead_ref_does_not_stop_the_sales_move(self):
         self.website()

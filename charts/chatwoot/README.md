@@ -360,14 +360,19 @@ conversations of the Website inbox.
   partner of the address the visitor typed, which Odoo finds or creates, in team
   `odoo.website.team`. A private note links the ticket and tells staff that the address is
   not verified.
-- The address is not verified, so nothing goes to it unasked. The bridge creates and moves
-  chat tickets and leads without stage tracking (`mail_notrack`), so no stage template
-  (Ticket Received, Solved) mails it. Every public chat message, the visitor's and staff's,
-  is copied to the record once, as an internal note that notifies nobody. A mail that does
-  reach the record, for example after staff mail the partner from Odoo, appears in the chat
-  as a private note, never in the widget.
-- Chatwoot limits new widget conversations to `odoo.website.conversationsPerMinute` per
-  client address. An address opens at most `odoo.website.ticketsPerEmail` chat tickets in
+- The address is not verified, so the bridge sends nothing to it. It creates and moves chat
+  tickets and leads without stage tracking (`mail_notrack`), so no stage template (Ticket
+  Received, Solved) mails it. Every public chat message, the visitor's and staff's, is
+  copied to the record once, as an internal note that notifies nobody. A mail that does
+  reach the record appears in the chat as a private note, never in the widget.
+- Odoo itself still mails the partner when staff send a message from Odoo, move the ticket
+  to a stage with a template, or when the team closes tickets automatically or asks for
+  ratings. Check those team settings before enabling. The typed address may be a real
+  customer's: the chat ticket then belongs to that customer's partner and shows in their
+  portal.
+- Chatwoot limits conversation starts from the widget to
+  `odoo.website.conversationsPerMinute` per client address. A widget message can also open a
+  conversation; Chatwoot limits those to 60 a minute per address. An address opens at most `odoo.website.ticketsPerEmail` chat tickets in
   24 hours, counted in Odoo by the `Chat: ` name, and the bridge pod at most
   `odoo.website.ticketsPerHour` in one hour; that count starts again when the pod restarts.
   Over a limit the chat gets a private note instead of a ticket, and messages of that chat
@@ -375,9 +380,11 @@ conversations of the Website inbox.
 - The label `odoo.website.salesLabel`, added by staff or by a Chatwoot automation, moves the
   chat to a new `crm.lead` with the transcript; the ticket loses its link, moves to
   `odoo.website.cancelledStage` and gets a note with the lead's address. The widget API lets
-  a visitor add any label of the account too; such a label leaves no activity in the
-  conversation and moves nothing. The AI triage never uses the label: the chart refuses a
-  sales label that is also a triage label.
+  a visitor add any label of the account too. The bridge therefore moves a chat only when
+  the newest activity about the label reads `<agent> added <labels>`, with the name of a
+  current agent or `Automation System`, as Chatwoot writes it in English and Dutch. A visitor's
+  label leaves no activity: the chat stays a ticket and staff get a private note. The AI
+  triage never uses the label: the chart refuses a sales label that is also a triage label.
 - The widget API lets a visitor set and clear the conversation's custom attributes. The
   bridge therefore follows only the record whose `x_chatwoot_url` names the conversation and
   writes `odoo_ref` back from it.
