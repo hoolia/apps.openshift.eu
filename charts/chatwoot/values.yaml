@@ -218,6 +218,25 @@ odoo:
   # a resolved conversation moves its ticket to the folded stage of this name (else to the
   # team's first folded stage)
   solvedStage: Solved
+  # the live chat widget of a website as a Website inbox: the first visitor message opens an
+  # Odoo ticket for the address the visitor gives (the pre-chat form asks for it), and every
+  # public chat message is copied to the ticket as an internal note
+  website:
+    enabled: false
+    # inbox name; created as a Website inbox when missing
+    inbox: Website
+    # https address of the site that embeds the widget; required with enabled
+    url: ""
+    # helpdesk team of chat tickets; empty: Odoo's default team
+    team: ""
+    # new chat tickets one address may open in 24 hours, and all addresses in one hour; over
+    # a limit staff get a private note instead of a ticket
+    ticketsPerEmail: 3
+    ticketsPerHour: 20
+    # a chat with this label moves to a new crm.lead with the transcript, and its ticket moves
+    # to the folded stage cancelledStage. Empty: chats stay tickets
+    salesLabel: sales
+    cancelledStage: Cancelled
   bridge:
     image: registry.access.redhat.com/ubi9/python-312-minimal:9.8-1793637445
     resources:

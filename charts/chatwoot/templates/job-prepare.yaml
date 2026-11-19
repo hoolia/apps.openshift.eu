@@ -143,6 +143,15 @@ spec:
           value: http://chatwoot-odoo-bridge:8080/chatwoot/webhook
         - name: CHATWOOT_ODOO_INBOXES
           value: {{ join "," (compact (list .Values.odoo.ticketInbox .Values.odoo.leadInbox)) | quote }}
+        # the account webhook of website chats; removed again when the website is off
+        - name: CHATWOOT_ODOO_WEBSITE_WEBHOOK_URL
+          value: http://chatwoot-odoo-bridge:8080/chatwoot/website
+        {{- if .Values.odoo.website.enabled }}
+        - name: CHATWOOT_ODOO_WEBSITE_INBOX
+          value: {{ .Values.odoo.website.inbox | quote }}
+        - name: CHATWOOT_ODOO_WEBSITE_URL
+          value: {{ .Values.odoo.website.url | trimSuffix "/" | quote }}
+        {{- end }}
         - name: CHATWOOT_ODOO_BRIDGE_TOKEN
           valueFrom:
             secretKeyRef:

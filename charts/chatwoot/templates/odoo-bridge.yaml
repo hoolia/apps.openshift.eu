@@ -1,7 +1,8 @@
 {{- if and .Values.odoo.enabled (not (include "wrapper.standalone" .)) }}
 {{- /*
 The Odoo bridge: Odoo posts its signed events to the Route below (port events), the API
-inboxes post their signed webhooks inside the namespace (port webhook, worker pods only).
+inboxes and, with odoo.website, the account webhook of website chats post their signed
+webhooks inside the namespace (port webhook, worker pods only).
 */}}
 apiVersion: apps/v1
 kind: Deployment
@@ -63,6 +64,22 @@ spec:
           value: /etc/chatwoot-odoo/odoo-event-secret
         - name: SOLVED_STAGE
           value: {{ .Values.odoo.solvedStage | quote }}
+        {{- with .Values.odoo.website }}
+        {{- if .enabled }}
+        - name: WEBSITE_INBOX
+          value: {{ .inbox | quote }}
+        - name: WEBSITE_TEAM
+          value: {{ .team | quote }}
+        - name: WEBSITE_TICKETS_PER_EMAIL
+          value: {{ .ticketsPerEmail | quote }}
+        - name: WEBSITE_TICKETS_PER_HOUR
+          value: {{ .ticketsPerHour | quote }}
+        - name: SALES_LABEL
+          value: {{ .salesLabel | quote }}
+        - name: CANCELLED_STAGE
+          value: {{ .cancelledStage | quote }}
+        {{- end }}
+        {{- end }}
         - name: WEBHOOK_PORT
           value: "8080"
         - name: EVENT_PORT

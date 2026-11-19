@@ -79,6 +79,18 @@ identity provider can deliver to or verify, so no login of a person can match it
 {{- if eq .Values.odoo.ticketInbox .Values.odoo.leadInbox }}
 {{- fail "odoo.ticketInbox and odoo.leadInbox must differ" }}
 {{- end }}
+{{- $w := .Values.odoo.website }}
+{{- if $w.enabled }}
+{{- if not (hasPrefix "https://" $w.url) }}
+{{- fail "odoo.website.url, the https address of the site with the widget, is required with odoo.website.enabled" }}
+{{- end }}
+{{- if or (not $w.inbox) (eq $w.inbox .Values.odoo.ticketInbox) (eq $w.inbox .Values.odoo.leadInbox) }}
+{{- fail "odoo.website.inbox is required and must differ from odoo.ticketInbox and odoo.leadInbox" }}
+{{- end }}
+{{- if or (lt (int $w.ticketsPerEmail) 1) (lt (int $w.ticketsPerHour) 1) }}
+{{- fail "odoo.website.ticketsPerEmail and odoo.website.ticketsPerHour must be at least 1" }}
+{{- end }}
+{{- end }}
 {{- end }}
 {{- $b := .Values.agentBridge }}
 {{- if and $b.remoteUrl (not (hasPrefix "https://" $b.remoteUrl)) }}

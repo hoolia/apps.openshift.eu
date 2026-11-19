@@ -12,7 +12,9 @@
 #   secret and URL, connected to exactly the inboxes named in CHATWOOT_AGENT_BOT_INBOXES
 # - with CHATWOOT_ODOO_BRIDGE_TOKEN: keeps the Odoo bridge's agent with that access token,
 #   the API inboxes named in CHATWOOT_ODOO_INBOXES with their webhooks to the bridge, signed
-#   with CHATWOOT_ODOO_INBOX_SECRET, and the conversation attributes odoo_ref and odoo_url
+#   with CHATWOOT_ODOO_INBOX_SECRET, and the conversation attributes odoo_ref and odoo_url;
+#   with CHATWOOT_ODOO_WEBSITE_INBOX also that Website inbox, its pre-chat form asking for a
+#   required email address, and the account webhook to the bridge's website path
 # - with CHATWOOT_DRAFT_TOKEN: keeps the author of AI drafts (an agent with that access
 #   token, member of the inboxes in CHATWOOT_DRAFT_INBOXES) and the account webhook of new
 #   messages to the bridge, signed with CHATWOOT_DRAFT_WEBHOOK_SECRET
@@ -139,6 +141,47 @@ else
     channel.save! if channel.changed?
     InboxMember.find_or_create_by!(inbox: inbox, user: user)
     puts "odoo inbox #{name} (#{inbox.id}): webhooks to the bridge"
+  end
+  # website chats: Chatwoot sends a Website inbox's events only through an account webhook,
+  # which carries every inbox; the bridge acts on the website inbox's conversations alone
+  hook_url = ENV.fetch('CHATWOOT_ODOO_WEBSITE_WEBHOOK_URL')
+  website = ENV.fetch('CHATWOOT_ODOO_WEBSITE_INBOX', '').strip
+  if website.empty?
+    gone = Webhook.where(account_id: account.id, url: hook_url).destroy_all
+    puts 'odoo website chat: webhook removed' if gone.any?
+  else
+    inbox = account.inboxes.find_by(name: website)
+    if inbox.nil?
+      widget = Channel::WebWidget.create!(account: account, website_url: ENV.fetch('CHATWOOT_ODOO_WEBSITE_URL'))
+      inbox = account.inboxes.create!(name: website, channel: widget)
+      puts "odoo website inbox #{website}: created"
+    end
+    abort "inbox #{website} is a #{inbox.channel_type}, website chat needs a Website inbox" unless inbox.channel_type == 'Channel::WebWidget'
+    widget = inbox.channel
+    widget.website_url = ENV.fetch('CHATWOOT_ODOO_WEBSITE_URL')
+    # the bridge opens the ticket for the address the visitor gives: ask for it, always
+    options = (widget.pre_chat_form_options || {}).deep_stringify_keys
+    fields = (options['pre_chat_fields'] || []).map(&:dup)
+    email = fields.find { |f| f['name'] == 'emailAddress' }
+    unless email
+      email = { 'field_type' => 'standard', 'label' => 'Email Id', 'name' => 'emailAddress', 'type' => 'email' }
+      fields.unshift(email)
+    end
+    email['enabled'] = true
+    email['required'] = true
+    widget.pre_chat_form_options = options.merge('pre_chat_fields' => fields)
+    widget.pre_chat_form_enabled = true
+    # Chatwoot has no mail of its own here: Odoo writes to customers
+    widget.continuity_via_email = false
+    widget.save! if widget.changed?
+    InboxMember.find_or_create_by!(inbox: inbox, user: user)
+    hook = Webhook.find_or_initialize_by(account_id: account.id, url: hook_url)
+    hook.name = 'Odoo bridge: website chat (set by the chart)'
+    hook.webhook_type = :account_type
+    hook.subscriptions = %w[message_created conversation_status_changed conversation_updated]
+    hook.secret = secret unless hook.persisted? && ActiveSupport::SecurityUtils.secure_compare(hook.secret.to_s, secret)
+    hook.save! if hook.changed?
+    puts "odoo website inbox #{website} (#{inbox.id}): webhook #{hook.id} to the bridge"
   end
   # shown in the conversation sidebar; the bridge keys every conversation on odoo_ref
   { 'odoo_ref' => ['Odoo record', :text], 'odoo_url' => ['Odoo', :link] }.each do |key, (label, type)|
