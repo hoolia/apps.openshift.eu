@@ -9,9 +9,9 @@ image:
   # when build.enabled is false, else the base of the build
   repository: ghcr.io/openhands/agent-canvas
   # upstream release; the built image is tagged <tag>-<chart version>[-<build.revision>]
-  tag: 1.38.0
+  tag: 1.42.0
   # digest of that release's image index, pulled instead of the tag; empty: the tag
-  digest: sha256:30e638898361d7c87350a29291d2066af9942007087510845d13f4eaf4aeab46
+  digest: sha256:e2dc90908f08e51abf833cd3559bb0c4a61c53aab06210b6d92f867d281457ac
   pullPolicy: IfNotPresent
 
 build:
