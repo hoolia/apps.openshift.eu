@@ -90,6 +90,14 @@ identity provider can deliver to or verify, so no login of a person can match it
 {{- if or (lt (int $w.ticketsPerEmail) 1) (lt (int $w.ticketsPerHour) 1) }}
 {{- fail "odoo.website.ticketsPerEmail and odoo.website.ticketsPerHour must be at least 1" }}
 {{- end }}
+{{- /* the AI triage labels conversations: it must never move a chat to sales */}}
+{{- if and $w.salesLabel .Values.triage.enabled }}
+{{- $triage := list .Values.triage.label }}
+{{- range .Values.triage.categories }}{{- $triage = append $triage .name }}{{- end }}
+{{- if has (lower $w.salesLabel) (without $triage "" | toStrings | join "," | lower | splitList ",") }}
+{{- fail "odoo.website.salesLabel must differ from triage.label and every triage.categories name: the AI triage would move chats to sales" }}
+{{- end }}
+{{- end }}
 {{- end }}
 {{- end }}
 {{- $b := .Values.agentBridge }}
@@ -394,6 +402,12 @@ serviceAccountName: chatwoot-route
 # and to the Odoo bridge's webhook port
 - name: CHART_ODOO_BRIDGE_URL
   value: http://chatwoot-odoo-bridge:8080/
+{{- if .Values.odoo.website.enabled }}
+# Chatwoot's own limit (Rack::Attack) on new widget conversations per client address and
+# minute; each can open an Odoo ticket
+- name: RATE_LIMIT_WIDGET_CONVERSATIONS
+  value: {{ .Values.odoo.website.conversationsPerMinute | quote }}
+{{- end }}
 {{- end }}
 {{- with .Values.extraEnv }}
 {{ toYaml . }}
