@@ -282,9 +282,6 @@ class CredentialTest(unittest.TestCase):
         self.assertEqual(added["extra"]["url"], "https://mcp.example.com/mcp")
 
 
-if __name__ == "__main__":
-    unittest.main()
-
 
 class PublicServerSelection(unittest.TestCase):
     """A catalog server (PUBLIC_SERVERS) is used only when ticked (in SERVERS)."""
@@ -309,6 +306,9 @@ class PublicServerSelection(unittest.TestCase):
     def test_other_servers_unchanged(self):
         ms.SERVERS = set()
         self.assertTrue(ms.selected(self.obj("github", {})))
+        # a tenant's own server of a catalog name is not the platform's public-<server>
+        self.assertTrue(ms.selected(self.obj("playwright", {"mcp.openshift.eu/server": "playwright"})))
+        self.assertTrue(ms.selected(self.obj("my-crawl", {"mcp.openshift.eu/server": "firecrawl"})))
         self.assertFalse(ms.selected(self.obj("gmail", {"mcp.openshift.eu/addon": "true", "mcp.openshift.eu/server": "gmail"})))
 
 
@@ -337,3 +337,7 @@ class PublicServerRender(unittest.TestCase):
 
     def test_unknown_option(self):
         self.assertIn('mcp.options: "nope" is not in mcp.catalog', self.env("--set", "mcp.options={nope}"))
+
+
+if __name__ == "__main__":
+    unittest.main()

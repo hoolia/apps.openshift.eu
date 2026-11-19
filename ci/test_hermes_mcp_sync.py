@@ -17,10 +17,17 @@ if "ruamel.yaml" not in sys.modules:
         sys.modules["ruamel.yaml"] = ruamel.yaml
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-os.environ.update({"LABEL_DOMAIN": "mcp.openshift.eu", "PUBLIC_SERVERS": "firecrawl,playwright", "SERVERS": "playwright"})
+ENV = {"LABEL_DOMAIN": "mcp.openshift.eu", "PUBLIC_SERVERS": "firecrawl,playwright", "SERVERS": "playwright"}
+SAVED = {k: os.environ.get(k) for k in ENV}
+os.environ.update(ENV)
 spec = importlib.util.spec_from_file_location("hermes_mcp_sync", os.path.join(ROOT, "charts/hermes/files/mcp-sync.py"))
 ms = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(ms)
+for k, v in SAVED.items():
+    if v is None:
+        os.environ.pop(k, None)
+    else:
+        os.environ[k] = v
 
 
 def obj(name, labels):
@@ -36,6 +43,12 @@ class PublicServerSelection(unittest.TestCase):
 
     def test_other_server(self):
         self.assertTrue(ms.selected(obj("github", {})))
+
+    def test_tenant_server_of_a_catalog_name(self):
+        self.assertTrue(ms.selected(obj("firecrawl", {"mcp.openshift.eu/server": "firecrawl"})))
+
+    def test_addon_still_needs_its_name(self):
+        self.assertFalse(ms.selected(obj("gmail", {"mcp.openshift.eu/addon": "true", "mcp.openshift.eu/server": "gmail"})))
 
 
 if __name__ == "__main__":

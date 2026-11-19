@@ -99,8 +99,9 @@ mcp:
   # - id: team
   #   endpoint: my-namespace
   # Public MCP servers of the platform, each used only when ticked: options names keys of
-  # catalog, whose value is the server at <gateway.upstream>/mcp/public/<server>, one tool server
-  # each, also without enabled. Nothing ticked: none of them. A name not in catalog fails
+  # catalog, whose value is the server at <gateway.upstream>/mcp/public/<server>, one tool
+  # server each, also without enabled. Like endpoints, it needs persistentConfig false to
+  # apply after the first start. Nothing ticked: none of them. A name not in catalog fails
   options: []
   catalog:
     playwright: playwright

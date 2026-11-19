@@ -161,12 +161,13 @@ done
 # public MCP servers: ticked in mcp.options only, nothing by default
 OUT=$(render "${BASE[@]}" --set mcp.enabled=true)
 check "no public endpoint by default" '[c["info"]["id"] for c in json.loads(env("openwebui")["TOOL_SERVER_CONNECTIONS"])] == ["team"]'
-OUT=$(render "${BASE[@]}" --set 'mcp.options={playwright}')
+OUT=$(render "${BASE[@]}" --set gateway.upstream=https://api.example.com --set 'mcp.options={playwright}')
 check "ticked public server only" '[(c["info"]["id"], c["url"]) for c in json.loads(env("openwebui")["TOOL_SERVER_CONNECTIONS"])] == [("playwright", "http://127.0.0.1:8099/mcp/public/playwright")]'
-OUT=$(render "${BASE[@]}" --set mcp.enabled=true --set 'mcp.options={firecrawl,playwright}')
+OUT=$(render "${BASE[@]}" --set gateway.upstream=https://api.example.com --set mcp.enabled=true --set 'mcp.options={firecrawl,playwright}')
 check "team and ticked servers" '[c["info"]["id"] for c in json.loads(env("openwebui")["TOOL_SERVER_CONNECTIONS"])] == ["team", "firecrawl", "playwright"]'
 OUT=$(render "${BASE[@]}")
 check "nothing ticked, no tool servers" '"TOOL_SERVER_CONNECTIONS" not in env("openwebui")'
-render "${BASE[@]}" --set 'mcp.options={nope}' | grep -q 'mcp.options: "nope" is not in mcp.catalog' || { echo "FAIL unknown mcp option accepted"; fail=1; }
+render "${BASE[@]}" --set gateway.upstream=https://api.example.com --set 'mcp.options={nope}' | grep -q 'mcp.options: "nope" is not in mcp.catalog' || { echo "FAIL unknown mcp option accepted"; fail=1; }
+render "${BASE[@]}" --set 'mcp.options={playwright}' | grep -q 'needs gateway.upstream' || { echo "FAIL public server without gateway accepted"; fail=1; }
 
 [ $fail = 0 ] && echo "RESULT PASS" || { echo "RESULT FAIL"; exit 1; }

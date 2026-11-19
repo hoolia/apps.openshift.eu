@@ -73,6 +73,7 @@ the cluster, else a new random one. Takes value, existing (Secret data), key, le
 {{- range (.Values.mcp.options | default list) -}}
 {{- $server := index ($.Values.mcp.catalog | default dict) . -}}
 {{- if not $server }}{{ fail (printf "mcp.options: %q is not in mcp.catalog" .) }}{{ end -}}
+{{- if not $.Values.gateway.upstream }}{{ fail (printf "mcp.options %s: needs gateway.upstream" .) }}{{ end -}}
 {{- if not (has . $ids) }}{{ $endpoints = append $endpoints (dict "id" . "endpoint" (printf "public/%s" $server)) }}{{ end -}}
 {{- end -}}
 {{- $connections := list -}}
