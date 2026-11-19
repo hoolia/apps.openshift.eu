@@ -80,6 +80,18 @@ gateway:
   # model a new session starts on; empty: the first of models
   defaultModel: ""
 
+
+mcp:
+  # Public MCP servers of the platform, each used only when ticked: options names keys of
+  # catalog, whose value is the server at <gateway.upstream>/mcp/public/<server>, reached
+  # through the token proxy (gateway.auth serviceAccountToken). Written into
+  # ~/.omo/agent/mcp.json on every start next to the servers the user added there.
+  # Nothing ticked: none of them. A name not in catalog fails
+  options: []
+  catalog:
+    playwright: playwright
+    firecrawl: firecrawl
+
 tokenProxy:
   image: registry.access.redhat.com/ubi9/python-312-minimal:9.8-1793637445
   port: 8099

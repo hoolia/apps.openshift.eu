@@ -64,9 +64,16 @@ the cluster, else a new random one. Takes value, existing (Secret data), key, le
 
 {{/* TOOL_SERVER_CONNECTIONS: one MCP connection per gateway endpoint, for every user */}}
 {{- define "openwebui.toolServers" -}}
-{{- $endpoints := .Values.mcp.endpoints -}}
-{{- if not $endpoints -}}
-{{- $endpoints = list (dict "id" "team" "endpoint" (include "openwebui.namespace" .)) (dict "id" "public" "endpoint" "public") -}}
+{{- $endpoints := list -}}
+{{- if .Values.mcp.enabled -}}
+{{- $endpoints = .Values.mcp.endpoints | default (list (dict "id" "team" "endpoint" (include "openwebui.namespace" .))) -}}
+{{- end -}}
+{{- $ids := list -}}
+{{- range $endpoints }}{{ $ids = append $ids .id }}{{ end -}}
+{{- range (.Values.mcp.options | default list) -}}
+{{- $server := index ($.Values.mcp.catalog | default dict) . -}}
+{{- if not $server }}{{ fail (printf "mcp.options: %q is not in mcp.catalog" .) }}{{ end -}}
+{{- if not (has . $ids) }}{{ $endpoints = append $endpoints (dict "id" . "endpoint" (printf "public/%s" $server)) }}{{ end -}}
 {{- end -}}
 {{- $connections := list -}}
 {{- range $endpoints -}}

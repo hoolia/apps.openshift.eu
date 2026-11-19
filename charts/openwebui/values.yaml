@@ -94,10 +94,17 @@ mcp:
   # user, called through the token proxy. Needs persistentConfig false to apply after
   # the first start
   enabled: false
-  # empty: the release namespace (tool prefix team) and public
+  # empty: the release namespace (tool prefix team)
   endpoints: []
   # - id: team
   #   endpoint: my-namespace
+  # Public MCP servers of the platform, each used only when ticked: options names keys of
+  # catalog, whose value is the server at <gateway.upstream>/mcp/public/<server>, one tool server
+  # each, also without enabled. Nothing ticked: none of them. A name not in catalog fails
+  options: []
+  catalog:
+    playwright: playwright
+    firecrawl: firecrawl
 
 workbench:
   # image with open-terminal and jupyter-server on PATH; the terminal and notebook code

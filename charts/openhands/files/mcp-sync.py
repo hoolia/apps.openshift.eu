@@ -108,6 +108,8 @@ OWN: set[str] = set()
 LABEL_DOMAIN = os.environ.get("LABEL_DOMAIN", "").strip("/")
 BUNDLES = set(filter(None, os.environ.get("BUNDLES", "").split(",")))
 SERVERS = set(filter(None, os.environ.get("SERVERS", "").split(",")))
+# public servers of the platform (mcp.catalog): used only when also in SERVERS
+PUBLIC_SERVERS = set(filter(None, os.environ.get("PUBLIC_SERVERS", "").split(",")))
 AUTH_ANNOTATION = "openhands.dev/auth"
 SCOPES_ANNOTATION = "openhands.dev/oauth-scopes"
 CLIENT_ANNOTATION = "openhands.dev/oauth-client"
@@ -379,9 +381,12 @@ def publish(namespace: str, current: dict, full: bool) -> None:
 def selected(obj: dict) -> bool:
     """False for an add-on whose bundle and server name are both not asked for."""
     labels = obj["metadata"].get("labels") or {}
+    server = (labels.get(f"{LABEL_DOMAIN}/server") if LABEL_DOMAIN else None) or obj["metadata"]["name"]
+    if server in PUBLIC_SERVERS:
+        # a public server of the platform: only when ticked
+        return server in SERVERS
     if not LABEL_DOMAIN or labels.get(f"{LABEL_DOMAIN}/addon") != "true":
         return True
-    server = labels.get(f"{LABEL_DOMAIN}/server") or obj["metadata"]["name"]
     return server in SERVERS or labels.get(f"{LABEL_DOMAIN}/bundle", "") in BUNDLES
 
 

@@ -346,6 +346,9 @@ spec:
           value: {{ join "," ($mcp.bundles | default list) | quote }}
         - name: SERVERS
           value: {{ join "," (include "openhands.mcpServerNames" . | fromJsonArray) | quote }}
+        # public servers: used only when their name is in SERVERS
+        - name: PUBLIC_SERVERS
+          value: {{ join "," (include "openhands.mcpPublicServers" . | fromJsonArray) | quote }}
         # mcp.servers with a url or an auth; credentials are read from the mounted files
         - name: SERVER_SETTINGS
           value: {{ include "openhands.mcpServerSettings" . | quote }}

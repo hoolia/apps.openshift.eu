@@ -70,4 +70,23 @@ install -m 0660 /dev/null "$T/.omo/agent/config-identity.key"
 HOME=$T bash -euc "$keylines" && [ "$(stat -c %a "$T/.omo/agent/config-identity.key")" = 600 ] || { echo "FAIL identity key mode not reset to 0600"; fail=1; }
 rm -rf "$T"
 
+
+# public MCP servers: mcp.json holds the ticked ones only; start.sh keeps the user's own entries
+OUT=$(render "${G[@]}")
+check "no public server by default" 'cm("mcp.json") == {"mcpServers": {}}'
+OUT=$(render "${G[@]}" --set 'mcp.options={firecrawl}')
+check "ticked public server" 'cm("mcp.json")["mcpServers"] == {"firecrawl": {"type": "http", "url": "http://127.0.0.1:8099/mcp/public/firecrawl", "enabled": True, "auth": False}}'
+render --set 'mcp.options={firecrawl}' | grep -q 'needs gateway.upstream' || { echo "FAIL public server without token proxy accepted"; fail=1; }
+render "${G[@]}" --set 'mcp.options={nope}' | grep -q 'mcp.options: "nope" is not in mcp.catalog' || { echo "FAIL unknown mcp option accepted"; fail=1; }
+T=$(mktemp -d)
+sed -n "/^\[ ! -f \/etc\/omo\/mcp.json \]/,/^EOF$/p" $C/files/start.sh | sed '1d;$d' > "$T/merge.js"
+echo '{"mcpServers": {"mine": {"type": "http", "url": "https://x.example.com/mcp"}, "playwright": {"type": "http", "url": "old"}}}' > "$T/user.json"
+echo '["playwright"]' > "$T/owned"
+echo '{"mcpServers": {"firecrawl": {"type": "http", "url": "new"}}}' > "$T/chart.json"
+node "$T/merge.js" "$T/user.json" "$T/owned" "$T/chart.json" && python3 -c '
+import json, sys
+u = json.load(open(sys.argv[1])); o = json.load(open(sys.argv[2]))
+sys.exit(0 if sorted(u["mcpServers"]) == ["firecrawl", "mine"] and o == ["firecrawl"] else 1)' "$T/user.json" "$T/owned" || { echo "FAIL mcp.json merge"; fail=1; }
+rm -rf "$T"
+
 [ $fail = 0 ] && echo "PASS oh-my-openagent" || exit 1

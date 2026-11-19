@@ -284,3 +284,56 @@ class CredentialTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PublicServerSelection(unittest.TestCase):
+    """A catalog server (PUBLIC_SERVERS) is used only when ticked (in SERVERS)."""
+
+    def obj(self, name, labels):
+        return {"metadata": {"name": name, "namespace": "acme", "labels": labels}}
+
+    def setUp(self):
+        self.saved = (ms.PUBLIC_SERVERS, ms.SERVERS)
+        ms.PUBLIC_SERVERS = {"playwright", "firecrawl"}
+
+    def tearDown(self):
+        ms.PUBLIC_SERVERS, ms.SERVERS = self.saved
+
+    def test_public_server_needs_a_tick(self):
+        ms.SERVERS = set()
+        self.assertFalse(ms.selected(self.obj("public-playwright", {"mcp.openshift.eu/server": "playwright"})))
+        ms.SERVERS = {"playwright"}
+        self.assertTrue(ms.selected(self.obj("public-playwright", {"mcp.openshift.eu/server": "playwright"})))
+        self.assertFalse(ms.selected(self.obj("public-firecrawl", {"mcp.openshift.eu/server": "firecrawl"})))
+
+    def test_other_servers_unchanged(self):
+        ms.SERVERS = set()
+        self.assertTrue(ms.selected(self.obj("github", {})))
+        self.assertFalse(ms.selected(self.obj("gmail", {"mcp.openshift.eu/addon": "true", "mcp.openshift.eu/server": "gmail"})))
+
+
+class PublicServerRender(unittest.TestCase):
+    """mcp.options reach mcp-sync as SERVERS; the catalog servers as PUBLIC_SERVERS."""
+
+    def env(self, *args):
+        out = subprocess.run(["helm", "template", "t", os.path.join(ROOT, "charts/openhands"), "-n", "test",
+                              "--set", "gateway.upstream=https://api.example.com", *args],
+                             capture_output=True, text=True)
+        if out.returncode:
+            return out.stderr
+        import yaml
+        sts = [d for d in yaml.safe_load_all(out.stdout) if d and d["kind"] == "StatefulSet"][0]
+        ctr = [c for c in sts["spec"]["template"]["spec"]["containers"] if c["name"] == "mcp-sync"][0]
+        return {e["name"]: e.get("value") for e in ctr["env"]}
+
+    def test_nothing_ticked(self):
+        env = self.env()
+        self.assertEqual(env["PUBLIC_SERVERS"], "firecrawl,playwright")
+        self.assertEqual(env["SERVERS"], "")
+
+    def test_ticked(self):
+        self.assertEqual(self.env("--set", "mcp.servers={gmail}", "--set", "mcp.options={playwright,firecrawl}")["SERVERS"],
+                         "gmail,playwright,firecrawl")
+
+    def test_unknown_option(self):
+        self.assertIn('mcp.options: "nope" is not in mcp.catalog', self.env("--set", "mcp.options={nope}"))

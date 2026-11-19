@@ -217,11 +217,22 @@ hands timeout to fastmcp 4, which reads it in milliseconds */}}
 
 {{/* names of mcp.servers, whose entries are a name or {name, url, auth} */}}
 {{- define "openhands.mcpServerNames" -}}
+{{- $mcp := include "openhands.mcp" . | fromJson -}}
 {{- $names := list -}}
-{{- range (include "openhands.mcp" . | fromJson).servers -}}
+{{- range $mcp.servers -}}
 {{- if kindIs "string" . }}{{ $names = append $names . }}{{ else }}{{ $names = append $names .name }}{{ end -}}
 {{- end -}}
-{{- toJson $names -}}
+{{- range ($mcp.options | default list) -}}
+{{- $server := index ($mcp.catalog | default dict) . -}}
+{{- if not $server }}{{ fail (printf "mcp.options: %q is not in mcp.catalog" .) }}{{ end -}}
+{{- $names = append $names $server -}}
+{{- end -}}
+{{- toJson ($names | uniq) -}}
+{{- end -}}
+
+{{/* the servers of mcp.catalog, used only when ticked in mcp.options */}}
+{{- define "openhands.mcpPublicServers" -}}
+{{- toJson (values ((include "openhands.mcp" . | fromJson).catalog | default dict) | uniq | sortAlpha) -}}
 {{- end -}}
 
 {{/*

@@ -159,3 +159,15 @@ capabilities:
 seccompProfile:
   type: RuntimeDefault
 {{- end -}}
+
+{{/* ~/.omo/agent/mcp.json entries of the ticked mcp.options: name to a remote server on the token proxy */}}
+{{- define "oh-my-openagent.mcpJson" -}}
+{{- $servers := dict -}}
+{{- range (.Values.mcp.options | default list) -}}
+{{- $server := index ($.Values.mcp.catalog | default dict) . -}}
+{{- if not $server }}{{ fail (printf "mcp.options: %q is not in mcp.catalog" .) }}{{ end -}}
+{{- if not (include "oh-my-openagent.tokenProxy" $) }}{{ fail (printf "mcp.options %s: needs gateway.upstream with gateway.auth serviceAccountToken" .) }}{{ end -}}
+{{- $_ := set $servers . (dict "type" "http" "url" (printf "http://127.0.0.1:%v/mcp/public/%s" $.Values.tokenProxy.port $server) "enabled" true "auth" false) -}}
+{{- end -}}
+{{- dict "mcpServers" $servers | toPrettyJson -}}
+{{- end -}}

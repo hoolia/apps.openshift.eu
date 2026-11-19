@@ -242,6 +242,13 @@ mcp:
   # (tokenProxy.agentToken), for a server that accepts tokens of that realm. auth sends the
   # agent's own credential from vaultSecrets in one header (see README)
   servers: []
+  # Public MCP servers of the platform, each used only when ticked: options names keys of
+  # catalog, whose value is the server at <gateway.upstream>/mcp/public/<server>, reached
+  # through the token proxy. Nothing ticked: none of them. A name not in catalog fails
+  options: []
+  catalog:
+    playwright: playwright
+    firecrawl: firecrawl
   # - name: atlassian
   #   path: /mcp/<namespace>/atlassian
   #   auth:

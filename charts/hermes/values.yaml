@@ -149,6 +149,14 @@ mcp:
   servers: []
   # RemoteMCPServers never used: <name> or <namespace>/<name>
   exclude: []
+  # Public MCP servers of the platform, each used only when ticked: options names keys of
+  # catalog, whose value is the server name (label <labelDomain>/server of its
+  # RemoteMCPServer, else the object name). A RemoteMCPServer of a catalog server that is
+  # not ticked is never used; nothing ticked: none of them. A name not in catalog fails
+  options: []
+  catalog:
+    playwright: playwright
+    firecrawl: firecrawl
   # ClusterRole that may list RemoteMCPServers, bound in the release namespace;
   # empty: no binding (the ServiceAccount's edit role must cover it)
   clusterRole: kagent-remotemcpserver-view

@@ -34,6 +34,22 @@ install -m 0600 /etc/omo/models.json "$HOME/.omo/agent/models.json"
 install -m 0600 /etc/omo/omo.jsonc "$HOME/.omo/omo.jsonc"
 [ -e "$HOME/.omo/agent/settings.json" ] || install -m 0600 /etc/omo/settings.json "$HOME/.omo/agent/settings.json"
 
+# MCP servers: the chart's entries (mcp.options) replace those it wrote on the last start,
+# listed in .chart-mcp-servers; servers the user added to mcp.json stay
+[ ! -f /etc/omo/mcp.json ] || node - "$HOME/.omo/agent/mcp.json" "$HOME/.omo/agent/.chart-mcp-servers" /etc/omo/mcp.json <<'EOF'
+const fs = require("fs");
+const [file, owned, chart] = process.argv.slice(2);
+const read = (p, d) => { try { return JSON.parse(fs.readFileSync(p, "utf8")); } catch { return d; } };
+const cfg = read(file, {});
+const servers = cfg.mcpServers && typeof cfg.mcpServers === "object" ? cfg.mcpServers : {};
+for (const name of read(owned, [])) delete servers[name];
+const ours = read(chart, {}).mcpServers || {};
+Object.assign(servers, ours);
+cfg.mcpServers = servers;
+fs.writeFileSync(file, JSON.stringify(cfg, null, 2) + "\n", { mode: 0o600 });
+fs.writeFileSync(owned, JSON.stringify(Object.keys(ours)) + "\n", { mode: 0o600 });
+EOF
+
 # OmO creates its MCP identity key with mode 0600 and refuses a key with other modes. The
 # kubelet's fsGroup ownership change adds group rw to every file of the volume on each mount,
 # so the mode is set back here, after the mount and before OmO starts.
