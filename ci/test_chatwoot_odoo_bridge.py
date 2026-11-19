@@ -181,8 +181,10 @@ class Fake(http.server.BaseHTTPRequestHandler):
         if s.get("chatwoot_404") and path.startswith("/contacts"):
             return self._json(404, {})
         if method == "GET" and path == "/agents":
-            return self._json(200, [{"id": 7, "name": "Staff Member", "role": "agent"},
-                                    {"id": 8, "name": "Ann Admin", "role": "administrator"}])
+            return self._json(200, [{"id": 7, "name": "Staff Member", "email": "staff@grn.cloud", "role": "agent"},
+                                    {"id": 8, "name": "Ann Admin", "email": "ann@grn.cloud", "role": "administrator"},
+                                    {"id": 9, "name": "AI Draft", "email": "draft@example.org", "role": "agent"},
+                                    {"id": 10, "name": "Odoo", "email": "odoo-bridge@chatwoot.invalid", "role": "agent"}])
         if method == "GET" and path == "/inboxes":
             inboxes = [{"id": SUPPORT, "name": "Support"}, {"id": SALES, "name": "Sales"}]
             if not s.get("no_website_inbox"):
@@ -732,7 +734,8 @@ class BridgeTest(unittest.TestCase):
         """The bridge with the Website inbox on, as the chart sets it."""
         self.bridge.stop(budget=0)
         self.bridge.pool.shutdown(wait=True)
-        env = {**self.env, "WEBSITE_INBOX": "Website", "WEBSITE_TEAM": "Customer Care", **extra}
+        env = {**self.env, "WEBSITE_INBOX": "Website", "WEBSITE_TEAM": "Customer Care",
+               "NOT_STAFF_EMAILS": "odoo-bridge@chatwoot.invalid,draft@example.org", **extra}
         self.bridge = odoo_bridge.Bridge(odoo_bridge.Config(env))
         self.bridge.sales_recheck = 0.05
         self.state["odoo"]["helpdesk.team"] = {3: {"name": "Customer Care"}, 5: {"name": "Other"}}
@@ -1083,6 +1086,100 @@ class BridgeTest(unittest.TestCase):
             time.sleep(0.02)
         self.assertEqual(len({k for k in self.state["odoo"]["crm.lead"] if k != 9}), 1)
         self.assertEqual(self.not_moved(cid, timeout=0.2), [])
+
+    def test_website_label_written_back_by_the_triage_user_moves_nothing(self):
+        # the triage writes back labels it read earlier; Chatwoot logs them in its user's name
+        self.website()
+        cid, first = self.chat_start()
+        self.hook(first)
+        for text in ("AI Draft added sales, general, ai-triaged", "Odoo added sales"):
+            self.activity(cid, text)
+        self.hook(self.label(cid, by_staff=False))
+        self.assert_no_lead(cid)
+
+    def test_website_failed_second_look_tells_staff(self):
+        self.website()
+        cid, first = self.chat_start()
+        self.hook(first)
+        looks = []
+
+        def look(c):
+            looks.append(c)
+            if len(looks) > 1:
+                raise RuntimeError("Chatwoot answered 502")
+            return False
+        self.bridge._labelled_by_staff = look
+        self.assertEqual(self.hook(self.label(cid, by_staff=False)), "ignored")
+        self.assertEqual(len(self.not_moved(cid)), 1)
+        self.assertEqual(len(looks), 2)
+
+    def test_website_limit_takes_no_second_striped_lock(self):
+        # two nested stripes of the 64 can deadlock, and a visitor can pick both keys
+        self.website()
+        held, nested = threading.local(), []
+        lock = self.bridge.lock
+
+        class Recorder:
+            def __init__(self, ref):
+                self.inner, self.ref = lock(ref), ref
+
+            def __enter__(self):
+                stack = held.__dict__.setdefault("stack", [])
+                if any(r != self.ref for r in stack):
+                    nested.append((list(stack), self.ref))
+                stack.append(self.ref)
+                return self.inner.__enter__()
+
+            def __exit__(self, *exc):
+                held.stack.pop()
+                return self.inner.__exit__(*exc)
+        self.bridge.lock = Recorder
+        cid, first = self.chat_start()
+        self.assertEqual(self.hook(first), "done")
+        self.hook(self.visitor(cid, "more"))
+        self.assertEqual(nested, [])
+
+    def test_website_odoo_event_writes_no_chat_attributes(self):
+        # the chat path writes odoo_ref under the chat's lock; Odoo's event path would race it
+        self.website()
+        cid, first = self.chat_start()
+        self.hook(first)
+        (rid,) = self.tickets()
+        self.conversations()[cid]["custom_attributes"] = {"odoo_ref": "x"}
+        self.event("ticket.created", rid=rid)
+        self.assertEqual(self.conversations()[cid]["custom_attributes"], {"odoo_ref": "x"})
+
+    def test_missing_inbox_is_looked_up_again_after_a_while(self):
+        self.website()
+        self.state["no_website_inbox"] = True
+        lookups = lambda: len([c for c in self.state["chatwoot_calls"] if c[0] == "GET" and c[1].endswith("/inboxes")])
+        conv = {"id": 1, "inbox_id": WEBSITE}
+        before = lookups()
+        for _ in range(5):
+            self.assertFalse(self.bridge._website_conv(conv))
+        self.assertEqual(lookups() - before, 1)
+        self.state["no_website_inbox"] = False
+        self.bridge.chatwoot._inboxes_at -= odoo_bridge.INBOX_MISS_SECONDS + 1
+        self.assertTrue(self.bridge._website_conv(conv))
+        self.assertEqual(lookups() - before, 2)
+
+    def test_website_chats_work_with_an_api_inbox_gone(self):
+        self.website(LEAD_INBOX="Gone")
+        cid, first = self.chat_start()
+        self.assertEqual(self.hook(first), "done")
+        self.conversations()[cid]["custom_attributes"] = {"odoo_ref": "crm.lead:9"}
+        self.assertEqual(self.hook(self.visitor(cid, "again")), "done")
+
+    def test_website_resolve_follows_the_link_not_the_visitor_ref(self):
+        self.website()
+        cid, first = self.chat_start()
+        self.hook(first)
+        (rid,) = self.tickets()
+        self.conversations()[cid]["custom_attributes"] = {"odoo_ref": "helpdesk.ticket:7"}
+        self.conversations()[cid]["status"] = "resolved"
+        self.assertEqual(self.hook({"event": "conversation_status_changed", "id": cid, "status": "resolved"}), "done")
+        self.assertEqual(self.state["odoo"]["helpdesk.ticket"][rid]["stage_id"], 3)
+        self.assertNotEqual(self.state["odoo"]["helpdesk.ticket"][7].get("stage_id"), 3)
 
     def test_website_odoo_ref_of_a_missing_record_does_not_block_the_chat(self):
         self.website()

@@ -698,6 +698,20 @@ class TriageTest(TriageBase):
         self.assertEqual(len([g for g in self.state["gets"] if g[0].endswith("/messages")]), 2)
         self.assert_only_allowed_writes()
 
+    def test_label_removed_while_the_agent_runs_is_not_added_back(self):
+        # Chatwoot replaces the list and logs "<draft user> added ..." for every label it adds:
+        # a label a website visitor set and removed again must not come back in its name
+        self.state["conversation"]["labels"] = ["vip", "sales"]
+        answer = self.agent
+
+        def agent(b):
+            if b["params"]["message"]["metadata"]["chatwoot"].get("triage"):
+                self.state["conversation"] = {**self.state["conversation"], "labels": ["vip"]}
+            return answer(b)
+        self.state["agent"] = agent
+        self.drafts.handle(self.draft_event())
+        self.assertEqual(self.posts("/labels")[0][1], {"labels": ["vip", "engineering", "ai-triaged"]})
+
     def test_sorted_conversation_is_not_sorted_again(self):
         self.state["conversation"]["labels"] = ["ai-triaged", "sales"]
         self.drafts.handle(self.draft_event())

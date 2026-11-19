@@ -382,9 +382,13 @@ conversations of the Website inbox.
   `odoo.website.cancelledStage` and gets a note with the lead's address. The widget API lets
   a visitor add any label of the account too. The bridge therefore moves a chat only when
   the newest activity about the label reads `<agent> added <labels>`, with the name of a
-  current agent or `Automation System`, as Chatwoot writes it in English and Dutch. A visitor's
-  label leaves no activity: the chat stays a ticket and staff get a private note. The AI
-  triage never uses the label: the chart refuses a sales label that is also a triage label.
+  current agent or `Automation System`, as Chatwoot writes it in English and Dutch. The
+  chart's own users (the Odoo bridge and the draft user that writes the triage labels) do
+  not count as staff: the triage writes back labels it read, which a visitor can have set.
+  A visitor's label leaves no activity: the chat stays a ticket and staff get a private
+  note. The AI triage never chooses the label: the chart refuses a sales label that is also
+  a triage label. Staff whose Chatwoot language is not English or Dutch move nothing with
+  the label, and a removal they make is not seen.
 - The widget API lets a visitor set and clear the conversation's custom attributes. The
   bridge therefore follows only the record whose `x_chatwoot_url` names the conversation and
   writes `odoo_ref` back from it.

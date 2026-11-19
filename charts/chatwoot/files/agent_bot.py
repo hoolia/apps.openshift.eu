@@ -730,7 +730,10 @@ class Triage:
         self.notes.post(base + "/messages", {
             "content": head + "\nSummary: " + (summary or "none") + ("\n\n" + facts if facts else ""),
             "message_type": "outgoing", "private": True})
-        labels = [x for x in conversation.get("labels") or [] if isinstance(x, str) and LABEL.match(x)]
+        # Chatwoot replaces the whole list: read it again just before, so a label removed while
+        # the agent ran is not added back in the bridge's name
+        fresh = self.notes.get(base) or {}
+        labels = [x for x in fresh.get("labels") or [] if isinstance(x, str) and LABEL.match(x)]
         labels += [x for x in (category, c.triage_label) if x not in labels]
         self.notes.label(base + "/labels", labels)
         LOG.info("conversation %s: triaged as %s, %s", conv, category, route)
