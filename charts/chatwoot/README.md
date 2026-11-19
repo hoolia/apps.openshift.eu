@@ -71,7 +71,8 @@ a super admin.
 | `odoo.website.enabled` | `false` | Website inbox `odoo.website.inbox` (`Website`) for the widget on `odoo.website.url`; each chat becomes an Odoo ticket. |
 | `odoo.website.team` | empty | Helpdesk team of chat tickets; empty: Odoo's default team. |
 | `odoo.website.ticketsPerEmail`, `odoo.website.ticketsPerHour` | `3`, `20` | New chat tickets per address in 24 hours, and in all in one hour. |
-| `odoo.website.salesLabel`, `odoo.website.cancelledStage` | `sales`, `Cancelled` | The label that moves a chat to a new lead, and the stage its ticket moves to. Empty label: chats stay tickets. |
+| `odoo.website.conversationsPerMinute` | `5` | New widget conversations per client address in one minute (Chatwoot's `RATE_LIMIT_WIDGET_CONVERSATIONS`). |
+| `odoo.website.salesLabel`, `odoo.website.cancelledStage` | `sales`, `Cancelled` | The label that moves a chat to a new lead, and the stage its ticket moves to. Must not be a triage label. Empty label: chats stay tickets. |
 | `monitoring.enabled` | `false` | A ServiceMonitor of the Odoo bridge; `monitoring.namespaceLabels` names the namespaces that may scrape it. |
 | `monitoring.alerts` | `true` | Alert rules of the Odoo bridge next to the ServiceMonitor; false where the platform alerts centrally. |
 | `agentBridge.standalone.enabled` | `false` | A release of the bridge alone, next to the agent; needs `standalone.chatwootUrl`, and for the panel `standalone.staff.issuerUrl` and `standalone.staff.clientIds`. |
@@ -359,19 +360,28 @@ conversations of the Website inbox.
   partner of the address the visitor typed, which Odoo finds or creates, in team
   `odoo.website.team`. A private note links the ticket and tells staff that the address is
   not verified.
-- Every public chat message, the visitor's and staff's, is copied to the record as an
-  internal note, once. Odoo mails nobody: the widget already showed the message. A customer
-  mail on the ticket appears in the chat as usual.
-- An address opens at most `odoo.website.ticketsPerEmail` chat tickets in 24 hours, and the
-  instance at most `odoo.website.ticketsPerHour` in one hour. Over a limit the chat gets a
-  private note instead of a ticket. Chatwoot 4.19 webhooks carry no visitor IP address, so
-  there is no limit per address of origin.
-- The label `odoo.website.salesLabel` moves the chat to a new `crm.lead` with the
-  transcript; the ticket loses its link, moves to `odoo.website.cancelledStage` and gets a
-  note with the lead's address.
+- The address is not verified, so nothing goes to it unasked. The bridge creates and moves
+  chat tickets and leads without stage tracking (`mail_notrack`), so no stage template
+  (Ticket Received, Solved) mails it. Every public chat message, the visitor's and staff's,
+  is copied to the record once, as an internal note that notifies nobody. A mail that does
+  reach the record, for example after staff mail the partner from Odoo, appears in the chat
+  as a private note, never in the widget.
+- Chatwoot limits new widget conversations to `odoo.website.conversationsPerMinute` per
+  client address. An address opens at most `odoo.website.ticketsPerEmail` chat tickets in
+  24 hours, counted in Odoo by the `Chat: ` name, and the bridge pod at most
+  `odoo.website.ticketsPerHour` in one hour; that count starts again when the pod restarts.
+  Over a limit the chat gets a private note instead of a ticket, and messages of that chat
+  are not copied to Odoo.
+- The label `odoo.website.salesLabel`, added by staff or by a Chatwoot automation, moves the
+  chat to a new `crm.lead` with the transcript; the ticket loses its link, moves to
+  `odoo.website.cancelledStage` and gets a note with the lead's address. The widget API lets
+  a visitor add any label of the account too; such a label leaves no activity in the
+  conversation and moves nothing. The AI triage never uses the label: the chart refuses a
+  sales label that is also a triage label.
 - The widget API lets a visitor set and clear the conversation's custom attributes. The
   bridge therefore follows only the record whose `x_chatwoot_url` names the conversation and
   writes `odoo_ref` back from it.
+- Resolving the chat, by staff or by the visitor in the widget, solves the ticket.
 - Embed the widget with the script that Chatwoot shows in the inbox settings. With
   `sso.public.widget` (the default) the widget paths are reachable without a login.
 
