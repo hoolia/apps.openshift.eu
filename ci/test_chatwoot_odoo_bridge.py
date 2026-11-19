@@ -181,8 +181,10 @@ class Fake(http.server.BaseHTTPRequestHandler):
         if s.get("chatwoot_404") and path.startswith("/contacts"):
             return self._json(404, {})
         if method == "GET" and path == "/inboxes":
-            return self._json(200, {"payload": [{"id": SUPPORT, "name": "Support"}, {"id": SALES, "name": "Sales"},
-                                                {"id": WEBSITE, "name": "Website"}]})
+            inboxes = [{"id": SUPPORT, "name": "Support"}, {"id": SALES, "name": "Sales"}]
+            if not s.get("no_website_inbox"):
+                inboxes.append({"id": WEBSITE, "name": "Website"})
+            return self._json(200, {"payload": inboxes})
         if method == "GET" and path == "/contacts/search":
             # as Chatwoot: substring on name, email and identifier, 15 per page
             q = query["q"][0].lower()
@@ -729,6 +731,7 @@ class BridgeTest(unittest.TestCase):
         self.bridge.pool.shutdown(wait=True)
         env = {**self.env, "WEBSITE_INBOX": "Website", "WEBSITE_TEAM": "Customer Care", **extra}
         self.bridge = odoo_bridge.Bridge(odoo_bridge.Config(env))
+        self.bridge.activity_waits = (0,)
         self.state["odoo"]["helpdesk.team"] = {3: {"name": "Customer Care"}, 5: {"name": "Other"}}
         self.state["odoo"]["res.partner"] = {42: {"email": "ada@example.org", "name": "Ada"}}
 
@@ -756,6 +759,19 @@ class BridgeTest(unittest.TestCase):
     def hook(self, payload):
         """A webhook as the account webhook delivers it on the website path."""
         return self.bridge.handle_webhook({**payload, "bridge_path": "website"})
+
+    def label(self, cid, label="sales", by_staff=True):
+        """A label on the chat; Chatwoot logs an activity for a user or an automation only."""
+        self.conversations()[cid]["labels"] = [*self.conversations()[cid].get("labels", []), label]
+        if by_staff:
+            mid = self.state["next_message"]
+            self.state["next_message"] += 1
+            self.chat(cid).append({"id": mid, "content": f"Sam added {label}", "message_type": 2,
+                                   "private": False, "source_id": None, "sender": None})
+        return {"event": "conversation_updated", "id": cid}
+
+    def contexts(self, method):
+        return [(model, kw.get("context")) for model, m, kw in self.state["odoo_calls"] if m == method]
 
     def tickets(self):
         return {rid: t for rid, t in self.state["odoo"]["helpdesk.ticket"].items() if rid != 7}
@@ -803,6 +819,26 @@ class BridgeTest(unittest.TestCase):
         self.assertEqual(list(self.conversations()), [cid])
         self.assertTrue(self.tickets()[rid]["x_chatwoot_url"].endswith(f"/conversations/{cid}"))
 
+    def test_website_ticket_and_stage_moves_send_no_stage_mail(self):
+        # Odoo's stage New mails "Ticket Received" to the partner; the chat's address is not verified
+        self.website()
+        cid, first = self.chat_start()
+        self.hook(first)
+        self.assertEqual(self.contexts("create")[-1], ("helpdesk.ticket", {"mail_notrack": True}))
+        self.conversations()[cid]["status"] = "resolved"
+        self.hook({"event": "conversation_status_changed", "id": cid, "status": "resolved"})
+        writes = [c for c in self.contexts("write") if c[0] == "helpdesk.ticket"]
+        self.assertEqual(writes[-1], ("helpdesk.ticket", {"mail_notrack": True}))
+
+    def test_api_inbox_stage_moves_keep_odoo_mail(self):
+        self.website()
+        self.event("ticket.created")
+        cid = next(iter(self.conversations()))
+        self.conversations()[cid]["status"] = "resolved"
+        self.assertEqual(self.bridge.handle_webhook({"event": "conversation_status_changed", "id": cid, "status": "resolved"}),
+                         "done")
+        self.assertEqual(self.contexts("write")[-1], ("helpdesk.ticket", None))
+
     def test_website_customer_mail_reaches_the_chat_once(self):
         self.website()
         cid, first = self.chat_start()
@@ -813,6 +849,12 @@ class BridgeTest(unittest.TestCase):
         self.assertEqual(self.event("message.created", rid=rid, message_id=80), "done")
         mirrored = [m for m in self.chat(cid) if m.get("source_id") == "odoo:mail.message:80"]
         self.assertEqual(len(mirrored), 1)
+        # the visitor's address is not verified: the widget never shows a mail on the record
+        self.assertTrue(mirrored[0]["private"])
+        self.assertEqual(mirrored[0]["message_type"], 1)
+        self.assertIn("Any news?", mirrored[0]["content"])
+        self.assertEqual(self.event("message.created", rid=rid, message_id=80), "done")
+        self.assertEqual(len([m for m in self.chat(cid) if m.get("source_id") == "odoo:mail.message:80"]), 1)
         # its webhook comes back on the website path: not copied to Odoo again
         echo = {"event": "message_created", "id": mirrored[0]["id"], "message_type": "incoming", "private": False,
                 "conversation": {"id": cid}}
@@ -869,6 +911,46 @@ class BridgeTest(unittest.TestCase):
         self.assertEqual(self.hook(staff), "done")
         self.assertEqual({n["res_id"] for n in self.notes()}, {rid})
 
+    def test_website_odoo_event_follows_the_link_not_the_visitor_ref(self):
+        self.website()
+        cid, first = self.chat_start()
+        self.hook(first)
+        (rid,) = self.tickets()
+        self.conversations()[cid]["custom_attributes"] = {"odoo_ref": "x"}
+        self.assertEqual(self.event("ticket.created", rid=rid), "done")
+        self.assertEqual(list(self.conversations()), [cid], "no Support conversation takes the ticket")
+        self.assertTrue(self.tickets()[rid]["x_chatwoot_url"].endswith(f"/conversations/{cid}"))
+        self.assertEqual(self.conversations()[cid]["custom_attributes"]["odoo_ref"], f"helpdesk.ticket:{rid}")
+
+    def test_website_retry_after_a_crash_before_naming_the_ticket(self):
+        self.website()
+        cid, first = self.chat_start()
+        name = self.bridge._name_record
+        calls = []
+
+        def crash_once(*args):
+            calls.append(args)
+            if len(calls) == 1:
+                raise odoo_bridge.HttpError(500, "")
+            return name(*args)
+        self.bridge._name_record = crash_once
+        with self.assertRaises(odoo_bridge.HttpError):
+            self.hook(first)
+        self.bridge._name_record = name
+        self.assertEqual(self.hook(first), "done")
+        (rid,) = self.tickets()
+        self.assertEqual(self.conversations()[cid]["custom_attributes"]["odoo_ref"], f"helpdesk.ticket:{rid}")
+        self.assertEqual(len(self.notes()), 1)
+
+    def test_website_first_messages_of_one_address_share_the_limit(self):
+        self.website(WEBSITE_TICKETS_PER_EMAIL="1")
+        self.state["list_delay"] = 0.05
+        firsts = [self.chat_start()[1] for _ in range(3)]
+        threads = [threading.Thread(target=self.hook, args=(f,)) for f in firsts]
+        [t.start() for t in threads]
+        [t.join() for t in threads]
+        self.assertEqual(len(self.tickets()), 1)
+
     def test_website_without_email_makes_no_ticket(self):
         self.website()
         _, first = self.chat_start(email=None)
@@ -911,8 +993,7 @@ class BridgeTest(unittest.TestCase):
         self.hook(first)
         (rid,) = self.tickets()
         self.hook(self.staff_reply(cid, "Let me ask sales."))
-        self.conversations()[cid]["labels"] = ["sales"]
-        update = {"event": "conversation_updated", "id": cid}
+        update = self.label(cid)
         self.assertEqual(self.hook(update), "done")
         self.assertEqual(self.hook(update), "done")
         (lid, lead), = {k: v for k, v in self.state["odoo"]["crm.lead"].items() if k != 9}.items()
@@ -925,6 +1006,7 @@ class BridgeTest(unittest.TestCase):
         ticket = self.state["odoo"]["helpdesk.ticket"][rid]
         self.assertFalse(ticket["x_chatwoot_url"])
         self.assertEqual(ticket["stage_id"], 4)
+        self.assertIn(("crm.lead", {"mail_notrack": True}), self.contexts("create"))
         # Odoo's events of both records open no other conversation and resolve nothing
         self.event("lead.created", model="crm.lead", rid=lid)
         self.event("ticket.closed", rid=rid)
@@ -933,6 +1015,49 @@ class BridgeTest(unittest.TestCase):
         # the chat now goes to the lead
         self.hook(self.visitor(cid, "And with GPUs?"))
         self.assertEqual(self.notes()[-1]["model"], "crm.lead")
+
+    def test_website_sales_label_set_by_the_visitor_moves_nothing(self):
+        # the widget API lets a visitor add any label of the account; Chatwoot logs no activity then
+        self.website()
+        cid, first = self.chat_start()
+        self.hook(first)
+        self.assertEqual(self.hook(self.label(cid, by_staff=False)), "ignored")
+        self.assertEqual({k for k in self.state["odoo"]["crm.lead"] if k != 9}, set())
+        self.assertTrue(next(iter(self.tickets().values()))["x_chatwoot_url"])
+
+    def test_website_forged_lead_ref_does_not_stop_the_sales_move(self):
+        self.website()
+        cid, first = self.chat_start()
+        self.hook(first)
+        update = self.label(cid)
+        self.conversations()[cid]["custom_attributes"] = {"odoo_ref": "crm.lead:9"}
+        self.assertEqual(self.hook(update), "done")
+        self.assertEqual(len({k for k in self.state["odoo"]["crm.lead"] if k != 9}), 1)
+
+    def test_website_retry_after_a_crash_in_the_sales_move(self):
+        self.website()
+        cid, first = self.chat_start()
+        self.hook(first)
+        (rid,) = self.tickets()
+        update = self.label(cid)
+        cancel = self.bridge._cancel
+        self.bridge._cancel = lambda *a: (_ for _ in ()).throw(odoo_bridge.HttpError(500, ""))
+        with self.assertRaises(odoo_bridge.HttpError):
+            self.hook(update)
+        self.bridge._cancel = cancel
+        self.assertEqual(self.hook(update), "done")
+        leads = {k for k in self.state["odoo"]["crm.lead"] if k != 9}
+        self.assertEqual(len(leads), 1)
+        self.assertFalse(self.state["odoo"]["helpdesk.ticket"][rid]["x_chatwoot_url"])
+        self.assertEqual(self.conversations()[cid]["custom_attributes"]["odoo_ref"], f"crm.lead:{leads.pop()}")
+
+    def test_api_inboxes_work_with_the_website_inbox_gone(self):
+        self.website()
+        self.state["no_website_inbox"] = True
+        self.event("ticket.created")
+        cid = next(iter(self.conversations()))
+        self.assertEqual(self.bridge.handle_webhook(self.staff_reply(cid)), "done")
+        self.assertEqual(len(self.posts()), 1)
 
     def test_website_path_ignores_other_inboxes(self):
         self.website()

@@ -353,6 +353,21 @@
           "type": "string",
           "title": "Stage of a resolved ticket"
         },
+        "website": {
+          "type": "object",
+          "title": "Website chats as Odoo tickets",
+          "properties": {
+            "enabled": {"type": "boolean"},
+            "inbox": {"type": "string", "title": "Website inbox"},
+            "url": {"type": "string", "title": "https address of the site with the widget"},
+            "team": {"type": "string", "title": "Helpdesk team of chat tickets"},
+            "ticketsPerEmail": {"type": "integer", "minimum": 1},
+            "ticketsPerHour": {"type": "integer", "minimum": 1},
+            "conversationsPerMinute": {"type": "integer", "minimum": 1},
+            "salesLabel": {"type": "string", "title": "Label that moves a chat to a lead"},
+            "cancelledStage": {"type": "string", "title": "Stage of a ticket whose chat moved to a lead"}
+          }
+        },
         "bridge": {
           "type": "object",
           "properties": {

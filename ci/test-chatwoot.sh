@@ -148,7 +148,8 @@ fails "odoo over http" "/odoo/url" "${ODOO[@]}" --set odoo.url=http://odoo.examp
 fails "odoo one inbox for both" "must differ" "${ODOO[@]}" --set secrets.odooApiKey=k --set odoo.leadInbox=Support
 fails "website without url" "odoo.website.url" "${ODOO[@]}" --set secrets.odooApiKey=k --set odoo.website.enabled=true
 fails "website inbox is an odoo inbox" "must differ from odoo.ticketInbox" "${ODOO[@]}" --set secrets.odooApiKey=k --set odoo.website.enabled=true --set odoo.website.url=https://www.example.org --set odoo.website.inbox=Support
-fails "website limit 0" "at least 1" "${ODOO[@]}" --set secrets.odooApiKey=k --set odoo.website.enabled=true --set odoo.website.url=https://www.example.org --set odoo.website.ticketsPerHour=0
+fails "website conversations 0" "minimum: got 0, want 1" "${ODOO[@]}" --set secrets.odooApiKey=k --set odoo.website.enabled=true --set odoo.website.url=https://www.example.org --set odoo.website.conversationsPerMinute=0
+fails "website limit 0" "minimum: got 0, want 1" "${ODOO[@]}" --set secrets.odooApiKey=k --set odoo.website.enabled=true --set odoo.website.url=https://www.example.org --set odoo.website.ticketsPerHour=0
 fails "odoo and standalone" "exclude" "${ODOO[@]}" --set secrets.odooApiKey=k --set agentBridge.standalone.enabled=true --set agentBot.enabled=true --set agent.url=https://a.example.com/ --set agentBridge.standalone.chatwootUrl=https://cw.example.com
 DRAFT=(--set draftAgent.enabled=true --set 'draftAgent.inboxes={Support}' --set agent.url=https://a.example.com/a2a/
   --set agent.auth.type=clientSecret --set agent.auth.tokenUrl=https://login.example.com/token
@@ -183,10 +184,11 @@ OUT=$(render "${ODOO[@]}" --set secrets.odooApiKey=k)
 check "odoo bridge one pod at a time" 'obj("Deployment", "chatwoot-odoo-bridge")["spec"]["strategy"] == {"type": "Recreate"}'
 check "odoo bridge env" 'env("chatwoot-odoo-bridge", "odoo-bridge")["ODOO_URL"] == "https://odoo.example.org" and env("chatwoot-odoo-bridge", "odoo-bridge")["PUBLIC_URL"] == "https://support.example.org" and env("chatwoot-odoo-bridge", "odoo-bridge")["TICKET_INBOX"] == "Support"'
 check "odoo inboxes set up by the job" 'env("chatwoot-prepare-1", "prepare")["CHATWOOT_ODOO_WEBHOOK_URL"] == "http://chatwoot-odoo-bridge:8080/chatwoot/webhook" and env("chatwoot-prepare-1", "prepare")["CHATWOOT_ODOO_INBOXES"] == "Support,Sales"'
-check "no website chat by default" '"WEBSITE_INBOX" not in env("chatwoot-odoo-bridge", "odoo-bridge") and "CHATWOOT_ODOO_WEBSITE_INBOX" not in env("chatwoot-prepare-1", "prepare") and env("chatwoot-prepare-1", "prepare")["CHATWOOT_ODOO_WEBSITE_WEBHOOK_URL"] == "http://chatwoot-odoo-bridge:8080/chatwoot/website"'
+check "no website chat by default" '"RATE_LIMIT_WIDGET_CONVERSATIONS" not in env("chatwoot-web", "web") and "WEBSITE_INBOX" not in env("chatwoot-odoo-bridge", "odoo-bridge") and "CHATWOOT_ODOO_WEBSITE_INBOX" not in env("chatwoot-prepare-1", "prepare") and env("chatwoot-prepare-1", "prepare")["CHATWOOT_ODOO_WEBSITE_WEBHOOK_URL"] == "http://chatwoot-odoo-bridge:8080/chatwoot/website"'
 WEB=$(render "${ODOO[@]}" --set secrets.odooApiKey=k --set odoo.website.enabled=true --set odoo.website.url=https://www.example.org/ --set odoo.website.team=Support)
 OUT_KEEP=$OUT; OUT=$WEB
 check "website chat env" 'env("chatwoot-odoo-bridge", "odoo-bridge")["WEBSITE_INBOX"] == "Website" and env("chatwoot-odoo-bridge", "odoo-bridge")["WEBSITE_TEAM"] == "Support" and env("chatwoot-odoo-bridge", "odoo-bridge")["WEBSITE_TICKETS_PER_EMAIL"] == "3" and env("chatwoot-odoo-bridge", "odoo-bridge")["SALES_LABEL"] == "sales" and env("chatwoot-prepare-1", "prepare")["CHATWOOT_ODOO_WEBSITE_INBOX"] == "Website" and env("chatwoot-prepare-1", "prepare")["CHATWOOT_ODOO_WEBSITE_URL"] == "https://www.example.org"'
+check "website chat: widget conversations limited per address" 'all(env(n, c)["RATE_LIMIT_WIDGET_CONVERSATIONS"] == "5" for n, c in (("chatwoot-web", "web"), ("chatwoot-worker", "worker")))'
 OUT=$OUT_KEEP
 check "odoo key to the bridge only" '"chatwoot-odoo" in refs(pod("chatwoot-odoo-bridge")) and all("chatwoot-odoo\"" not in refs(pod(n)) for n in ("chatwoot-web", "chatwoot-worker", "chatwoot-gate", "chatwoot-prepare-1"))'
 check "odoo private webhook" 'all(env(n, c)["CHART_ODOO_BRIDGE_URL"] == "http://chatwoot-odoo-bridge:8080/" for n, c in (("chatwoot-web", "web"), ("chatwoot-worker", "worker")))'
@@ -297,6 +299,11 @@ fails "triage category no label" "does not match pattern" "${TRIAGE[@]}" --set-j
 fails "triage category twice" "names a category twice" "${TRIAGE[@]}" --set-json 'triage.categories=[{"name":"a"},{"name":"a"}]' --set triage.fallback=a
 fails "triage fallback unknown" "triage.fallback must be the name" "${TRIAGE[@]}" --set triage.fallback=weather
 fails "triage label is a category" "names no category" "${TRIAGE[@]}" --set triage.label=general
+WEBSITE=("${ODOO[@]}" --set secrets.odooApiKey=k --set odoo.website.enabled=true --set odoo.website.url=https://www.example.org)
+fails "sales label is a triage category" "must differ from triage.label" "${TRIAGE[@]}" "${WEBSITE[@]}" --set-json 'triage.categories=[{"name":"engineering"},{"name":"sales"}]'
+fails "sales label is the triage label" "must differ from triage.label" "${TRIAGE[@]}" "${WEBSITE[@]}" --set triage.label=sales
+OUT=$(render "${TRIAGE[@]}" "${WEBSITE[@]}")
+check "website chat with triage" 'env("chatwoot-odoo-bridge", "odoo-bridge")["SALES_LABEL"] == "sales"'
 fails "triage heading like the draft's" "must not start like draftAgent.heading" "${TRIAGE[@]}" --set "triage.heading=AI draft (check before sending): triage"
 fails "facts without triage" "tenantFacts.enabled needs triage.enabled" "${DRAFT[@]}" "${FACTS[@]}"
 fails "facts without annotation" "tenantFacts.emailAnnotation and tenantFacts.tenantLabel are required" "${TRIAGE[@]}" --set tenantFacts.enabled=true

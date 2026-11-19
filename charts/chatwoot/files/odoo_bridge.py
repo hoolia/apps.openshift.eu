@@ -69,6 +69,11 @@ INBOX_CACHE_SECONDS = 300
 ODOO_SOURCE = "odoo:mail.message:"
 # name prefix of a ticket opened from a website chat; the per-address limit counts these
 CHAT_PREFIX = "Chat: "
+# a customer mail on the record of a website chat, as a private note of the chat
+MAIL_NOTE = "Mail on the Odoo record, not shown to the visitor:"
+# Odoo context of the records the bridge creates and moves for a website chat: no stage
+# template mails the address the visitor typed
+NO_MAIL = {"mail_notrack": True}
 LIMIT_NOTE = "No Odoo ticket for this chat"
 CONVERSATION_PATH = re.compile(r"/conversations/(\d+)/?$")
 MODELS = {
@@ -435,6 +440,8 @@ class Bridge:
         self._chat_starts = collections.deque()
         self._chat_lock = threading.Lock()
         self._team = None
+        # seconds before each look for the activity of the sales label
+        self.activity_waits = (0, 2, 4)
         for name, result in (("webhooks", "given_up"), ("events", "error")):
             self.metrics.seed(name, result=result)
 
@@ -523,15 +530,23 @@ class Bridge:
         if not conv:
             return None
         linked = (conv.get("custom_attributes") or {}).get("odoo_ref")
-        # a website chat the bridge is linking: it names the record on the conversation next,
-        # and Odoo's event of the new record may come first
-        if linked == ref or (not linked and self._website_conv(conv)):
+        if linked == ref:
+            return conv["id"]
+        # a website chat: the visitor can change odoo_ref, so the record's link decides, and
+        # Odoo's event of a new record may come before the bridge named it on the chat
+        if self._website_conv(conv):
+            model, _, rid = ref.partition(":")
+            self._name_record(conv["id"], model, int(rid))
             return conv["id"]
         return None
 
     def _website_conv(self, conv):
-        return bool(self.cfg.website_inbox and conv
-                    and conv.get("inbox_id") == self.chatwoot.inbox_id(self.cfg.website_inbox))
+        if not (self.cfg.website_inbox and conv):
+            return False
+        try:
+            return conv.get("inbox_id") == self.chatwoot.inbox_id(self.cfg.website_inbox)
+        except RuntimeError:  # no such inbox: no conversation is a website chat
+            return False
 
     def _link(self, model, rid, cid):
         self.odoo.call(model, "write", ids=[rid], vals={"x_chatwoot_url": self.conversation_url(cid)})
@@ -558,7 +573,13 @@ class Bridge:
             text = f"From: {sender}\n\n{text}"
         if msg.get("attachment_ids"):
             text += f"\n\n[{len(msg['attachment_ids'])} attachment(s) in Odoo: {self.odoo.url(model, rid)}]"
-        self.chatwoot.create_message(cid, clip(text or "(empty mail)"), "incoming", source)
+        if self._website_conv(self.chatwoot.conversation(cid)):
+            # the widget shows every public message to whoever holds the chat, and the visitor's
+            # address is not verified: a mail on the record is for staff only
+            self.chatwoot.create_message(cid, clip(f"{MAIL_NOTE}\n\n{text or '(empty mail)'}"), "outgoing", source,
+                                         private=True)
+        else:
+            self.chatwoot.create_message(cid, clip(text or "(empty mail)"), "incoming", source)
         self.metrics.inc("messages_mirrored", direction="odoo_to_chatwoot")
 
     def _contact_email(self, cid):
@@ -594,11 +615,11 @@ class Bridge:
         model, _, rid = ref.partition(":")
         if model not in MODELS or not rid.isdigit():
             return None
+        if self.cfg.inboxes.get(model) and conv.get("inbox_id") == self.chatwoot.inbox_id(self.cfg.inboxes[model]):
+            return model, int(rid)
         if self._website_conv(conv):
             return model, int(rid)
-        if not self.cfg.inboxes.get(model) or conv.get("inbox_id") != self.chatwoot.inbox_id(self.cfg.inboxes[model]):
-            return None
-        return model, int(rid)
+        return None
 
     def _record_of(self, conv, target, fields):
         """The record, when its x_chatwoot_url names this conversation; staff can edit odoo_ref."""
@@ -716,7 +737,8 @@ class Bridge:
             LOG.warning("helpdesk.ticket %s: no folded stage for its team; not solved", rid)
             return "ignored"
         stage = next((s for s in stages if s["name"] == self.cfg.solved_stage), stages[0])
-        self.odoo.call("helpdesk.ticket", "write", ids=[rid], vals={"stage_id": stage["id"]})
+        extra = {"context": NO_MAIL} if self._website_conv(conv) else {}
+        self.odoo.call("helpdesk.ticket", "write", ids=[rid], vals={"stage_id": stage["id"]}, **extra)
         LOG.info("conversation %s resolved; helpdesk.ticket %s moved to %s", conv["id"], rid, stage["name"])
         return "done"
 
@@ -789,12 +811,14 @@ class Bridge:
                 LOG.info("website conversation %s has no visitor address; no ticket", cid)
                 self.metrics.inc("chats", result="no_email")
                 return "ignored"
-            why = self._chat_limit(email)
-            if why:
-                self._tell_limit(cid, why)
-                self.metrics.inc("chats", result="limited")
-                return "limited"
-            rid = self._chat_create(conv, sender, email, url)
+            # one address at a time: two first messages must not both pass the limit
+            with self.lock(f"website-email:{email.lower()}"):
+                why = self._chat_limit(email)
+                if why:
+                    self._tell_limit(cid, why)
+                    self.metrics.inc("chats", result="limited")
+                    return "limited"
+                rid = self._chat_create(conv, sender, email, url)
             self._name_record(cid, "helpdesk.ticket", rid)
             # the pre-chat form takes any address: staff check who they talk to
             self.chatwoot.create_message(
@@ -850,7 +874,7 @@ class Bridge:
         team = self._team_id()
         if team:
             vals["team_id"] = team
-        rid = self.odoo.call("helpdesk.ticket", "create", vals_list=[vals])[0]
+        rid = self.odoo.call("helpdesk.ticket", "create", vals_list=[vals], context=NO_MAIL)[0]
         with self._chat_lock:
             self._chat_starts.append(time.monotonic())
         self.metrics.inc("chats", result="ticket")
@@ -920,8 +944,18 @@ class Bridge:
         with self.lock(f"website:{cid}"):
             conv = self.chatwoot.conversation(cid) or conv
             target = self._bridged(conv)
+            if target and not self._record_of(conv, target, []):
+                target = self._chat_linked(cid)
             if target and target[0] == "crm.lead":
+                # a retry after the lead was named: the ticket may still name the chat
+                stale = self.odoo.search_read("helpdesk.ticket", [["x_chatwoot_url", "=", url]], ["team_id"])
+                if stale:
+                    self._cancel(stale[0], target[1])
                 return "done"
+            if not self._labelled_by_staff(cid):
+                LOG.warning("conversation %s: label %s without an activity of staff; not moved to sales",
+                            cid, self.cfg.sales_label)
+                return "ignored"
             if target:
                 ticket = self._record_of(conv, target, ["name", "partner_id", "partner_email", "partner_name", "team_id"])
             else:
@@ -945,13 +979,28 @@ class Bridge:
                         "x_chatwoot_url": url, "description": self._transcript(cid)}
                 if ticket.get("partner_id"):
                     vals["partner_id"] = ticket["partner_id"][0]
-                lid = self.odoo.call("crm.lead", "create", vals_list=[vals])[0]
+                lid = self.odoo.call("crm.lead", "create", vals_list=[vals], context=NO_MAIL)[0]
                 self.metrics.inc("chats", result="lead")
                 LOG.info("website conversation %s moved to crm.lead %s", cid, lid)
             self._name_record(cid, "crm.lead", lid)
             if ticket:
                 self._cancel(ticket, lid)
         return "done"
+
+    def _labelled_by_staff(self, cid):
+        """True when Chatwoot logged an activity that names the sales label.
+
+        Chatwoot writes "<user> added <label>" for a user or an automation only; a label the
+        visitor sets through the widget API leaves no activity. A background job writes it, so
+        it may come a moment after the webhook.
+        """
+        word = re.compile(rf"(?<![\w-]){re.escape(self.cfg.sales_label)}(?![\w-])", re.IGNORECASE)
+        for wait in self.activity_waits:
+            time.sleep(wait)
+            for m in self.chatwoot.messages(cid):
+                if m.get("message_type") in (2, "activity") and word.search(m.get("content") or ""):
+                    return True
+        return False
 
     def _transcript(self, cid):
         lines = []
@@ -975,7 +1024,7 @@ class Bridge:
         stages = self.odoo.search_read("helpdesk.stage", domain, ["id"])
         if stages:
             vals["stage_id"] = stages[0]["id"]
-        self.odoo.call("helpdesk.ticket", "write", ids=[rid], vals=vals)
+        self.odoo.call("helpdesk.ticket", "write", ids=[rid], vals=vals, context=NO_MAIL)
         self.odoo.call("helpdesk.ticket", "message_post", ids=[rid], body_is_html=True, message_type="comment",
                        subtype_xmlid="mail.mt_note",
                        body=text_to_html(f"The chat moved to sales: {self.odoo.url('crm.lead', lid)}"))
@@ -1042,11 +1091,14 @@ class Bridge:
                 self._timers[timer] = payload
             timer.start()
             return
-        self._done()
         self.metrics.inc("webhooks", result="given_up")
         LOG.error("webhook %s for conversation %s given up after %d attempts", payload.get("event"),
                   (payload.get("conversation") or {}).get("id") or payload.get("id"), attempt + 1)
-        self._tell_staff(payload)
+        # still pending until staff are told, so a stop waits for the note
+        try:
+            self._tell_staff(payload)
+        finally:
+            self._done()
 
     def _retry(self, payload, attempt):
         with self._pending_lock:
