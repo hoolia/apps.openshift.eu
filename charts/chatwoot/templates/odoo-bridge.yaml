@@ -78,6 +78,9 @@ spec:
           value: {{ .salesLabel | quote }}
         - name: CANCELLED_STAGE
           value: {{ .cancelledStage | quote }}
+        # users the chart makes: their label changes never move a chat to sales
+        - name: NOT_STAFF_EMAILS
+          value: {{ include "wrapper.notStaffEmails" $ | quote }}
         {{- end }}
         {{- end }}
         - name: WEBHOOK_PORT

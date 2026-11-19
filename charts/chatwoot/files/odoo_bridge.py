@@ -129,6 +129,7 @@ class Config:
         self.website_per_hour = int(env.get("WEBSITE_TICKETS_PER_HOUR", "20"))
         # a chat with this label becomes a crm.lead; empty: chats stay tickets
         self.sales_label = env.get("SALES_LABEL", "sales").strip().lower()
+        self.not_staff = {e.strip().lower() for e in env.get("NOT_STAFF_EMAILS", "").split(",") if e.strip()}
         self.cancelled_stage = env.get("CANCELLED_STAGE", "Cancelled")
         if not self.public_url.startswith("https://"):
             raise ValueError("PUBLIC_URL must be an https address")
@@ -553,11 +554,14 @@ class Bridge:
         return None
 
     def _website_conv(self, conv):
-        if not (self.cfg.website_inbox and conv):
+        return self._in_inbox(conv, self.cfg.website_inbox)
+
+    def _in_inbox(self, conv, name):
+        if not (name and conv):
             return False
         try:
-            return conv.get("inbox_id") == self.chatwoot.inbox_id(self.cfg.website_inbox)
-        except RuntimeError:  # no such inbox: no conversation is a website chat
+            return conv.get("inbox_id") == self.chatwoot.inbox_id(name)
+        except RuntimeError:  # no such inbox: no conversation is in it
             return False
 
     def _link(self, model, rid, cid):
@@ -627,7 +631,7 @@ class Bridge:
         model, _, rid = ref.partition(":")
         if model not in MODELS or not rid.isdigit():
             return None
-        if self.cfg.inboxes.get(model) and conv.get("inbox_id") == self.chatwoot.inbox_id(self.cfg.inboxes[model]):
+        if self._in_inbox(conv, self.cfg.inboxes.get(model)):
             return model, int(rid)
         if self._website_conv(conv):
             return model, int(rid)
@@ -740,10 +744,16 @@ class Bridge:
         target = self._bridged(conv)
         if not target or target[0] != "helpdesk.ticket" or conv.get("status") != "resolved":
             return "ignored"
-        rid = target[1]
         ticket = self._record_of(conv, target, ["stage_id", "team_id"])
+        if not ticket and self._website_conv(conv):
+            # the visitor can change odoo_ref: the ticket whose link names the chat decides
+            target = self._chat_linked(conv["id"])
+            if not target or target[0] != "helpdesk.ticket":
+                return "ignored"
+            ticket = self._record_of(conv, target, ["stage_id", "team_id"])
         if not ticket:
             return "ignored"
+        rid = target[1]
         if ticket.get("stage_id"):
             stage = self.odoo.read("helpdesk.stage", ticket["stage_id"][0], ["fold"])
             if stage.get("fold"):
@@ -1020,8 +1030,12 @@ class Bridge:
         agent, counts.
         """
         label = self.cfg.sales_label
-        actors = sorted({a.get("name") for a in self.chatwoot.agents() if a.get("name")} | set(AUTOMATION_ACTORS),
-                        key=len, reverse=True)
+        agents = self.chatwoot.agents()
+        # the draft and triage user writes back labels it read earlier, which a visitor can
+        # have set: the chart's own users are agents but not staff, and so is their name
+        robots = {a.get("name") for a in agents if (a.get("email") or "").lower() in self.cfg.not_staff}
+        humans = {a.get("name") for a in agents if a.get("name")} - robots
+        actors = sorted(humans | set(AUTOMATION_ACTORS), key=len, reverse=True)
         for m in self.chatwoot.messages(cid):  # newest first
             if m.get("message_type") not in (2, "activity"):
                 continue
@@ -1046,6 +1060,7 @@ class Bridge:
             except RuntimeError:  # the pool is shut down
                 with self._chat_lock:
                     self._sales_waiting.discard(cid)
+                LOG.warning("conversation %s: stopping; the sales label was not looked at again", cid)
         timer = threading.Timer(self.sales_recheck, submit)
         timer.daemon = True
         timer.start()
@@ -1053,10 +1068,18 @@ class Bridge:
     def _sales_recheck(self, cid):
         with self._chat_lock:
             self._sales_waiting.discard(cid)
-        conv = self.chatwoot.conversation(cid)
-        if not self._website_conv(conv):
-            return "ignored"
-        return self.move_to_sales(conv, recheck=True)
+        try:
+            conv = self.chatwoot.conversation(cid)
+            if not self._website_conv(conv):
+                return "ignored"
+            return self.move_to_sales(conv, recheck=True)
+        except Exception:
+            # the first webhook answered already: without a note staff would not know
+            try:
+                self._tell_not_moved(cid)
+            except Exception as e:  # noqa: BLE001
+                LOG.error("conversation %s: no note about the sales label either: %s", cid, type(e).__name__)
+            raise
 
     def _tell_not_moved(self, cid):
         if any(m.get("private") and (m.get("content") or "").startswith(NOT_MOVED_NOTE)

@@ -414,6 +414,13 @@ serviceAccountName: chatwoot-route
 {{- end }}
 {{- end }}
 
+{{/* the Chatwoot users the chart makes, which are agents but not staff */}}
+{{- define "wrapper.notStaffEmails" -}}
+{{- $emails := list "odoo-bridge@chatwoot.invalid" }}
+{{- if .Values.draftAgent.enabled }}{{- $emails = append $emails .Values.draftAgent.email }}{{- end }}
+{{- join "," $emails }}
+{{- end }}
+
 {{/* .job: the prepare Job, which writes no files and must not hold the ReadWriteOnce volume */}}
 {{- define "wrapper.volumeMounts" -}}
 - name: tmp
