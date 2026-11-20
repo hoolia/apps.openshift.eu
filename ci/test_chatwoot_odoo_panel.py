@@ -227,6 +227,14 @@ class PanelTest(unittest.TestCase):
             self.panel().context(99, STAFF)
         self.assertEqual(self.state["odoo_calls"], [])
 
+    def test_a_refused_platform_token_is_an_error_not_a_refusal(self):
+        wrong = pathlib.Path(self.tmp.name) / "wrong"
+        wrong.write_text("not-the-platform-token\n")
+        with self.assertRaises(odoo_panel.odoo_bridge.HttpError) as caught:
+            self.panel(PLATFORM_TOKEN_FILE=str(wrong)).context(11, STAFF)
+        self.assertEqual(caught.exception.status, 401)
+        self.assertEqual(self.state["odoo_calls"], [])
+
     def test_the_staff_token_is_asked_once(self):
         panel = self.panel()
         panel.context(11, STAFF)

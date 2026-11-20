@@ -146,10 +146,12 @@ class Panel:
         """(address, phone number) of the conversation contact, read as the staff member's
         Chatwoot user. Raises NotYours when Chatwoot refuses it. The number keeps a leading +
         and its digits only."""
+        # outside the try: a refused platform token is a fault of the panel, not a refusal
+        token = self.staff_token(staff)
         try:
             conv = odoo_bridge.http_json(
                 "GET", f"{self.cfg.chatwoot_url}/api/v1/accounts/{self.cfg.account_id}/conversations/{cid}",
-                headers={"api_access_token": self.staff_token(staff)})
+                headers={"api_access_token": token})
         except odoo_bridge.HttpError as e:
             if e.status in (401, 403, 404):
                 raise NotYours(f"HTTP {e.status}") from None
