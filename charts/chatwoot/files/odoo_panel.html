@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Odoo</title>
+<style>
+:root { --bg: #ffffff; --fg: #1f2d3d; --muted: #6b7a8c; --line: #e3e8ee; --accent: #1f93ff; --box: #f6f8fa; --ok: #2e7d32; }
+:root[data-theme="dark"] { --bg: #151718; --fg: #ecedee; --muted: #9ba1a6; --line: #2b2f31; --accent: #4aa6ff; --box: #1f2224; --ok: #66bb6a; }
+* { box-sizing: border-box; }
+body { margin: 0; padding: 12px; font: 14px/1.45 system-ui, sans-serif; background: var(--bg); color: var(--fg); }
+h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 14px 0 4px; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+ul { list-style: none; margin: 0; padding: 0; }
+li { padding: 4px 0; border-bottom: 1px solid var(--line); }
+.muted { color: var(--muted); font-size: 12px; }
+.tag { display: inline-block; font-size: 11px; padding: 0 6px; border-radius: 8px; background: var(--box); border: 1px solid var(--line); margin-left: 4px; }
+.open { color: var(--ok); border-color: var(--ok); }
+#summary { white-space: pre-wrap; background: var(--box); border: 1px solid var(--line); border-radius: 6px; padding: 8px; }
+button { border: 1px solid var(--line); background: var(--box); color: var(--fg); border-radius: 6px; padding: 4px 8px; cursor: pointer; font: inherit; }
+</style>
+</head>
+<body>
+<div id="head" class="muted">Open a conversation.</div>
+<div id="summary-box" hidden><h2>Summary</h2><div id="summary" class="muted"></div></div>
+<div id="parts"></div>
+<p class="muted">Read only, from Odoo. <button id="reload">Reload</button></p>
+<script>
+(function () {
+  "use strict";
+  var context = null, shown = null;
+  var parts = document.getElementById("parts"), head = document.getElementById("head");
+  function el(tag, text, cls) { var e = document.createElement(tag); if (text) e.textContent = text; if (cls) e.className = cls; return e; }
+  function link(text, url) { if (!url) return el("span", text); var a = el("a", text); a.href = url; a.target = "_blank"; a.rel = "noopener noreferrer"; return a; }
+  function tag(text, cls) { return el("span", text, "tag" + (cls ? " " + cls : "")); }
+  function section(title, part, row) {
+    parts.appendChild(el("h2", title));
+    if (!part) return;
+    if (part.error) { parts.appendChild(el("div", "Not shown: " + part.error, "muted")); return; }
+    var rows = part.rows || [];
+    if (!rows.length) { parts.appendChild(el("div", "None", "muted")); return; }
+    var ul = el("ul");
+    rows.forEach(function (r) { var li = el("li"); row(li, r); ul.appendChild(li); });
+    parts.appendChild(ul);
+  }
+  function money(v, c) { return v === null || v === undefined || v === false ? "" : Number(v).toFixed(2) + (c ? " " + c : ""); }
+  function issuesOf(li, keys) { (keys || []).forEach(function (k) { li.appendChild(tag(k)); }); }
+  function render(b) {
+    parts.textContent = "";
+    if (!b.partner) {
+      head.textContent = b.found === "none" ? "No Odoo customer found for this conversation." : "";
+      head.className = "muted";
+      if (b.record) { head.appendChild(document.createElement("br")); head.appendChild(link(b.record.name, b.record.url)); }
+      return;
+    }
+    head.textContent = ""; head.className = "";
+    var strong = el("strong"); strong.appendChild(link(b.partner.name, b.partner.url)); head.appendChild(strong);
+    if (b.record) { head.appendChild(el("div", "", "muted")).appendChild(link(b.record.name, b.record.url)); }
+    else if (b.found === "email") { head.appendChild(el("div", "Found by the contact's address", "muted")); }
+    section("Orders", b.orders, function (li, r) { li.appendChild(link(r.name, r.url)); li.appendChild(tag(r.state)); li.appendChild(el("span", " " + money(r.amount, r.currency) + " " + r.date, "muted")); });
+    section("Subscriptions", b.subscriptions, function (li, r) { li.appendChild(link(r.name, r.url)); li.appendChild(tag(r.state)); li.appendChild(el("span", " " + money(r.monthly, r.currency) + "/month" + (r.next_invoice ? ", next invoice " + r.next_invoice : ""), "muted")); });
+    var t = b.tickets || {};
+    function ticketRow(li, r) { li.appendChild(link(r.name, r.url)); li.appendChild(tag(r.stage, r.open ? "open" : "")); li.appendChild(el("span", " " + r.date, "muted")); issuesOf(li, r.issues); }
+    section("Open tickets", t.error ? t : { rows: (t.rows || []).filter(function (r) { return r.open; }) }, ticketRow);
+    section("Closed tickets", t.error ? t : { rows: (t.rows || []).filter(function (r) { return !r.open; }) }, ticketRow);
+    section("Leads and opportunities", b.opportunities, function (li, r) { li.appendChild(link(r.name, r.url)); li.appendChild(tag(r.type === "opportunity" ? r.stage : "lead")); if (r.revenue) li.appendChild(el("span", " " + money(r.revenue) + " (" + Math.round(r.probability || 0) + "%)", "muted")); issuesOf(li, r.issues); });
+    section("Linked issues", b.issues, function (li, r) { li.appendChild(link(r.key, r.url)); if (r.status) li.appendChild(tag(r.status)); if (r.summary) li.appendChild(el("span", " " + r.summary, "muted")); });
+  }
+  function summarize(conversation) {
+    var box = document.getElementById("summary-box"), out = document.getElementById("summary");
+    box.hidden = false; out.textContent = "The agent is summarising..."; out.className = "muted";
+    fetch("../agent-panel/api", {
+      method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "brief", conversation: { id: conversation.id, messages: conversation.messages || [] } })
+    }).then(function (r) { return r.json().catch(function () { return {}; }).then(function (b) { if (!r.ok) throw new Error(b.error || ("HTTP " + r.status)); return b; }); })
+      .then(function (b) { out.textContent = b.text || "(no summary)"; out.className = b.text ? "" : "muted"; })
+      .catch(function (err) { out.textContent = "No summary: " + err.message; out.className = "muted"; });
+  }
+  function load(force) {
+    var conversation = context && context.conversation;
+    if (!conversation || !conversation.id) return;
+    if (!force && shown === conversation.id) return;
+    shown = conversation.id;
+    head.textContent = "Reading Odoo..."; head.className = "muted"; parts.textContent = "";
+    fetch("api/context?conversation=" + encodeURIComponent(conversation.id), { credentials: "same-origin" })
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (b) { if (!r.ok) throw new Error(b.error || ("HTTP " + r.status)); return b; }); })
+      .then(function (b) { render(b); if (b.summary) summarize(conversation); })
+      .catch(function (err) { head.textContent = "Odoo not shown: " + err.message; head.className = "muted"; });
+  }
+  window.addEventListener("message", function (e) {
+    if (e.origin !== window.location.origin || typeof e.data !== "string") return;
+    var msg; try { msg = JSON.parse(e.data); } catch (err) { return; }
+    if (!msg || msg.event !== "appContext") return;
+    context = msg.data || {};
+    document.documentElement.dataset.theme = context.theme === "dark" ? "dark" : "light";
+    load(false);
+  });
+  window.parent.postMessage("chatwoot-dashboard-app:fetch-info", "*");
+  document.getElementById("reload").onclick = function () { window.parent.postMessage("chatwoot-dashboard-app:fetch-info", "*"); load(true); };
+})();
+</script>
+</body>
+</html>

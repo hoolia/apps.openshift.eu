@@ -1230,6 +1230,147 @@ class BridgeTest(unittest.TestCase):
         self.assertFalse(self.state["odoo"]["helpdesk.ticket"][rid]["x_chatwoot_url"])
         self.assertEqual(self.conversations()[cid]["custom_attributes"]["odoo_ref"], f"crm.lead:{leads.pop()}")
 
+    # ------------------------------------------------------------ support to sales
+
+    def support(self, **extra):
+        """The bridge with the sales label on support conversations, as the chart sets it."""
+        self.bridge.stop(budget=0)
+        self.bridge.pool.shutdown(wait=True)
+        env = {**self.env, "SALES_LABEL": "sales", "SALES_FROM_SUPPORT": "true", "SALES_TEAM": "Direct Sales",
+               "CANCELLED_STAGE": "Cancelled", "NOT_STAFF_EMAILS": "odoo-bridge@chatwoot.invalid,draft@example.org",
+               **extra}
+        self.bridge = odoo_bridge.Bridge(odoo_bridge.Config(env))
+        self.bridge.sales_recheck = 0.05
+        self.state["odoo"]["crm.team"] = {6: {"name": "Direct Sales"}}
+        self.state["odoo"]["res.partner"] = {42: {"email": "ada@example.org", "name": "Ada"}}
+
+    def support_conversation(self, **extra):
+        """Ticket 7 in Support with the customer's mail and a staff reply."""
+        self.support(**extra)
+        self.event("ticket.created")
+        self.event("message.created", message_id=70)
+        (cid,) = self.conversations()
+        self.assertEqual(self.bridge.handle_webhook(self.staff_reply(cid, "Sales will call you.")), "done")
+        return cid
+
+    def new_leads(self):
+        return {k: v for k, v in self.state["odoo"]["crm.lead"].items() if k != 9}
+
+    def private(self, cid, prefix):
+        return [m for m in self.chat(cid) if m["private"] and m["content"].startswith(prefix)]
+
+    def test_support_sales_label_moves_the_ticket_to_a_lead_in_sales(self):
+        cid = self.support_conversation()
+        update = self.label(cid)
+        self.assertEqual(self.bridge.handle_webhook(update), "done")
+        self.assertEqual(self.bridge.handle_webhook(update), "done")
+        (lid, lead), = self.new_leads().items()
+        self.assertEqual((lead["name"], lead["partner_id"][0], lead["email_from"], lead["team_id"][0]),
+                         ("Cannot log in", 42, "ada@example.org", 6))
+        self.assertIn("I cannot log in.", lead["description"])
+        self.assertIn("Sales will call you.", lead["description"])
+        self.assertIn(("crm.lead", odoo_bridge.NO_EVENT), self.contexts("create"))
+        # a new conversation in Sales, linked both ways, with the transcript for staff
+        (new,) = [c for c in self.conversations() if c != cid]
+        conv = self.conversations()[new]
+        self.assertEqual(conv["inbox_id"], SALES)
+        self.assertEqual(conv["contact_id"], self.conversations()[cid]["contact_id"])
+        self.assertEqual(conv["custom_attributes"]["odoo_ref"], f"crm.lead:{lid}")
+        self.assertTrue(lead["x_chatwoot_url"].endswith(f"/conversations/{new}"))
+        (note,) = self.private(new, odoo_bridge.FROM_NOTE)
+        self.assertIn(f"/conversations/{cid}", note["content"])
+        self.assertIn("Customer: Hello,", note["content"])
+        # the old conversation points to the new one, is resolved and names the lead only
+        old = self.conversations()[cid]
+        self.assertEqual(old["status"], "resolved")
+        self.assertNotIn("odoo_ref", old["custom_attributes"])
+        self.assertEqual(old["custom_attributes"][odoo_bridge.SALES_REF], f"crm.lead:{lid}")
+        (moved,) = self.private(cid, odoo_bridge.MOVED_NOTE)
+        self.assertIn(f"/conversations/{new}", moved["content"])
+        # the ticket is cancelled and unlinked, with a note to the lead; nobody is mailed
+        ticket = self.state["odoo"]["helpdesk.ticket"][7]
+        self.assertEqual((ticket["x_chatwoot_url"], ticket["stage_id"]), (False, 4))
+        self.assertTrue(any(m["model"] == "helpdesk.ticket" and "moved to sales" in m["body"] for m in self.notes()))
+        # Odoo's events of both records open no other conversation
+        self.event("ticket.closed")
+        self.event("lead.created", model="crm.lead", rid=lid)
+        self.assertEqual(len(self.conversations()), 2)
+        # staff open the old conversation again: a reply there and a later change act on nothing
+        old["status"] = "open"
+        posts = len(self.posts())
+        self.assertEqual(self.bridge.handle_webhook(self.staff_reply(cid, "late")), "ignored")
+        self.assertEqual(self.bridge.handle_webhook(update), "done")
+        self.assertEqual((old["status"], len(self.posts())), ("open", posts))
+        self.assertEqual(len(self.new_leads()), 1)
+
+    def test_support_lead_replies_go_both_ways(self):
+        cid = self.support_conversation()
+        self.bridge.handle_webhook(self.label(cid))
+        (lid,) = self.new_leads()
+        (new,) = [c for c in self.conversations() if c != cid]
+        # staff answer in Sales: Odoo mails the customer from the lead
+        self.assertEqual(self.bridge.handle_webhook(self.staff_reply(new, "Here is your quote.")), "done")
+        post = self.posts()[-1]
+        self.assertEqual((post["model"], post["res_id"], post["partner_ids"]), ("crm.lead", lid, [42]))
+        # the customer answers on the lead: once in the Sales conversation
+        self.state["odoo"]["mail.message"][80] = {"model": "crm.lead", "res_id": lid, "attachment_ids": [],
+                                                  "email_from": "Ada <ada@example.org>", "body": "<p>Thanks, I order.</p>"}
+        self.assertEqual(self.event("message.created", model="crm.lead", rid=lid, message_id=80), "done")
+        self.assertEqual(self.event("message.created", model="crm.lead", rid=lid, message_id=80), "done")
+        mirrored = [m for m in self.chat(new) if m["source_id"] == "odoo:mail.message:80"]
+        self.assertEqual([(m["message_type"], m["private"], m["content"]) for m in mirrored],
+                         [(0, False, "Thanks, I order.")])
+        self.assertEqual([m for m in self.chat(cid) if m["source_id"] == "odoo:mail.message:80"], [])
+
+    def test_support_move_is_retried_after_a_crash_at_any_step(self):
+        for step in ("ensure_conversation", "_cancel", "_name_moved"):
+            with self.subTest(step=step):
+                self.setUp()
+                cid = self.support_conversation()
+                update = self.label(cid)
+                real, crashed = getattr(self.bridge, step), []
+
+                def once(*a, real=real, crashed=crashed, **k):
+                    if not crashed:
+                        crashed.append(1)
+                        raise odoo_bridge.HttpError(500, "")
+                    return real(*a, **k)
+                setattr(self.bridge, step, once)
+                with self.assertRaises(odoo_bridge.HttpError):
+                    self.bridge.handle_webhook(update)
+                self.assertEqual(self.bridge.handle_webhook(update), "done")
+                self.assertEqual(len(self.new_leads()), 1)
+                self.assertEqual(len(self.conversations()), 2)
+                (new,) = [c for c in self.conversations() if c != cid]
+                self.assertEqual(len(self.private(new, odoo_bridge.FROM_NOTE)), 1)
+                self.assertEqual(len(self.private(cid, odoo_bridge.MOVED_NOTE)), 1)
+                self.assertEqual(self.conversations()[cid]["status"], "resolved")
+                self.assertFalse(self.state["odoo"]["helpdesk.ticket"][7]["x_chatwoot_url"])
+                self.tearDown()
+
+    def test_support_sales_label_without_staff_activity_moves_nothing(self):
+        cid = self.support_conversation()
+        self.assertEqual(self.bridge.handle_webhook(self.label(cid, by_staff=False)), "ignored")
+        self.assertEqual(len(self.not_moved(cid)), 1)
+        self.assertEqual(self.new_leads(), {})
+        self.assertTrue(self.state["odoo"]["helpdesk.ticket"][7]["x_chatwoot_url"].endswith(f"/{cid}"))
+
+    def test_support_sales_label_is_off_by_default_and_without_a_lead_inbox(self):
+        for extra in ({"SALES_FROM_SUPPORT": ""}, {"LEAD_INBOX": ""}):
+            with self.subTest(extra=extra):
+                self.setUp()
+                cid = self.support_conversation(**extra)
+                self.assertEqual(self.bridge.handle_webhook(self.label(cid)), "ignored")
+                self.assertEqual(self.new_leads(), {})
+                self.assertEqual(self.conversations()[cid]["status"], "open")
+                self.tearDown()
+
+    def test_support_lead_without_a_sales_team_gets_odoo_default(self):
+        cid = self.support_conversation(SALES_TEAM="")
+        self.bridge.handle_webhook(self.label(cid))
+        (lead,) = self.new_leads().values()
+        self.assertNotIn("team_id", lead)
+
     def test_api_inboxes_work_with_the_website_inbox_gone(self):
         self.website()
         self.state["no_website_inbox"] = True
@@ -1279,9 +1420,19 @@ class BridgeTest(unittest.TestCase):
         resp = conn.getresponse()
         return resp.status, resp.read().decode().strip()
 
-    def signed_event(self, body, secret=EVENT_SECRET, ts=None):
+    def signed_event(self, body, secret=EVENT_SECRET, ts=None, prefix="X-Chatwoot-Bridge-"):
         ts, sig = sign(secret, body, ts)
-        return {"X-Grncloud-Timestamp": ts, "X-Grncloud-Signature": sig, "X-Grncloud-Event": "ticket.created"}
+        return {prefix + "Timestamp": ts, prefix + "Signature": sig, prefix + "Event": "ticket.created"}
+
+    def test_event_port_accepts_the_older_header_names(self):
+        ports = self.serve()
+        body = json.dumps({"event": "ticket.created", "model": "helpdesk.ticket", "id": 7}).encode()
+        old = self.signed_event(body, prefix="X-Grncloud-")
+        self.assertEqual(self.post(ports["event"], "/odoo/events", body, old), (200, "done"))
+        # a wrong signature under the new name is refused, also next to nothing under the old
+        bad = self.signed_event(body, "y" * 40)
+        self.assertEqual(self.post(ports["event"], "/odoo/events", body, bad)[0], 401)
+        self.assertEqual(self.post(ports["event"], "/odoo/events", body, {})[0], 401)
 
     def test_event_port_checks_the_signature(self):
         ports = self.serve()

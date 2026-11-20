@@ -368,6 +368,31 @@
             "cancelledStage": {"type": "string", "title": "Stage of a ticket whose chat moved to a lead"}
           }
         },
+        "sales": {
+          "type": "object",
+          "title": "Leads from the sales label",
+          "properties": {
+            "fromSupport": {"type": "boolean", "title": "The sales label also moves a support conversation"},
+            "team": {"type": "string", "title": "CRM team of the leads"}
+          },
+          "additionalProperties": false
+        },
+        "panel": {
+          "type": "object",
+          "title": "Odoo side panel",
+          "properties": {
+            "enabled": {"type": "boolean", "title": "Show the Odoo panel", "description": "Partner, orders, subscriptions, tickets, opportunities and linked issues next to a conversation; needs sso.enabled"},
+            "title": {"type": "string", "title": "Tab name", "minLength": 1},
+            "issues": {
+              "type": "object",
+              "title": "Linked issues",
+              "properties": {
+                "url": {"type": "string", "title": "Jira address", "pattern": "^(https://[^/?#]+(/[^?#]*)?)?$"},
+                "user": {"type": "string", "title": "Jira account email (Cloud)"}
+              }
+            }
+          }
+        },
         "bridge": {
           "type": "object",
           "properties": {
@@ -653,6 +678,10 @@
           "type": "string",
           "description": "Leave empty to generate one; at least 32 characters",
           "pattern": "^(.{32,})?$"
+        },
+        "issueTrackerToken": {
+          "type": "string",
+          "description": "API token of the Jira site, with odoo.panel.issues.url"
         },
         "draftToken": {
           "type": "string"

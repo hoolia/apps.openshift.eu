@@ -319,4 +319,36 @@ fails "triage heading like the draft's" "must not start like draftAgent.heading"
 fails "facts without triage" "tenantFacts.enabled needs triage.enabled" "${DRAFT[@]}" "${FACTS[@]}"
 fails "facts without annotation" "tenantFacts.emailAnnotation and tenantFacts.tenantLabel are required" "${TRIAGE[@]}" --set tenantFacts.enabled=true
 
+# --- the sales label on support conversations
+SUP=("${ODOO[@]}" --set secrets.odooApiKey=k --set odoo.sales.fromSupport=true)
+OUT=$(render "${SUP[@]}" --set odoo.sales.team=Direct)
+check "support to sales: bridge env" 'env("chatwoot-odoo-bridge", "odoo-bridge")["SALES_FROM_SUPPORT"] == "true" and env("chatwoot-odoo-bridge", "odoo-bridge")["SALES_LABEL"] == "sales" and env("chatwoot-odoo-bridge", "odoo-bridge")["SALES_TEAM"] == "Direct" and env("chatwoot-odoo-bridge", "odoo-bridge")["CANCELLED_STAGE"] == "Cancelled" and "odoo-bridge@" in env("chatwoot-odoo-bridge", "odoo-bridge")["NOT_STAFF_EMAILS"] and "WEBSITE_INBOX" not in env("chatwoot-odoo-bridge", "odoo-bridge")'
+check "support to sales: the job keeps the label, no website" 'env("chatwoot-prepare-1", "prepare")["CHATWOOT_ODOO_SALES_LABEL"] == "sales" and "CHATWOOT_ODOO_WEBSITE_INBOX" not in env("chatwoot-prepare-1", "prepare")'
+OUT=$(render "${ODOO[@]}" --set secrets.odooApiKey=k)
+check "no sales label without website or support" '"SALES_LABEL" not in env("chatwoot-odoo-bridge", "odoo-bridge") and "CHATWOOT_ODOO_SALES_LABEL" not in env("chatwoot-prepare-1", "prepare")'
+OUT=$(render "${WEBSITE[@]}")
+check "website only: support conversations stay" 'env("chatwoot-odoo-bridge", "odoo-bridge")["SALES_FROM_SUPPORT"] == "false" and env("chatwoot-odoo-bridge", "odoo-bridge")["SALES_TEAM"] == ""'
+fails "support to sales without a lead inbox" "needs odoo.leadInbox" "${SUP[@]}" --set odoo.leadInbox=
+fails "support to sales without a label" "needs odoo.website.salesLabel" "${SUP[@]}" --set odoo.website.salesLabel=
+fails "support to sales with a triage label" "must differ from triage.label" "${SUP[@]}" "${TRIAGE[@]}" --set odoo.website.salesLabel=general
+
+# --- Odoo side panel
+PANEL=("${SSO[@]}" "${ODOO[@]}" --set secrets.odooApiKey=k --set odoo.panel.enabled=true)
+OUT=$(render "${PANEL[@]}")
+check "panel: container on loopback behind the login" 'env("chatwoot-gate", "odoo-panel")["PANEL_HOST"] == "127.0.0.1" and "ports" not in ctr("chatwoot-gate", "odoo-panel") and "--upstream=http://127.0.0.1:8083/odoo-panel/" in args()'
+check "panel: its own Secret, no event secret" 'set(obj("Secret", "chatwoot-odoo-panel")["data"]) == {"odoo-api-key"} and secret("chatwoot-odoo-panel", "odoo-api-key") == "k" and "\"chatwoot-odoo\"" not in refs(pod("chatwoot-gate"))'
+check "panel: scripts" '"odoo_panel.py" in obj("ConfigMap", "chatwoot-scripts")["data"] and "odoo_panel.html" in obj("ConfigMap", "chatwoot-scripts")["data"]'
+check "panel: dashboard app" 'env("chatwoot-prepare-1", "prepare")["CHATWOOT_ODOO_PANEL_TITLE"] == "Odoo" and env("chatwoot-prepare-1", "prepare")["CHATWOOT_ODOO_PANEL_PATH"] == "/odoo-panel/"'
+check "panel: no issues, no summary" '"ISSUES_URL" not in env("chatwoot-gate", "odoo-panel") and env("chatwoot-gate", "odoo-panel")["SUMMARY"] == "0" and env("chatwoot-gate", "odoo-panel")["PUBLIC_URL"] == "https://support.example.org"'
+OUT=$(render "${PANEL[@]}" --set odoo.panel.issues.url=https://example.atlassian.net/ --set odoo.panel.issues.user=bot@example.com --set secrets.issueTrackerToken=t)
+check "panel: issues" 'env("chatwoot-gate", "odoo-panel")["ISSUES_URL"] == "https://example.atlassian.net" and env("chatwoot-gate", "odoo-panel")["ISSUES_USER"] == "bot@example.com" and secret("chatwoot-odoo-panel", "issue-tracker-token") == "t"'
+OUT=$(render "${PANEL[@]}" "${AGENT[@]}" --set copilotPanel.enabled=true)
+check "panel: summary with the agent panel" 'env("chatwoot-gate", "odoo-panel")["SUMMARY"] == "1"'
+OUT=$(render "${SSO[@]}" "${ODOO[@]}" --set secrets.odooApiKey=k)
+check "no panel by default" 'not ctr("chatwoot-gate", "odoo-panel") and not obj("Secret", "chatwoot-odoo-panel") and "CHATWOOT_ODOO_PANEL_PATH" not in env("chatwoot-prepare-1", "prepare")'
+fails "panel without sso" "odoo.panel.enabled needs sso.enabled" "${ODOO[@]}" --set secrets.odooApiKey=k --set odoo.panel.enabled=true
+fails "panel issues without token" "issue-tracker-token of Secret chatwoot-odoo-panel has no value" "${PANEL[@]}" --set odoo.panel.issues.url=https://example.atlassian.net
+fails "panel issues over http" "/odoo/panel/issues/url" "${PANEL[@]}" --set odoo.panel.issues.url=http://example.atlassian.net
+fails "panel title like the agent panel's" "must differ" "${PANEL[@]}" "${AGENT[@]}" --set copilotPanel.enabled=true --set odoo.panel.title=Agent
+
 [ $fail = 0 ] && echo "PASS charts/chatwoot render" || exit 1

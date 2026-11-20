@@ -72,6 +72,10 @@ spec:
         # an answer of the agent may take minutes
         - --upstream-timeout=330s
         {{- end }}
+        {{- if and .Values.odoo.enabled .Values.odoo.panel.enabled }}
+        # the Odoo panel in the conversation sidebar, behind the same login
+        - --upstream=http://127.0.0.1:8083/odoo-panel/
+        {{- end }}
         - --proxy-websockets=true
         - --pass-user-headers=true
         {{- if and .Values.copilotPanel.enabled .Values.agentBridge.remoteUrl }}
@@ -208,7 +212,65 @@ spec:
         resources:
           {{- toYaml .Values.agentBridge.resources | nindent 10 }}
       {{- end }}
+      {{- if and .Values.odoo.enabled .Values.odoo.panel.enabled }}
+      - name: odoo-panel
+        image: {{ .Values.odoo.bridge.image }}
+        command: ["python3", "/scripts/odoo_panel.py"]
+        env:
+        - name: ODOO_URL
+          value: {{ .Values.odoo.url | trimSuffix "/" | quote }}
+        - name: ODOO_DATABASE
+          value: {{ .Values.odoo.database | quote }}
+        - name: ODOO_API_KEY_FILE
+          value: /etc/chatwoot-odoo-panel/odoo-api-key
+        - name: CHATWOOT_URL
+          value: http://chatwoot-web:3000
+        - name: CHATWOOT_ACCOUNT_ID
+          value: {{ .Values.account.id | quote }}
+        # the Odoo record names its conversation by this address (the bridge writes it)
+        - name: PUBLIC_URL
+          value: https://{{ .Values.route.hostname }}
+        {{- with .Values.odoo.panel.issues.url }}
+        - name: ISSUES_URL
+          value: {{ . | trimSuffix "/" | quote }}
+        - name: ISSUES_USER
+          value: {{ $.Values.odoo.panel.issues.user | quote }}
+        - name: ISSUES_TOKEN_FILE
+          value: /etc/chatwoot-odoo-panel/issue-tracker-token
+        {{- end }}
+        - name: SUMMARY
+          value: {{ ternary "1" "0" .Values.copilotPanel.enabled | quote }}
+        - name: PANEL_HOST
+          value: 127.0.0.1
+        - name: PANEL_PORT
+          value: "8083"
+        - name: PANEL_PAGE
+          value: /scripts/odoo_panel.html
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        # no ports: it listens on 127.0.0.1 only, behind oauth2-proxy
+        securityContext:
+          {{- include "wrapper.restricted" . | nindent 10 }}
+        volumeMounts:
+        - name: scripts
+          mountPath: /scripts
+        - name: odoo-panel
+          mountPath: /etc/chatwoot-odoo-panel
+          readOnly: true
+        readinessProbe:
+          exec:
+            command: ["python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8083/healthz', timeout=3)"]
+          periodSeconds: 15
+        resources:
+          {{- toYaml .Values.odoo.bridge.resources | nindent 10 }}
+      {{- end }}
       volumes:
+      {{- if and .Values.odoo.enabled .Values.odoo.panel.enabled }}
+      - name: odoo-panel
+        secret:
+          secretName: chatwoot-odoo-panel
+          defaultMode: 0440
+      {{- end }}
       {{- if and .Values.copilotPanel.enabled (not .Values.agentBridge.remoteUrl) }}
       {{- include "wrapper.agentTokenVolume" . | nindent 6 }}
       {{- end }}
