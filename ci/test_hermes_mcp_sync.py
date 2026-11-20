@@ -17,7 +17,7 @@ if "ruamel.yaml" not in sys.modules:
         sys.modules["ruamel.yaml"] = ruamel.yaml
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-ENV = {"LABEL_DOMAIN": "mcp.openshift.eu", "PUBLIC_SERVERS": "firecrawl,playwright", "SERVERS": "playwright"}
+ENV = {"LABEL_DOMAIN": "mcp.openshift.eu", "SERVERS": ""}
 SAVED = {k: os.environ.get(k) for k in ENV}
 os.environ.update(ENV)
 spec = importlib.util.spec_from_file_location("hermes_mcp_sync", os.path.join(ROOT, "charts/hermes/files/mcp-sync.py"))
@@ -35,11 +35,14 @@ def obj(name, labels):
 
 
 class PublicServerSelection(unittest.TestCase):
-    def test_ticked_public_server(self):
-        self.assertTrue(ms.selected(obj("public-playwright", {"mcp.openshift.eu/server": "playwright"})))
+    """The platform's public servers are always used, ticked or not."""
 
-    def test_unticked_public_server(self):
-        self.assertFalse(ms.selected(obj("public-firecrawl", {"mcp.openshift.eu/server": "firecrawl"})))
+    def test_public_servers_without_a_tick(self):
+        self.assertTrue(ms.selected(obj("public-playwright", {"mcp.openshift.eu/server": "playwright"})))
+        self.assertTrue(ms.selected(obj("public-firecrawl", {"mcp.openshift.eu/server": "firecrawl"})))
+
+    def test_team_server(self):
+        self.assertTrue(ms.selected(obj("hermes-playwright", {})))
 
     def test_other_server(self):
         self.assertTrue(ms.selected(obj("github", {})))

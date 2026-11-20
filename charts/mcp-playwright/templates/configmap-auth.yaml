@@ -3,11 +3,11 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ .Release.Name }}-auth
-  namespace: {{ .Release.Namespace }}
+  name: {{ include "mcp-playwright.fullname" . }}-auth
+  namespace: {{ include "mcp-playwright.namespace" . }}
   labels:
     {{- include "mcp-playwright.labels" . | nindent 4 }}
     app.kubernetes.io/component: server
 data:
-  {{- include "mcp-auth.metadataData" (dict "root" . "name" .Release.Name "namespace" .Release.Namespace "port" .Values.port "path" "/mcp") | nindent 2 }}
+  {{- include "mcp-auth.metadataData" (dict "root" . "name" (include "mcp-playwright.fullname" .) "namespace" (include "mcp-playwright.namespace" .) "port" .Values.port "path" "/mcp") | nindent 2 }}
 {{- end }}

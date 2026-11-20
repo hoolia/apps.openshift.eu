@@ -34,6 +34,21 @@ app.kubernetes.io/name: openhands
 {{- end -}}
 {{- end -}}
 
+{{/* The MCP gateway: gateway.mcpUpstream, else gateway.upstream */}}
+{{- define "openhands.mcpUpstream" -}}
+{{- .Values.gateway.mcpUpstream | default .Values.gateway.upstream | trimSuffix "/" -}}
+{{- end -}}
+
+{{/* A separate MCP gateway: gateway.mcpUpstream set and not gateway.upstream */}}
+{{- define "openhands.separateMcpUpstream" -}}
+{{- if and .Values.gateway.mcpUpstream (ne (trimSuffix "/" .Values.gateway.mcpUpstream) (trimSuffix "/" .Values.gateway.upstream)) }}true{{ end -}}
+{{- end -}}
+
+{{/* Audience of the token for the MCP gateway: the value, else its host */}}
+{{- define "openhands.mcpAudience" -}}
+{{- .Values.gateway.mcpAudience | default ((urlParse .Values.gateway.mcpUpstream).host | splitList ":" | first) -}}
+{{- end -}}
+
 {{/*
 Plain value of one generated secret: the given value, else the value already in
 the cluster, else a new random one. Takes value, existing (Secret data), key, length.
@@ -222,18 +237,9 @@ seconds as the UI writes it */}}
 {{- range $mcp.servers -}}
 {{- if kindIs "string" . }}{{ $names = append $names . }}{{ else }}{{ $names = append $names .name }}{{ end -}}
 {{- end -}}
-{{- range ($mcp.options | default list) -}}
-{{- $server := index ($mcp.catalog | default dict) . -}}
-{{- if not $server }}{{ fail (printf "mcp.options: %q is not in mcp.catalog" .) }}{{ end -}}
-{{- $names = append $names $server -}}
-{{- end -}}
 {{- toJson ($names | uniq) -}}
 {{- end -}}
 
-{{/* the servers of mcp.catalog, used only when ticked in mcp.options */}}
-{{- define "openhands.mcpPublicServers" -}}
-{{- toJson (values ((include "openhands.mcp" . | fromJson).catalog | default dict) | uniq | sortAlpha) -}}
-{{- end -}}
 
 {{/*
 mcp.servers entries with a url or an auth, for mcp-sync: name to {url, auth}, auth with

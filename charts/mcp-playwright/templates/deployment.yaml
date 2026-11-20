@@ -1,8 +1,8 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Release.Name }}
-  namespace: {{ .Release.Namespace }}
+  name: {{ include "mcp-playwright.fullname" . }}
+  namespace: {{ include "mcp-playwright.namespace" . }}
   labels:
     {{- include "mcp-playwright.labels" . | nindent 4 }}
     app.kubernetes.io/component: server
@@ -101,12 +101,12 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
       {{- if .Values.auth.enabled }}
-      {{- include "mcp-auth.container" (dict "root" . "name" .Release.Name "port" .Values.port) | nindent 6 }}
+      {{- include "mcp-auth.container" (dict "root" . "name" (include "mcp-playwright.fullname" .) "port" .Values.port) | nindent 6 }}
       {{- end }}
       volumes:
       - name: tmp
         emptyDir: {}
-      {{- with include "mcp-auth.volumes" (dict "root" . "name" .Release.Name) }}
+      {{- with include "mcp-auth.volumes" (dict "root" . "name" (include "mcp-playwright.fullname" .)) }}
       {{- . | nindent 6 }}
       {{- end }}
       # Chromium needs more shared memory than the 64Mi default
