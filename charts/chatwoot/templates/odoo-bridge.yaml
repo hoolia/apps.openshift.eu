@@ -74,14 +74,20 @@ spec:
           value: {{ .ticketsPerEmail | quote }}
         - name: WEBSITE_TICKETS_PER_HOUR
           value: {{ .ticketsPerHour | quote }}
+        {{- end }}
+        {{- end }}
+        {{- if or .Values.odoo.website.enabled .Values.odoo.sales.fromSupport }}
         - name: SALES_LABEL
-          value: {{ .salesLabel | quote }}
+          value: {{ .Values.odoo.website.salesLabel | quote }}
         - name: CANCELLED_STAGE
-          value: {{ .cancelledStage | quote }}
-        # users the chart makes: their label changes never move a chat to sales
+          value: {{ .Values.odoo.website.cancelledStage | quote }}
+        - name: SALES_TEAM
+          value: {{ .Values.odoo.sales.team | quote }}
+        - name: SALES_FROM_SUPPORT
+          value: {{ ternary "true" "false" (and .Values.odoo.sales.fromSupport (ne .Values.odoo.leadInbox "")) | quote }}
+        # users the chart makes: their label changes never move a conversation to sales
         - name: NOT_STAFF_EMAILS
           value: {{ include "wrapper.notStaffEmails" $ | quote }}
-        {{- end }}
         {{- end }}
         - name: WEBHOOK_PORT
           value: "8080"

@@ -64,7 +64,7 @@ jobs:
     - name: Test chatwoot alert rules
       run: ci/test-chatwoot-alerts.sh
     - name: Test chatwoot login bridge
-      run: python3 -m unittest ci/test_chatwoot_login_bridge.py ci/test_chatwoot_route_host.py ci/test_chatwoot_start.py ci/test_chatwoot_agent_bot.py ci/test_chatwoot_odoo_bridge.py
+      run: python3 -m unittest ci/test_chatwoot_login_bridge.py ci/test_chatwoot_route_host.py ci/test_chatwoot_start.py ci/test_chatwoot_agent_bot.py ci/test_chatwoot_odoo_bridge.py ci/test_chatwoot_odoo_panel.py
     - name: Test chatwoot initializer
       run: ruby ci/test_chatwoot_initializer.rb
     - name: Test the GitLab API exporter

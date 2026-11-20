@@ -151,11 +151,11 @@ spec:
           value: {{ .Values.odoo.website.inbox | quote }}
         - name: CHATWOOT_ODOO_WEBSITE_URL
           value: {{ .Values.odoo.website.url | trimSuffix "/" | quote }}
-        {{- if .Values.odoo.website.salesLabel }}
-        # the label staff pick to move a chat to a lead
+        {{- end }}
+        {{- if and .Values.odoo.website.salesLabel (or .Values.odoo.website.enabled .Values.odoo.sales.fromSupport) }}
+        # the label staff pick to move a chat or a support conversation to a lead
         - name: CHATWOOT_ODOO_SALES_LABEL
           value: {{ .Values.odoo.website.salesLabel | quote }}
-        {{- end }}
         {{- end }}
         - name: CHATWOOT_ODOO_BRIDGE_TOKEN
           valueFrom:
@@ -167,6 +167,12 @@ spec:
             secretKeyRef:
               name: chatwoot-odoo-bridge
               key: odoo-inbox-secret
+        {{- end }}
+        {{- if and .Values.odoo.enabled .Values.odoo.panel.enabled }}
+        - name: CHATWOOT_ODOO_PANEL_TITLE
+          value: {{ .Values.odoo.panel.title | quote }}
+        - name: CHATWOOT_ODOO_PANEL_PATH
+          value: /odoo-panel/
         {{- end }}
         {{- if .Values.copilotPanel.enabled }}
         - name: CHATWOOT_AGENT_PANEL_TITLE

@@ -383,6 +383,9 @@ PANEL_PROMPTS = {
     "suggest": "Write the next reply to the customer in this conversation, in the customer's "
                "language. Return the reply text only; a staff member edits and sends it.",
     "ask": "Answer the staff member's question about this customer conversation.",
+    # the Odoo side panel's summary
+    "brief": "Summarise this customer conversation for staff in at most three short lines: "
+             "what the customer wants, what was done, what is still open. No greeting, no advice.",
 }
 MAX_TRANSCRIPT = 20000
 
@@ -406,7 +409,7 @@ def panel_request(bot, body, email):
     """The answer of the agent to one panel action; never sent to the customer."""
     action = body.get("action")
     if action not in PANEL_PROMPTS:
-        raise ValueError("action is summarize, suggest or ask")
+        raise ValueError("action is summarize, brief, suggest or ask")
     conversation = body.get("conversation") or {}
     question = (body.get("question") or "").strip()[:4000]
     if action == "ask" and not question:

@@ -458,6 +458,13 @@ class PanelTest(Base):
         self.assertNotIn("assigned", text)
         self.assertEqual(msg["metadata"]["chatwoot"]["staff"], "sam@example.com")
 
+    def test_brief_asks_for_three_lines_for_the_odoo_panel(self):
+        self.state["agent"] = lambda b: message("one\ntwo\nthree")
+        status, body, _ = self.call({"action": "brief", "conversation": self.conversation})
+        self.assertEqual((status, body), (200, {"text": "one\ntwo\nthree"}))
+        self.assertEqual(self.state["chatwoot"], [])
+        self.assertIn("three", self.state["a2a"][0][0]["params"]["message"]["parts"][0]["text"].lower())
+
     def test_ask_needs_question(self):
         self.assertEqual(self.call({"action": "ask", "conversation": self.conversation})[0], 400)
         status, _, _ = self.call({"action": "ask", "question": "Which host?", "conversation": self.conversation})

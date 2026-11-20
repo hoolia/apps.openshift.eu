@@ -183,17 +183,17 @@ else
     hook.secret = secret unless hook.persisted? && ActiveSupport::SecurityUtils.secure_compare(hook.secret.to_s, secret)
     hook.save! if hook.changed?
     puts "odoo website inbox #{website} (#{inbox.id}): webhook #{hook.id} to the bridge"
-    # staff can pick only a label the account has; a label changed in Chatwoot stays
-    sales = ENV.fetch('CHATWOOT_ODOO_SALES_LABEL', '').strip.downcase
-    unless sales.empty?
-      label = Label.find_or_initialize_by(account: account, title: sales)
-      unless label.persisted?
-        label.description = 'Moves a website chat to an Odoo lead (set by the chart)'
-        label.color = '#44ce4b'
-        label.show_on_sidebar = true
-        label.save!
-        puts "odoo website chat: label #{sales} created"
-      end
+  end
+  # staff can pick only a label the account has; a label changed in Chatwoot stays
+  sales = ENV.fetch('CHATWOOT_ODOO_SALES_LABEL', '').strip.downcase
+  unless sales.empty?
+    label = Label.find_or_initialize_by(account: account, title: sales)
+    unless label.persisted?
+      label.description = 'Moves a conversation to an Odoo lead (set by the chart)'
+      label.color = '#44ce4b'
+      label.show_on_sidebar = true
+      label.save!
+      puts "odoo sales label #{sales} created"
     end
   end
   # shown in the conversation sidebar; the bridge keys every conversation on odoo_ref
@@ -289,12 +289,15 @@ else
   end
 end
 
-panel_path = ENV.fetch('CHATWOOT_AGENT_PANEL_PATH', '')
-if panel_path.empty?
-  puts 'no agent panel path: agent panel not set up'
-else
+# Dashboard Apps: a tab next to every conversation, kept by its title
+{ 'agent' => 'CHATWOOT_AGENT_PANEL', 'odoo' => 'CHATWOOT_ODOO_PANEL' }.each do |kind, prefix|
+  panel_path = ENV.fetch("#{prefix}_PATH", '')
+  if panel_path.empty?
+    puts "no #{kind} panel path: #{kind} panel not set up"
+    next
+  end
   panel_url = ENV.fetch('FRONTEND_URL').chomp('/') + panel_path
-  title = ENV.fetch('CHATWOOT_AGENT_PANEL_TITLE')
+  title = ENV.fetch("#{prefix}_TITLE")
   app = DashboardApp.find_or_initialize_by(account_id: account.id, title: title)
   app.user ||= account.administrators.order(:id).first
   app.content = [{ 'type' => 'frame', 'url' => panel_url }]
