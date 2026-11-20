@@ -50,6 +50,9 @@
           "type": "string",
           "pattern": "^$|^[^@\\s]+@[^@\\s]+$"
         },
+        "ownerOnly": {
+          "type": "boolean"
+        },
         "allowedGroups": {
           "type": "array",
           "items": {

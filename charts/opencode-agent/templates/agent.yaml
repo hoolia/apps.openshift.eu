@@ -215,7 +215,7 @@ spec:
         - --upstream=http://127.0.0.1:{{ .Values.uiProxy.port }}
         # The UI streams over SSE; keep long requests open
         - --upstream-timeout={{ .Values.route.timeout }}
-        {{- $owner := include "opencode-agent.ownerEmail" . }}
+        {{- $owner := include "opencode-agent.loginEmail" . }}
         {{- if $owner }}
         - --authenticated-emails-file=/etc/oauth-proxy/emails.txt
         {{- end }}

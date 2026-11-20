@@ -37,6 +37,13 @@ kagent: {{ include "opencode-agent.name" . }}
 {{- default .Values.person.email .Values.oauth.ownerEmail -}}
 {{- end -}}
 
+{{/* The owner when only the owner may log in; empty when oauth.ownerOnly is false */}}
+{{- define "opencode-agent.loginEmail" -}}
+{{- if .Values.oauth.ownerOnly -}}
+{{- include "opencode-agent.ownerEmail" . -}}
+{{- end -}}
+{{- end -}}
+
 {{/* Audience of the projected ServiceAccount token: the value, else the upstream host */}}
 {{- define "opencode-agent.audience" -}}
 {{- if .Values.gateway.audience -}}
