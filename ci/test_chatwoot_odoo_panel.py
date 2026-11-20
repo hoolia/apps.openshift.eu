@@ -22,7 +22,8 @@ odoo_panel = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(odoo_panel)
 
 ODOO_KEY = "odoo-key-" + "k" * 40
-TOKEN = "bridge-" + "t" * 41
+TOKEN = "platform-" + "t" * 39
+STAFF = "staff@example.org"
 JIRA_TOKEN = "jira-" + "j" * 30
 PUBLIC = "https://support.example.org"
 
@@ -70,16 +71,27 @@ class Fake(http.server.BaseHTTPRequestHandler):
             issue = s["jira"].get(key)
             return self._json(200, {"fields": issue}) if issue else self._json(404, {})
         if self.path.startswith("/api/v1/accounts/1/conversations/"):
-            if self.headers.get("api_access_token") != TOKEN:
+            # a staff member's own token; Chatwoot answers 404 for a conversation outside its inboxes
+            who = (self.headers.get("api_access_token") or "").removeprefix("user-")
+            if who not in s["users"]:
                 return self._json(401, {})
             cid = int(self.path.rsplit("/", 1)[1])
             conv = s["chatwoot"].get(cid)
-            return self._json(200, conv) if conv else self._json(404, {})
+            if not conv or who not in conv.get("staff", ()):
+                return self._json(404, {})
+            return self._json(200, {k: v for k, v in conv.items() if k != "staff"})
         return self._json(404, {})
 
     def do_POST(self):
         s = self.state
         kw = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
+        if self.path == "/platform/api/v1/users":
+            s["calls"].append(("POST", self.path))
+            if self.headers.get("api_access_token") != TOKEN:
+                return self._json(401, {})
+            email = kw.get("email")
+            s["users"].add(email)
+            return self._json(200, {"id": 9, "email": email, "access_token": "user-" + email})
         if self.headers.get("Authorization") != "bearer " + ODOO_KEY:
             return self._json(401, {"name": "werkzeug.exceptions.Unauthorized"})
         _, _, _, model, method = self.path.split("/")
@@ -122,12 +134,16 @@ class PanelTest(unittest.TestCase):
     def setUp(self):
         conv = f"{PUBLIC}/app/accounts/1/conversations/"
         Fake.state = self.state = {
-            "calls": [], "odoo_calls": [], "denied": set(),
+            "calls": [], "odoo_calls": [], "denied": set(), "users": set(),
             "jira_auth": "Basic " + base64.b64encode(f"bot@example.com:{JIRA_TOKEN}".encode()).decode(),
             "jira": {"PROJ-1": {"status": {"name": "In Progress"}, "summary": "Login fails"}},
-            "chatwoot": {12: {"id": 12, "meta": {"sender": {"email": "Bob <bob@example.org>"}}},
-                         13: {"id": 13, "meta": {"sender": {"email": None, "phone_number": "+31 6 1234-5678"}}},
-                         14: {"id": 14, "meta": {"sender": {"email": "nobody@example.org", "phone_number": "112"}}}},
+            "chatwoot": {11: {"id": 11, "staff": {STAFF}, "meta": {"sender": {"email": "ada@example.org"}}},
+                         12: {"id": 12, "staff": {STAFF}, "meta": {"sender": {"email": "Bob <bob@example.org>"}}},
+                         13: {"id": 13, "staff": {STAFF},
+                              "meta": {"sender": {"email": None, "phone_number": "+31 6 1234-5678"}}},
+                         14: {"id": 14, "staff": {STAFF},
+                              "meta": {"sender": {"email": "nobody@example.org", "phone_number": "112"}}},
+                         15: {"id": 15, "staff": {"other@example.org"}, "meta": {"sender": {"email": "bob@example.org"}}}},
             "odoo": {
                 "res.partner": {40: {"name": "Acme", "commercial_partner_id": [40, "Acme"]},
                                 42: {"name": "Ada", "email": "ada@example.org", "parent_id": [40, "Acme"],
@@ -157,6 +173,7 @@ class PanelTest(unittest.TestCase):
         }
         self.env = {"ODOO_URL": self.base, "ODOO_ALLOW_HTTP": "1", "ODOO_DATABASE": "odoo",
                     "ODOO_API_KEY_FILE": self.paths["key"], "PUBLIC_URL": PUBLIC, "CHATWOOT_URL": self.base,
+                    "PLATFORM_TOKEN_FILE": self.paths["token"], "RESERVED_EMAILS": "admin@example.org",
                     "ISSUES_URL": self.base, "ISSUES_ALLOW_HTTP": "1", "ISSUES_USER": "bot@example.com",
                     "ISSUES_TOKEN_FILE": self.paths["jira"], "SUMMARY": "1"}
 
@@ -164,7 +181,7 @@ class PanelTest(unittest.TestCase):
         return odoo_panel.Panel(odoo_panel.Config({**self.env, **extra}))
 
     def test_linked_ticket_shows_the_company_and_all_its_parts(self):
-        out = self.panel().context(11)
+        out = self.panel().context(11, STAFF)
         self.assertEqual((out["found"], out["partner"]["name"], out["summary"]), ("linked", "Acme", True))
         self.assertEqual(out["record"]["model"], "helpdesk.ticket")
         self.assertTrue(out["record"]["url"].endswith("/odoo/helpdesk.ticket/7"))
@@ -181,47 +198,61 @@ class PanelTest(unittest.TestCase):
         self.assertEqual(len([c for c in self.state["calls"] if "/issue/PROJ-1" in c[1]]), 1)
 
     def test_contact_address_finds_the_partner_without_a_link(self):
-        out = self.panel(CHATWOOT_TOKEN_FILE=self.paths["token"]).context(12)
+        out = self.panel().context(12, STAFF)
         self.assertEqual((out["found"], out["partner"]["name"], out["record"]), ("email", "Bob", None))
         self.assertEqual(out["tickets"]["rows"], [])
 
     def test_contact_phone_finds_the_partner_without_an_address(self):
-        out = self.panel(CHATWOOT_TOKEN_FILE=self.paths["token"]).context(13)
+        out = self.panel().context(13, STAFF)
         self.assertEqual((out["found"], out["partner"]["name"]), ("phone", "Carol"))
         (look,) = [kw["domain"] for m, meth, kw in self.state["odoo_calls"] if m == "res.partner"]
         self.assertEqual(look, [["phone_mobile_search", "=", "+31612345678"]])
 
     def test_a_short_number_is_not_looked_up(self):
-        out = self.panel(CHATWOOT_TOKEN_FILE=self.paths["token"]).context(14)
+        out = self.panel().context(14, STAFF)
         self.assertEqual(out["found"], "none")
         self.assertFalse([kw for m, meth, kw in self.state["odoo_calls"]
                           if m == "res.partner" and "phone_mobile_search" in json.dumps(kw)])
 
-    def test_nothing_found_without_a_link_or_a_token(self):
-        out = self.panel().context(12)
+    def test_nothing_found_without_a_link_or_a_known_contact(self):
+        self.state["chatwoot"][12]["meta"]["sender"] = {"email": "unknown@example.org"}
+        out = self.panel().context(12, STAFF)
         self.assertEqual((out["found"], out["partner"]), ("none", None))
         self.assertNotIn("orders", out)
 
+    def test_a_conversation_outside_the_staff_members_inboxes_is_refused_before_odoo(self):
+        with self.assertRaises(odoo_panel.NotYours):
+            self.panel().context(15, STAFF)
+        with self.assertRaises(odoo_panel.NotYours):
+            self.panel().context(99, STAFF)
+        self.assertEqual(self.state["odoo_calls"], [])
+
+    def test_the_staff_token_is_asked_once(self):
+        panel = self.panel()
+        panel.context(11, STAFF)
+        panel.context(12, STAFF)
+        self.assertEqual(len([c for c in self.state["calls"] if c == ("POST", "/platform/api/v1/users")]), 1)
+
     def test_a_part_the_key_may_not_read_says_so(self):
         self.state["denied"] = {"sale.order"}
-        out = self.panel().context(11)
+        out = self.panel().context(11, STAFF)
         self.assertEqual(out["orders"], {"error": "no access"})
         self.assertEqual(out["subscriptions"], {"error": "no access"})
         self.assertEqual(len(out["tickets"]["rows"]), 2)
 
     def test_issues_without_a_tracker_show_keys_only(self):
-        out = self.panel(ISSUES_URL="", ISSUES_TOKEN_FILE="").context(11)
+        out = self.panel(ISSUES_URL="", ISSUES_TOKEN_FILE="").context(11, STAFF)
         self.assertEqual([(i["key"], i["url"], i["status"]) for i in out["issues"]["rows"]],
                          [("PROJ-1", "", ""), ("PROJ-2", "", "")])
         self.assertEqual([c for c in self.state["calls"] if "/rest/" in c[1]], [])
 
     def test_personal_token_is_a_bearer(self):
         self.state["jira_auth"] = "Bearer " + JIRA_TOKEN
-        out = self.panel(ISSUES_USER="").context(11)
+        out = self.panel(ISSUES_USER="").context(11, STAFF)
         self.assertEqual(out["issues"]["rows"][0]["status"], "In Progress")
 
     def test_panel_only_reads(self):
-        self.panel().context(11)
+        self.panel().context(11, STAFF)
         self.assertEqual({m for _, m, _ in self.state["odoo_calls"]} - {"search_read", "read"}, set())
 
     def test_issue_keys(self):
@@ -239,7 +270,10 @@ class PanelTest(unittest.TestCase):
                 return r.status, r.read(), r.getheader("Cache-Control")
             self.assertEqual(get("/odoo-panel/")[0], 200)
             self.assertEqual(get("/odoo-panel/api/context?conversation=11")[0], 401)
-            who = {"X-Forwarded-Email": "staff@example.org"}
+            self.assertEqual(get("/odoo-panel/api/context?conversation=11", {"X-Forwarded-Email": "admin@example.org"})[0], 401)
+            who = {"X-Forwarded-Email": STAFF}
+            status, body, _ = get("/odoo-panel/api/context?conversation=15", who)
+            self.assertEqual((status, json.loads(body)), (403, {"error": "not a conversation of yours"}))
             self.assertEqual(get("/odoo-panel/api/context?conversation=1%2B1", who)[0], 400)
             status, body, cache = get("/odoo-panel/api/context?conversation=11", who)
             self.assertEqual((status, cache), (200, "no-store"))

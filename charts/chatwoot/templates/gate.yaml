@@ -227,6 +227,12 @@ spec:
           value: http://chatwoot-web:3000
         - name: CHATWOOT_ACCOUNT_ID
           value: {{ .Values.account.id | quote }}
+        # reads each conversation as the staff member's own Chatwoot user, found with the
+        # login bridge's Platform App token: Chatwoot refuses a conversation outside its inboxes
+        - name: PLATFORM_TOKEN_FILE
+          value: /etc/chatwoot-platform/platform-token
+        - name: RESERVED_EMAILS
+          value: {{ prepend .Values.sso.deniedEmails (include "wrapper.adminEmail" .) | join "," | lower | quote }}
         # the Odoo record names its conversation by this address (the bridge writes it)
         - name: PUBLIC_URL
           value: https://{{ .Values.route.hostname }}
@@ -256,6 +262,9 @@ spec:
           mountPath: /scripts
         - name: odoo-panel
           mountPath: /etc/chatwoot-odoo-panel
+          readOnly: true
+        - name: platform
+          mountPath: /etc/chatwoot-platform
           readOnly: true
         readinessProbe:
           exec:

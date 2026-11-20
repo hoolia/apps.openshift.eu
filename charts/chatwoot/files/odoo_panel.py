@@ -2,11 +2,14 @@
 
 A Chatwoot Dashboard App (odoo_panel.html) next to every conversation. It runs in the
 oauth2-proxy pod on 127.0.0.1, so a request reaches it only after the staff login, with
-X-Forwarded-Email set by oauth2-proxy. For a conversation it finds the customer, read only:
+X-Forwarded-Email set by oauth2-proxy. It reads the conversation as that staff member's own
+Chatwoot user (its token from the Platform API, as the login bridge does), so a conversation
+outside the staff member's inboxes is refused by Chatwoot itself. For a conversation it finds
+the customer, read only:
 
 - the Odoo record whose x_chatwoot_url names the conversation (set by the Odoo bridge), and
   its partner; without one, the partner of the conversation contact's address, then of its
-  phone number, when the bridge's Chatwoot user can read the conversation;
+  phone number;
 - that partner's sale orders and subscriptions, open and closed tickets, leads and
   opportunities, each with its Odoo address;
 - the issue keys staff put in x_jira_key on those tickets and leads, with their status
@@ -24,7 +27,9 @@ import logging
 import os
 import re
 import sys
+import secrets
 import threading
+import time
 import urllib.parse
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -44,7 +49,9 @@ class Config:
         self.odoo_key_file = env["ODOO_API_KEY_FILE"]
         self.chatwoot_url = env.get("CHATWOOT_URL", "http://chatwoot-web:3000").rstrip("/")
         self.account_id = int(env.get("CHATWOOT_ACCOUNT_ID", "1"))
-        self.token_file = env.get("CHATWOOT_TOKEN_FILE", "")
+        # the Platform App token of the login bridge: finds each staff member's own user
+        self.platform_token_file = env["PLATFORM_TOKEN_FILE"]
+        self.reserved = {e.strip().lower() for e in env.get("RESERVED_EMAILS", "").split(",") if e.strip()}
         # the public address of Chatwoot as the bridge writes it into x_chatwoot_url
         self.public_url = env.get("PUBLIC_URL", "").rstrip("/")
         self.public_url_file = env.get("PUBLIC_URL_FILE", "")
@@ -73,6 +80,12 @@ class Config:
 
 # digits a contact's phone number needs before it is looked up
 PHONE_DIGITS = 6
+# seconds a staff member's Chatwoot token is kept in memory
+STAFF_TOKEN_TTL = 300
+
+
+class NotYours(Exception):
+    """The staff member's Chatwoot user may not read the conversation, or has none."""
 
 def m2o(value):
     """[id, name] of a many2one as JSON-2 returns it, or (None, "")."""
@@ -86,6 +99,7 @@ class Panel:
         self.cfg = cfg
         self.odoo = odoo or odoo_bridge.Odoo(cfg)
         self._stage_fold = {}
+        self._staff = {}
         self._lock = threading.Lock()
 
     # ------------------------------------------------------------ the customer
@@ -105,18 +119,41 @@ class Panel:
                 return model, rows[0]
         return None
 
-    def contact(self, cid):
-        """(address, phone number) of the conversation contact, read as the bridge's Chatwoot
-        user; (None, None) if unreadable. The number keeps a leading + and its digits only."""
-        if not self.cfg.token_file:
-            return None, None
+    def staff_token(self, email):
+        """The access token of the staff member's own Chatwoot user, kept for STAFF_TOKEN_TTL.
+
+        Platform API users create finds the user of an address (the login bridge made it at
+        the first login) and answers with its token; the token never leaves this process."""
+        now = time.monotonic()
+        with self._lock:
+            hit = self._staff.get(email)
+            if hit and hit[1] > now:
+                return hit[0]
+        user = odoo_bridge.http_json(
+            "POST", f"{self.cfg.chatwoot_url}/platform/api/v1/users",
+            body={"name": email.split("@", 1)[0], "email": email,
+                  # never used to log in; an existing user keeps its own
+                  "password": secrets.token_urlsafe(32) + "aA1!"},
+            headers={"api_access_token": odoo_bridge.read_file(self.cfg.platform_token_file)})
+        token = (user or {}).get("access_token") if isinstance(user, dict) else None
+        if not token:
+            raise NotYours("no Chatwoot user")
+        with self._lock:
+            self._staff[email] = (token, now + STAFF_TOKEN_TTL)
+        return token
+
+    def contact(self, cid, staff):
+        """(address, phone number) of the conversation contact, read as the staff member's
+        Chatwoot user. Raises NotYours when Chatwoot refuses it. The number keeps a leading +
+        and its digits only."""
         try:
-            token = odoo_bridge.read_file(self.cfg.token_file)
             conv = odoo_bridge.http_json(
                 "GET", f"{self.cfg.chatwoot_url}/api/v1/accounts/{self.cfg.account_id}/conversations/{cid}",
-                headers={"api_access_token": token})
-        except (odoo_bridge.HttpError, OSError, ValueError):
-            return None, None
+                headers={"api_access_token": self.staff_token(staff)})
+        except odoo_bridge.HttpError as e:
+            if e.status in (401, 403, 404):
+                raise NotYours(f"HTTP {e.status}") from None
+            raise
         sender = ((conv or {}).get("meta") or {}).get("sender") or {}
         raw = str(sender.get("phone_number") or "").strip()
         digits = "".join(ch for ch in raw if ch.isdigit())
@@ -124,8 +161,10 @@ class Panel:
         phone = ("+" if raw.startswith("+") else "") + digits if len(digits) >= PHONE_DIGITS else None
         return odoo_bridge.bare_email(sender.get("email")), phone
 
-    def partner(self, cid):
-        """(partner id, partner name, how it was found, linked record) for a conversation."""
+    def partner(self, cid, staff):
+        """(partner id, partner name, how it was found, linked record) for a conversation that
+        the staff member may read; raises NotYours otherwise, before Odoo is asked anything."""
+        email, phone = self.contact(cid, staff)
         linked = self.linked_record(cid)
         if linked:
             pid, name = m2o(linked[1].get("partner_id"))
@@ -134,7 +173,6 @@ class Panel:
                 rows = self.odoo.search_read("res.partner", [["id", "=", pid]], ["commercial_partner_id"])
                 cpid, cname = m2o(rows[0].get("commercial_partner_id")) if rows else (None, "")
                 return cpid or pid, cname or name, "linked", linked
-        email, phone = self.contact(cid)
         # Odoo's phone_mobile_search compares the number without its formatting
         for found, domain in (("email", email and [["email", "=ilike", odoo_bridge.like_escape(email)]]),
                               ("phone", phone and [["phone_mobile_search", "=", phone]])):
@@ -247,8 +285,8 @@ class Panel:
 
     # ------------------------------------------------------------ the answer
 
-    def context(self, cid):
-        pid, name, found, linked = self.partner(cid)
+    def context(self, cid, staff):
+        pid, name, found, linked = self.partner(cid, staff)
         out = {"conversation": cid, "found": found, "summary": self.cfg.summary,
                "record": None, "partner": None}
         if linked:
@@ -302,14 +340,18 @@ def make_handler(panel, page):
             if parts.path != "/odoo-panel/api/context":
                 return self.send(404)
             # oauth2-proxy sets it after the staff login; only the gate reaches this port
-            email = self.headers.get("X-Forwarded-Email", "")
-            if not email:
+            emails = self.headers.get_all("X-Forwarded-Email") or []
+            email = emails[0].strip().lower() if len(emails) == 1 else ""
+            if not email or email.endswith(".invalid") or email in panel.cfg.reserved:
                 return self.send(401)
             cid = (urllib.parse.parse_qs(parts.query).get("conversation") or [""])[0]
             if not cid.isascii() or not cid.isdigit() or len(cid) > 12:
                 return self.send(400, json.dumps({"error": "conversation is a number"}).encode())
             try:
-                out = panel.context(int(cid))
+                out = panel.context(int(cid), email)
+            except NotYours as e:
+                LOG.warning("panel %s: conversation %s refused: %s", email, cid, e)
+                return self.send(403, json.dumps({"error": "not a conversation of yours"}).encode())
             except (odoo_bridge.HttpError, odoo_bridge.Gone, OSError, ValueError) as e:
                 LOG.warning("panel %s: conversation %s: %s", email, cid,
                             e if isinstance(e, odoo_bridge.HttpError) else type(e).__name__)

@@ -57,7 +57,10 @@ button { border: 1px solid var(--line); background: var(--box); color: var(--fg)
     head.textContent = ""; head.className = "";
     var strong = el("strong"); strong.appendChild(link(b.partner.name, b.partner.url)); head.appendChild(strong);
     if (b.record) { head.appendChild(el("div", "", "muted")).appendChild(link(b.record.name, b.record.url)); }
-    else if (b.found === "email") { head.appendChild(el("div", "Found by the contact's address", "muted")); }
+    else if (b.found === "email" || b.found === "phone") {
+      head.appendChild(el("div", "Found by the " + (b.found === "email" ? "address" : "phone number") +
+        " the contact gave, not verified: check it is the same customer", "muted"));
+    }
     section("Orders", b.orders, function (li, r) { li.appendChild(link(r.name, r.url)); li.appendChild(tag(r.state)); li.appendChild(el("span", " " + money(r.amount, r.currency) + " " + r.date, "muted")); });
     section("Subscriptions", b.subscriptions, function (li, r) { li.appendChild(link(r.name, r.url)); li.appendChild(tag(r.state)); li.appendChild(el("span", " " + money(r.monthly, r.currency) + "/month" + (r.next_invoice ? ", next invoice " + r.next_invoice : ""), "muted")); });
     var t = b.tickets || {};
