@@ -14,7 +14,8 @@
 #   the API inboxes named in CHATWOOT_ODOO_INBOXES with their webhooks to the bridge, signed
 #   with CHATWOOT_ODOO_INBOX_SECRET, and the conversation attributes odoo_ref and odoo_url;
 #   with CHATWOOT_ODOO_WEBSITE_INBOX also that Website inbox, its pre-chat form asking for a
-#   required email address, and the account webhook to the bridge's website path
+#   required email address, the account webhook to the bridge's website path and the
+#   label CHATWOOT_ODOO_SALES_LABEL
 # - with CHATWOOT_DRAFT_TOKEN: keeps the author of AI drafts (an agent with that access
 #   token, member of the inboxes in CHATWOOT_DRAFT_INBOXES) and the account webhook of new
 #   messages to the bridge, signed with CHATWOOT_DRAFT_WEBHOOK_SECRET
@@ -182,6 +183,18 @@ else
     hook.secret = secret unless hook.persisted? && ActiveSupport::SecurityUtils.secure_compare(hook.secret.to_s, secret)
     hook.save! if hook.changed?
     puts "odoo website inbox #{website} (#{inbox.id}): webhook #{hook.id} to the bridge"
+    # staff can pick only a label the account has; a label changed in Chatwoot stays
+    sales = ENV.fetch('CHATWOOT_ODOO_SALES_LABEL', '').strip.downcase
+    unless sales.empty?
+      label = Label.find_or_initialize_by(account: account, title: sales)
+      unless label.persisted?
+        label.description = 'Moves a website chat to an Odoo lead (set by the chart)'
+        label.color = '#44ce4b'
+        label.show_on_sidebar = true
+        label.save!
+        puts "odoo website chat: label #{sales} created"
+      end
+    end
   end
   # shown in the conversation sidebar; the bridge keys every conversation on odoo_ref
   { 'odoo_ref' => ['Odoo record', :text], 'odoo_url' => ['Odoo', :link] }.each do |key, (label, type)|

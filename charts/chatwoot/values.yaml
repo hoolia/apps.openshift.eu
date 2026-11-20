@@ -238,8 +238,8 @@ odoo:
     conversationsPerMinute: 5
     # a chat with this label, added by staff or a staff automation, moves to a new crm.lead
     # with the transcript, and its ticket moves to the folded stage cancelledStage. A label
-    # the visitor sets through the widget moves nothing. Must not be a triage label. Empty:
-    # chats stay tickets
+    # the visitor sets through the widget moves nothing. Must not be a triage label; the
+    # prepare Job creates it, lower case, letters, digits, - and _. Empty: chats stay tickets
     salesLabel: sales
     cancelledStage: Cancelled
   bridge:
