@@ -5,8 +5,8 @@ oauth2-proxy pod on 127.0.0.1, so a request reaches it only after the staff logi
 X-Forwarded-Email set by oauth2-proxy. For a conversation it finds the customer, read only:
 
 - the Odoo record whose x_chatwoot_url names the conversation (set by the Odoo bridge), and
-  its partner; without one, the partner of the conversation contact's address, when the
-  bridge's Chatwoot user can read the conversation;
+  its partner; without one, the partner of the conversation contact's address, then of its
+  phone number, when the bridge's Chatwoot user can read the conversation;
 - that partner's sale orders and subscriptions, open and closed tickets, leads and
   opportunities, each with its Odoo address;
 - the issue keys staff put in x_jira_key on those tickets and leads, with their status
@@ -71,6 +71,9 @@ class Config:
         return ""
 
 
+# digits a contact's phone number needs before it is looked up
+PHONE_DIGITS = 6
+
 def m2o(value):
     """[id, name] of a many2one as JSON-2 returns it, or (None, "")."""
     if isinstance(value, list) and len(value) == 2:
@@ -102,19 +105,24 @@ class Panel:
                 return model, rows[0]
         return None
 
-    def contact_email(self, cid):
-        """The conversation contact's address, read as the bridge's Chatwoot user; None if unreadable."""
+    def contact(self, cid):
+        """(address, phone number) of the conversation contact, read as the bridge's Chatwoot
+        user; (None, None) if unreadable. The number keeps a leading + and its digits only."""
         if not self.cfg.token_file:
-            return None
+            return None, None
         try:
             token = odoo_bridge.read_file(self.cfg.token_file)
             conv = odoo_bridge.http_json(
                 "GET", f"{self.cfg.chatwoot_url}/api/v1/accounts/{self.cfg.account_id}/conversations/{cid}",
                 headers={"api_access_token": token})
         except (odoo_bridge.HttpError, OSError, ValueError):
-            return None
+            return None, None
         sender = ((conv or {}).get("meta") or {}).get("sender") or {}
-        return odoo_bridge.bare_email(sender.get("email"))
+        raw = str(sender.get("phone_number") or "").strip()
+        digits = "".join(ch for ch in raw if ch.isdigit())
+        # a few digits match too many partners
+        phone = ("+" if raw.startswith("+") else "") + digits if len(digits) >= PHONE_DIGITS else None
+        return odoo_bridge.bare_email(sender.get("email")), phone
 
     def partner(self, cid):
         """(partner id, partner name, how it was found, linked record) for a conversation."""
@@ -126,13 +134,16 @@ class Panel:
                 rows = self.odoo.search_read("res.partner", [["id", "=", pid]], ["commercial_partner_id"])
                 cpid, cname = m2o(rows[0].get("commercial_partner_id")) if rows else (None, "")
                 return cpid or pid, cname or name, "linked", linked
-        email = self.contact_email(cid)
-        if email:
-            rows = self.odoo.search_read("res.partner", [["email", "=ilike", odoo_bridge.like_escape(email)]],
-                                         ["id", "name", "commercial_partner_id"], limit=1)
+        email, phone = self.contact(cid)
+        # Odoo's phone_mobile_search compares the number without its formatting
+        for found, domain in (("email", email and [["email", "=ilike", odoo_bridge.like_escape(email)]]),
+                              ("phone", phone and [["phone_mobile_search", "=", phone]])):
+            if not domain:
+                continue
+            rows = self.odoo.search_read("res.partner", domain, ["id", "name", "commercial_partner_id"], limit=1)
             if rows:
                 cpid, cname = m2o(rows[0].get("commercial_partner_id"))
-                return cpid or rows[0]["id"], cname or rows[0]["name"], "email", linked
+                return cpid or rows[0]["id"], cname or rows[0]["name"], found, linked
         return None, "", "none", linked
 
     # ------------------------------------------------------------ the parts

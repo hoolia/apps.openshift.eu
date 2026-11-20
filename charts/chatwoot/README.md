@@ -436,7 +436,9 @@ summary of three lines by the agent.
   and reads Odoo with `secrets.odooApiKey` from its own Secret `chatwoot-odoo-panel`. Give
   the bridge's Odoo user read access to Sales; a part it may not read shows "no access".
 - It finds the customer through the ticket or lead whose `x_chatwoot_url` names the
-  conversation. A conversation without one shows no customer.
+  conversation; without one, through the partner with the contact's email address, then
+  with its phone number (six digits or more). Those two need the bridge's Chatwoot user to
+  read the conversation. A conversation that matches none shows no customer.
 
 ### Agent credentials
 

@@ -125,7 +125,9 @@ class PanelTest(unittest.TestCase):
             "calls": [], "odoo_calls": [], "denied": set(),
             "jira_auth": "Basic " + base64.b64encode(f"bot@example.com:{JIRA_TOKEN}".encode()).decode(),
             "jira": {"PROJ-1": {"status": {"name": "In Progress"}, "summary": "Login fails"}},
-            "chatwoot": {12: {"id": 12, "meta": {"sender": {"email": "Bob <bob@example.org>"}}}},
+            "chatwoot": {12: {"id": 12, "meta": {"sender": {"email": "Bob <bob@example.org>"}}},
+                         13: {"id": 13, "meta": {"sender": {"email": None, "phone_number": "+31 6 1234-5678"}}},
+                         14: {"id": 14, "meta": {"sender": {"email": "nobody@example.org", "phone_number": "112"}}}},
             "odoo": {
                 "res.partner": {40: {"name": "Acme", "commercial_partner_id": [40, "Acme"]},
                                 42: {"name": "Ada", "email": "ada@example.org", "parent_id": [40, "Acme"],
@@ -133,7 +135,9 @@ class PanelTest(unittest.TestCase):
                                 43: {"name": "Eve", "email": "eve@example.org", "parent_id": [40, "Acme"],
                                      "commercial_partner_id": [40, "Acme"]},
                                 50: {"name": "Bob", "email": "bob@example.org", "commercial_partner_id": [50, "Bob"]},
-                                60: {"name": "Other", "commercial_partner_id": [60, "Other"]}},
+                                60: {"name": "Other", "commercial_partner_id": [60, "Other"]},
+                                70: {"name": "Carol", "phone_mobile_search": "+31612345678",
+                                     "commercial_partner_id": [70, "Carol"]}},
                 "helpdesk.ticket": {7: {"name": "Cannot log in", "partner_id": [42, "Ada"], "stage_id": [1, "New"],
                                         "create_date": "2026-11-19 10:00:00", "x_jira_key": "PROJ-1",
                                         "x_chatwoot_url": conv + "11"},
@@ -180,6 +184,18 @@ class PanelTest(unittest.TestCase):
         out = self.panel(CHATWOOT_TOKEN_FILE=self.paths["token"]).context(12)
         self.assertEqual((out["found"], out["partner"]["name"], out["record"]), ("email", "Bob", None))
         self.assertEqual(out["tickets"]["rows"], [])
+
+    def test_contact_phone_finds_the_partner_without_an_address(self):
+        out = self.panel(CHATWOOT_TOKEN_FILE=self.paths["token"]).context(13)
+        self.assertEqual((out["found"], out["partner"]["name"]), ("phone", "Carol"))
+        (look,) = [kw["domain"] for m, meth, kw in self.state["odoo_calls"] if m == "res.partner"]
+        self.assertEqual(look, [["phone_mobile_search", "=", "+31612345678"]])
+
+    def test_a_short_number_is_not_looked_up(self):
+        out = self.panel(CHATWOOT_TOKEN_FILE=self.paths["token"]).context(14)
+        self.assertEqual(out["found"], "none")
+        self.assertFalse([kw for m, meth, kw in self.state["odoo_calls"]
+                          if m == "res.partner" and "phone_mobile_search" in json.dumps(kw)])
 
     def test_nothing_found_without_a_link_or_a_token(self):
         out = self.panel().context(12)
