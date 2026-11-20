@@ -308,7 +308,9 @@ fails "triage label is a category" "names no category" "${TRIAGE[@]}" --set tria
 WEBSITE=("${ODOO[@]}" --set secrets.odooApiKey=k --set odoo.website.enabled=true --set odoo.website.url=https://www.example.org)
 fails "sales label is a triage category" "must differ from triage.label" "${TRIAGE[@]}" "${WEBSITE[@]}" --set-json 'triage.categories=[{"name":"engineering"},{"name":"sales"}]'
 fails "sales label is the triage label" "must differ from triage.label" "${TRIAGE[@]}" "${WEBSITE[@]}" --set triage.label=sales
-fails "sales label no label" "does not match pattern" "${WEBSITE[@]}" --set "odoo.website.salesLabel=to sales"
+fails "sales label with a space" "does not match pattern" "${WEBSITE[@]}" --set "odoo.website.salesLabel=to sales"
+OUT=$(render "${WEBSITE[@]}" --set odoo.website.salesLabel=Lead)
+check "sales label with capitals renders" 'env("chatwoot-prepare-1", "prepare")["CHATWOOT_ODOO_SALES_LABEL"] == "Lead"'
 OUT=$(render "${TRIAGE[@]}" "${WEBSITE[@]}")
 check "website chat with triage" 'env("chatwoot-odoo-bridge", "odoo-bridge")["SALES_LABEL"] == "sales"'
 OUT=$(render "${WEBSITE[@]}" --set odoo.website.salesLabel=)
