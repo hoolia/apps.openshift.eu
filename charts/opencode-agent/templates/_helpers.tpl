@@ -236,12 +236,17 @@ header value is a {file:} reference to what mcp-headers.sh writes, never the cre
 {{- end -}}
 {{- $_ := set $out $name $s -}}
 {{- end -}}
-{{- range (.Values.mcp.options | default list) -}}
-{{- $server := index ($.Values.mcp.catalog | default dict) . -}}
-{{- if not $server }}{{ fail (printf "mcp.options: %q is not in mcp.catalog" .) }}{{ end -}}
-{{- if not $.Values.gateway.upstream }}{{ fail (printf "mcp.options %s: needs gateway.upstream" .) }}{{ end -}}
+{{- if $.Values.gateway.upstream -}}
+{{- /* the platform's public servers, always, each its own entry */ -}}
+{{- range $name, $server := ($.Values.mcp.catalog | default dict) -}}
+{{- if not (hasKey $out $name) -}}
+{{- $_ := set $out $name (dict "type" "remote" "url" (printf "http://127.0.0.1:%v/mcp/public/%s" $.Values.tokenProxy.port $server) "enabled" true) -}}
+{{- end -}}
+{{- end -}}
+{{- with include "opencode-agent.teamMcpTarget" $ -}}
 {{- if not (hasKey $out .) -}}
-{{- $_ := set $out . (dict "type" "remote" "url" (printf "http://127.0.0.1:%v/mcp/public/%s" $.Values.tokenProxy.port $server) "enabled" true) -}}
+{{- $_ := set $out . (dict "type" "remote" "url" (printf "http://127.0.0.1:%v/mcp/%s/%s" $.Values.tokenProxy.port $.Release.Namespace .) "enabled" true) -}}
+{{- end -}}
 {{- end -}}
 {{- end -}}
 {{- toJson $out -}}
@@ -292,3 +297,12 @@ sends the agent's own token to that URL only
 {{- .Release.Namespace -}}
 {{- end -}}
 {{- end -}}
+
+{{/* The team Playwright server (mcp-playwright.enabled): its target name, else nothing */}}
+{{- define "opencode-agent.teamMcpTarget" -}}
+{{- $pw := index .Values "mcp-playwright" | default dict -}}
+{{- if $pw.enabled -}}
+{{- ($pw.mcp | default dict).targetName | default (printf "%s%s" .Release.Name ($pw.nameSuffix | default "") | trunc 63 | trimSuffix "-") -}}
+{{- end -}}
+{{- end -}}
+

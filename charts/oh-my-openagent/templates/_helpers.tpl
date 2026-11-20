@@ -160,14 +160,25 @@ seccompProfile:
   type: RuntimeDefault
 {{- end -}}
 
-{{/* ~/.omo/agent/mcp.json entries of the ticked mcp.options: name to a remote server on the token proxy */}}
+{{/* ~/.omo/agent/mcp.json entries: the public servers of mcp.catalog and the team server, on the token proxy */}}
 {{- define "oh-my-openagent.mcpJson" -}}
 {{- $servers := dict -}}
-{{- range (.Values.mcp.options | default list) -}}
-{{- $server := index ($.Values.mcp.catalog | default dict) . -}}
-{{- if not $server }}{{ fail (printf "mcp.options: %q is not in mcp.catalog" .) }}{{ end -}}
-{{- if not (include "oh-my-openagent.tokenProxy" $) }}{{ fail (printf "mcp.options %s: needs gateway.upstream with gateway.auth serviceAccountToken" .) }}{{ end -}}
-{{- $_ := set $servers . (dict "type" "http" "url" (printf "http://127.0.0.1:%v/mcp/public/%s" $.Values.tokenProxy.port $server) "enabled" true "auth" false) -}}
+{{- if include "oh-my-openagent.tokenProxy" . -}}
+{{- range $name, $server := (.Values.mcp.catalog | default dict) -}}
+{{- $_ := set $servers $name (dict "type" "http" "url" (printf "http://127.0.0.1:%v/mcp/public/%s" $.Values.tokenProxy.port $server) "enabled" true "auth" false) -}}
+{{- end -}}
+{{- with include "oh-my-openagent.teamMcpTarget" . -}}
+{{- $_ := set $servers . (dict "type" "http" "url" (printf "http://127.0.0.1:%v/mcp/%s/%s" $.Values.tokenProxy.port $.Release.Namespace .) "enabled" true "auth" false) -}}
+{{- end -}}
 {{- end -}}
 {{- dict "mcpServers" $servers | toPrettyJson -}}
 {{- end -}}
+
+{{/* The team Playwright server (mcp-playwright.enabled): its target name, else nothing */}}
+{{- define "oh-my-openagent.teamMcpTarget" -}}
+{{- $pw := index .Values "mcp-playwright" | default dict -}}
+{{- if $pw.enabled -}}
+{{- ($pw.mcp | default dict).targetName | default (printf "%s%s" .Release.Name ($pw.nameSuffix | default "") | trunc 63 | trimSuffix "-") -}}
+{{- end -}}
+{{- end -}}
+

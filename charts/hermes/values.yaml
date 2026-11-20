@@ -149,10 +149,9 @@ mcp:
   servers: []
   # RemoteMCPServers never used: <name> or <namespace>/<name>
   exclude: []
-  # Public MCP servers of the platform, each used only when ticked: options names keys of
-  # catalog, whose value is the server name. The platform's RemoteMCPServer
-  # public-<server> of a catalog server is used only when ticked; nothing ticked: none of
-  # them. Other RemoteMCPServers are not affected. A name not in catalog fails
+  # No effect: the platform's public servers (RemoteMCPServers public-<server>) are always
+  # listed, each its own entry (mcp.exclude leaves one out). A team server of its own is
+  # mcp-playwright.enabled. Kept so that values which set options keep rendering
   options: []
   catalog:
     playwright: playwright
@@ -306,3 +305,12 @@ storage:
   accessMode: ReadWriteOnce
   # empty: the default storage class
   className: ""
+
+# A Playwright MCP server of the team, in this namespace: chart mcp-playwright as a
+# dependency. Its Service is an MCP server like any other, so the platform lists it as a
+# RemoteMCPServer and mcp-sync adds it next to the public ones. Every value of the chart
+# mcp-playwright applies here; networkPolicy.ingressNamespaces must admit the MCP gateway
+mcp-playwright:
+  enabled: false
+  # objects are named <release>-playwright, apart from the agent's own
+  nameSuffix: -playwright

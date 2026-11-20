@@ -15,6 +15,12 @@ it expires. With AGENT_TOKEN_VIA_URL set as well, that first grant goes to the
 tenant's own realm, and its token is the client assertion at AGENT_TOKEN_URL:
 the agent's identity lives in the tenant realm, which the shared realm federates.
 
+With MCP_UPSTREAM set, requests under /mcp go to that gateway instead of UPSTREAM,
+with the projected token of MCP_TOKEN_FILE (audience: that gateway, required with it, so
+a token for UPSTREAM never reaches another host); the agent token, when set, still takes
+its place. An agent whose
+models come from its own gateway thus reaches the platform's MCP servers like any other.
+
 With TARGETS_FILE set as well, a request to /_target/<id>[/<path>] goes to the URL that
 the file (a JSON object, id to URL, written by the agent's MCP sync) names for <id>, with
 the agent token. The proxy reads the file again when it changes and forwards to no other
@@ -23,6 +29,7 @@ http to a Service of the cluster.
 """
 from __future__ import annotations
 
+import dataclasses
 import http.client
 import json
 import re
@@ -80,6 +87,8 @@ class Settings:
     agent_token_paths: tuple[str, ...] = ("/mcp",)
     agent_token_via_url: str = ""
     targets_file: str = ""
+    mcp_upstream: str = ""
+    mcp_token_file: str = ""
 
     def validate(self) -> None:
         missing = [
@@ -87,6 +96,8 @@ class Settings:
             for name, value in (("TOKEN_FILE", self.token_file), ("UPSTREAM", self.upstream))
             if not value
         ]
+        if self.mcp_upstream and not self.mcp_token_file:
+            missing.append("MCP_TOKEN_FILE (required with MCP_UPSTREAM)")
         if missing:
             raise ConfigError(f"{', '.join(missing)} unset")
 
@@ -102,6 +113,8 @@ class Settings:
             agent_token_paths=paths,
             agent_token_via_url=os.environ.get("AGENT_TOKEN_VIA_URL", "").strip(),
             targets_file=os.environ.get("TARGETS_FILE", "").strip(),
+            mcp_upstream=os.environ.get("MCP_UPSTREAM", "").strip().rstrip("/"),
+            mcp_token_file=os.environ.get("MCP_TOKEN_FILE", "").strip(),
         )
 
 
@@ -173,6 +186,7 @@ def agent_token_source(settings: Settings) -> AgentTokenSource:
     return AgentTokenSource(settings.agent_token_url, assertion)
 
 
+MCP_PATH = "/mcp"
 TARGET_PREFIX = "/_target/"
 TARGET_ID = re.compile(r"^[a-z0-9.-]{1,253}$")
 
@@ -222,6 +236,11 @@ class Handler(BaseHTTPRequestHandler):
     tokens: TokenSource
     agent_token: AgentTokenSource | None
     targets: Targets | None
+    mcp_tokens: TokenSource | None = None
+
+    def _mcp_path(self) -> bool:
+        path = self.path.split("?", 1)[0]
+        return bool(self.settings.mcp_upstream) and (path == MCP_PATH or path.startswith(MCP_PATH + "/"))
 
     def _source(self) -> TokenSource | AgentTokenSource:
         path = self.path.split("?", 1)[0]
@@ -269,6 +288,11 @@ class Handler(BaseHTTPRequestHandler):
         upstream = urllib.parse.urlsplit(self.settings.upstream)
         path = self.path
         source: TokenSource | AgentTokenSource = self._source()
+        if self._mcp_path():
+            # the MCP gateway: its own token, unless the agent token applies
+            upstream = urllib.parse.urlsplit(self.settings.mcp_upstream)
+            if source is self.tokens:
+                source = self.mcp_tokens
         if self.path.startswith(TARGET_PREFIX):
             # a registered target: only with the agent token, only to its own URL
             rest = self.path[len(TARGET_PREFIX):]
@@ -373,6 +397,8 @@ def build_server(settings: Settings, port: int | None = None) -> ThreadingHTTPSe
         "tokens": TokenSource(settings),
         "agent_token": agent_token_source(settings) if settings.agent_token_url else None,
         "targets": Targets(settings.targets_file) if settings.targets_file else None,
+        "mcp_tokens": TokenSource(dataclasses.replace(settings, token_file=settings.mcp_token_file))
+        if settings.mcp_upstream else None,
     })
     server = ThreadingHTTPServer(("127.0.0.1", settings.port if port is None else port), handler)
     server.daemon_threads = True
@@ -392,7 +418,8 @@ def main() -> int:
         logging.error("%s", err)
         return 2
     server = build_server(settings)
-    logging.info("token-proxy listening on 127.0.0.1:%d, upstream %s", settings.port, settings.upstream)
+    logging.info("token-proxy listening on 127.0.0.1:%d, upstream %s, mcp %s", settings.port, settings.upstream,
+                 settings.mcp_upstream or settings.upstream)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

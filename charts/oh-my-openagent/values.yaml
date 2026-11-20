@@ -82,12 +82,10 @@ gateway:
 
 
 mcp:
-  # Public MCP servers of the platform, each used only when ticked: options names keys of
-  # catalog, whose value is the server at <gateway.upstream>/mcp/public/<server>, reached
-  # through the token proxy (gateway.auth serviceAccountToken). Written into
-  # ~/.omo/agent/mcp.json on every start next to the servers the user added there.
-  # Nothing ticked: none of them. A name not in catalog fails
+  # No effect: every server of catalog is always offered, each its own entry the user can
+  # switch off. Kept so that values which set options keep rendering
   options: []
+  # the platform's public servers: entry name to server, at <gateway>/mcp/public/<server>
   catalog:
     playwright: playwright
     firecrawl: firecrawl
@@ -158,3 +156,12 @@ networkPolicy:
 nodeSelector: {}
 affinity: {}
 tolerations: []
+
+# A Playwright MCP server of the team, in this namespace: chart mcp-playwright as a
+# dependency, offered as the entry <release>-playwright at <gateway>/mcp/<namespace>/<name>.
+# Every value of the chart mcp-playwright applies here; networkPolicy.ingressNamespaces
+# must admit the MCP gateway
+mcp-playwright:
+  enabled: false
+  # objects are named <release>-playwright, apart from the agent's own
+  nameSuffix: -playwright

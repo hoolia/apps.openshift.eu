@@ -421,9 +421,6 @@ spec:
           value: {{ join "," .Values.mcp.bundles | quote }}
         - name: SERVERS
           value: {{ include "hermes.mcpServerNames" . | fromJsonArray | join "," | quote }}
-        # public servers: used only when their name is in SERVERS
-        - name: PUBLIC_SERVERS
-          value: {{ values (.Values.mcp.catalog | default dict) | uniq | sortAlpha | join "," | quote }}
         - name: EXCLUDE
           value: {{ join "," .Values.mcp.exclude | quote }}
         - name: OTHER_PROJECTS

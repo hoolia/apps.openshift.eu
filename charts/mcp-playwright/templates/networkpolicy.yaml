@@ -3,7 +3,7 @@
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: {{ .Release.Name }}
+  name: {{ include "mcp-playwright.fullname" . }}
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "mcp-playwright.labels" . | nindent 4 }}

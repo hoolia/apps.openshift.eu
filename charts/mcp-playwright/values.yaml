@@ -1,3 +1,7 @@
+# appended to the release name for every object name, the pod labels and the default
+# target name. Empty: the release name. A parent chart sets it (for example -playwright),
+# so this server's Service and pods do not take the parent's own names
+nameSuffix: ""
 image:
   repository: mcr.microsoft.com/playwright/mcp
   tag: v0.0.83

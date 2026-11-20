@@ -13,7 +13,8 @@ hasnt() { echo "$OUT" | grep -qF -- "$2" && { echo "FAIL $1: unexpected: $2"; fa
 check() {
   echo "$OUT" | python3 -c '
 import base64, json, sys, yaml
-docs = [d for d in yaml.safe_load_all(sys.stdin) if isinstance(d, dict) and d.get("kind")]
+# the team MCP server (chart mcp-playwright) is a dependency, not one of the objects of the agent
+docs = [d for d in yaml.safe_load_all(sys.stdin) if isinstance(d, dict) and d.get("kind") and not d["metadata"].get("name", "").endswith("-playwright")]
 def objs(kind): return [d for d in docs if d["kind"] == kind]
 def obj(kind, name=None):
     for d in objs(kind):
@@ -158,16 +159,19 @@ for v in route.timeout=1d oauth.ownerEmail=owner person.email=sam "person.email=
 done
 
 
-# public MCP servers: ticked in mcp.options only, nothing by default
+# public MCP servers: every catalog server always, each its own tool server, once a gateway is set
 OUT=$(render "${BASE[@]}" --set mcp.enabled=true)
-check "no public endpoint by default" '[c["info"]["id"] for c in json.loads(env("openwebui")["TOOL_SERVER_CONNECTIONS"])] == ["team"]'
-OUT=$(render "${BASE[@]}" --set gateway.upstream=https://api.example.com --set 'mcp.options={playwright}')
-check "ticked public server only" '[(c["info"]["id"], c["url"]) for c in json.loads(env("openwebui")["TOOL_SERVER_CONNECTIONS"])] == [("playwright", "http://127.0.0.1:8099/mcp/public/playwright")]'
+check "no gateway: team endpoint only" '[c["info"]["id"] for c in json.loads(env("openwebui")["TOOL_SERVER_CONNECTIONS"])] == ["team"]'
+OUT=$(render "${BASE[@]}" --set gateway.upstream=https://api.example.com)
+check "public servers by default" '[(c["info"]["id"], c["url"]) for c in json.loads(env("openwebui")["TOOL_SERVER_CONNECTIONS"])] == [("firecrawl", "http://127.0.0.1:8099/mcp/public/firecrawl"), ("playwright", "http://127.0.0.1:8099/mcp/public/playwright")]'
 OUT=$(render "${BASE[@]}" --set gateway.upstream=https://api.example.com --set mcp.enabled=true --set 'mcp.options={firecrawl,playwright}')
-check "team and ticked servers" '[c["info"]["id"] for c in json.loads(env("openwebui")["TOOL_SERVER_CONNECTIONS"])] == ["team", "firecrawl", "playwright"]'
+check "team endpoint, public servers, old ticks change nothing" '[c["info"]["id"] for c in json.loads(env("openwebui")["TOOL_SERVER_CONNECTIONS"])] == ["team", "firecrawl", "playwright"]'
 OUT=$(render "${BASE[@]}")
-check "nothing ticked, no tool servers" '"TOOL_SERVER_CONNECTIONS" not in env("openwebui")'
-render "${BASE[@]}" --set gateway.upstream=https://api.example.com --set 'mcp.options={nope}' | grep -q 'mcp.options: "nope" is not in mcp.catalog' || { echo "FAIL unknown mcp option accepted"; fail=1; }
-render "${BASE[@]}" --set 'mcp.options={playwright}' | grep -q 'needs gateway.upstream' || { echo "FAIL public server without gateway accepted"; fail=1; }
+check "no gateway, no mcp: no tool servers" '"TOOL_SERVER_CONNECTIONS" not in env("openwebui")'
+OUT=$(render "${BASE[@]}" --set gateway.upstream=https://api.example.com --set mcp-playwright.enabled=true)
+check "team server tool server" '[c["url"] for c in json.loads(env("openwebui")["TOOL_SERVER_CONNECTIONS"]) if c["info"]["id"] == "t-playwright"][0].endswith("/t-playwright")'
+# team Playwright server: off by default, on as Deployment, Service and NetworkPolicy <release>-playwright
+render "${BASE[@]}" --set gateway.upstream=https://api.example.com | grep -q "name: t-playwright" && { echo "FAIL team server rendered by default"; fail=1; }
+[ "$(render "${BASE[@]}" --set gateway.upstream=https://api.example.com --set mcp-playwright.enabled=true | grep -c '^  name: t-playwright$')" = 3 ] || { echo "FAIL team server objects"; fail=1; }
 
 [ $fail = 0 ] && echo "RESULT PASS" || { echo "RESULT FAIL"; exit 1; }

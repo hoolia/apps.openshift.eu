@@ -160,6 +160,12 @@ gateway:
   upstream: ""
   # audience of the agent's ServiceAccount token. Empty: the host of upstream
   audience: ""
+  # MCP gateway, when it is not upstream (models from the team's own gateway, MCP servers
+  # from the platform's): the token proxy sends /mcp there and mcp-sync takes the
+  # RemoteMCPServers on it. Empty: upstream
+  mcpUpstream: ""
+  # audience of the ServiceAccount token for mcpUpstream. Empty: the host of mcpUpstream
+  mcpAudience: ""
 
 llm:
   # default model, in LiteLLM form, for example openai/<model> for an
@@ -321,10 +327,9 @@ mcp:
   #     tokenKey: JIRA_API_TOKEN
   #     # only the RemoteMCPServer of this namespace gets it; empty: the entry of that name
   #     namespace: ""
-  # Public MCP servers of the platform, each used only when ticked: options names keys of
-  # catalog, whose value is the server name. The platform's RemoteMCPServer
-  # public-<server> of a catalog server is used only when ticked; nothing ticked: none of
-  # them. Other RemoteMCPServers are not affected. A name not in catalog fails
+  # No effect: the platform's public servers (RemoteMCPServers public-<server>) are always
+  # listed, each its own entry the user can switch off. A team server of its own is
+  # mcp-playwright.enabled. Kept so that values which set options keep rendering
   options: []
   catalog:
     playwright: playwright
@@ -481,3 +486,12 @@ storage:
   accessMode: ReadWriteOnce
   # empty: the default storage class
   className: ""
+
+# A Playwright MCP server of the team, in this namespace: chart mcp-playwright as a
+# dependency. Its Service is an MCP server like any other, so the platform lists it as a
+# RemoteMCPServer and mcp-sync adds it next to the public ones. Every value of the chart
+# mcp-playwright applies here; networkPolicy.ingressNamespaces must admit the MCP gateway
+mcp-playwright:
+  enabled: false
+  # objects are named <release>-playwright, apart from the agent's own
+  nameSuffix: -playwright

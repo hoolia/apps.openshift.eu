@@ -69,11 +69,13 @@ render --set approvalSigning.secretName=Bad_Name >/dev/null && { echo "FAIL sche
 render --set approvalSigning.other=x >/dev/null && { echo "FAIL schema: unknown key accepted"; fail=1; }
 
 
-# public MCP servers: the catalog servers are passed as PUBLIC_SERVERS, ticked ones join SERVERS
+# public MCP servers are always used: no gate, and mcp.options changes nothing
 OUT=$(render)
-check "public servers listed, none ticked" '{e["name"]: e.get("value") for e in ctr("mcp-sync")["env"]}["PUBLIC_SERVERS"] == "firecrawl,playwright" and {e["name"]: e.get("value") for e in ctr("mcp-sync")["env"]}["SERVERS"] == ""'
-OUT=$(render --set 'mcp.servers={gmail}' --set 'mcp.options={playwright}')
-check "ticked server joins SERVERS" '{e["name"]: e.get("value") for e in ctr("mcp-sync")["env"]}["SERVERS"] == "gmail,playwright"'
-render --set 'mcp.options={nope}' | grep -q 'mcp.options: "nope" is not in mcp.catalog' || { echo "FAIL unknown mcp option accepted"; fail=1; }
+check "no public gate" '"PUBLIC_SERVERS" not in envs(ctr("mcp-sync")) and {e["name"]: e.get("value") for e in ctr("mcp-sync")["env"]}["SERVERS"] == ""'
+OUT=$(render --set 'mcp.servers={gmail}' --set 'mcp.options={playwright,firecrawl}')
+check "old ticks render, SERVERS is mcp.servers" '{e["name"]: e.get("value") for e in ctr("mcp-sync")["env"]}["SERVERS"] == "gmail"'
+# team Playwright server: off by default, on as <release>-playwright
+render | grep -q "name: t-playwright" && { echo "FAIL team server rendered by default"; fail=1; }
+[ "$(render --set mcp-playwright.enabled=true | grep -c '^  name: t-playwright$')" = 3 ] || { echo "FAIL team server: expected Deployment, Service, NetworkPolicy t-playwright"; fail=1; }
 
 [ $fail = 0 ] && echo "RESULT PASS" || { echo "RESULT FAIL"; exit 1; }

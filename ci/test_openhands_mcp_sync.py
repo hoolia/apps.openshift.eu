@@ -284,59 +284,99 @@ class CredentialTest(unittest.TestCase):
 
 
 class PublicServerSelection(unittest.TestCase):
-    """A catalog server (PUBLIC_SERVERS) is used only when ticked (in SERVERS)."""
+    """The platform's public servers (public-<server>) are always used, ticked or not."""
 
     def obj(self, name, labels):
         return {"metadata": {"name": name, "namespace": "acme", "labels": labels}}
 
     def setUp(self):
-        self.saved = (ms.PUBLIC_SERVERS, ms.SERVERS)
-        ms.PUBLIC_SERVERS = {"playwright", "firecrawl"}
+        self.saved = ms.SERVERS
 
     def tearDown(self):
-        ms.PUBLIC_SERVERS, ms.SERVERS = self.saved
+        ms.SERVERS = self.saved
 
-    def test_public_server_needs_a_tick(self):
+    def test_public_servers_without_a_tick(self):
         ms.SERVERS = set()
-        self.assertFalse(ms.selected(self.obj("public-playwright", {"mcp.openshift.eu/server": "playwright"})))
-        ms.SERVERS = {"playwright"}
         self.assertTrue(ms.selected(self.obj("public-playwright", {"mcp.openshift.eu/server": "playwright"})))
-        self.assertFalse(ms.selected(self.obj("public-firecrawl", {"mcp.openshift.eu/server": "firecrawl"})))
+        self.assertTrue(ms.selected(self.obj("public-firecrawl", {"mcp.openshift.eu/server": "firecrawl"})))
 
-    def test_other_servers_unchanged(self):
+    def test_team_server_and_add_ons_unchanged(self):
         ms.SERVERS = set()
-        self.assertTrue(ms.selected(self.obj("github", {})))
-        # a tenant's own server of a catalog name is not the platform's public-<server>
-        self.assertTrue(ms.selected(self.obj("playwright", {"mcp.openshift.eu/server": "playwright"})))
-        self.assertTrue(ms.selected(self.obj("my-crawl", {"mcp.openshift.eu/server": "firecrawl"})))
+        self.assertTrue(ms.selected(self.obj("sam-playwright", {})))
         self.assertFalse(ms.selected(self.obj("gmail", {"mcp.openshift.eu/addon": "true", "mcp.openshift.eu/server": "gmail"})))
+        ms.SERVERS = {"gmail"}
+        self.assertTrue(ms.selected(self.obj("gmail", {"mcp.openshift.eu/addon": "true", "mcp.openshift.eu/server": "gmail"})))
 
 
-class PublicServerRender(unittest.TestCase):
-    """mcp.options reach mcp-sync as SERVERS; the catalog servers as PUBLIC_SERVERS."""
-
-    def env(self, *args):
+class Render(unittest.TestCase):
+    def docs(self, *args):
         out = subprocess.run(["helm", "template", "t", os.path.join(ROOT, "charts/openhands"), "-n", "test",
                               "--set", "gateway.upstream=https://api.example.com", *args],
                              capture_output=True, text=True)
-        if out.returncode:
-            return out.stderr
+        self.assertEqual(out.returncode, 0, out.stderr)
         import yaml
-        sts = [d for d in yaml.safe_load_all(out.stdout) if d and d["kind"] == "StatefulSet"][0]
-        ctr = [c for c in sts["spec"]["template"]["spec"]["containers"] if c["name"] == "mcp-sync"][0]
+        return [d for d in yaml.safe_load_all(out.stdout) if d]
+
+    def env(self, container, *args):
+        sts = [d for d in self.docs(*args) if d["kind"] == "StatefulSet"][0]
+        ctr = [c for c in sts["spec"]["template"]["spec"]["containers"] if c["name"] == container][0]
         return {e["name"]: e.get("value") for e in ctr["env"]}
 
-    def test_nothing_ticked(self):
-        env = self.env()
-        self.assertEqual(env["PUBLIC_SERVERS"], "firecrawl,playwright")
+
+class PublicServerRender(Render):
+    """mcp.options no longer gates anything; old values that set it still render."""
+
+    def test_no_public_gate(self):
+        env = self.env("mcp-sync")
+        self.assertNotIn("PUBLIC_SERVERS", env)
         self.assertEqual(env["SERVERS"], "")
 
-    def test_ticked(self):
-        self.assertEqual(self.env("--set", "mcp.servers={gmail}", "--set", "mcp.options={playwright,firecrawl}")["SERVERS"],
-                         "gmail,playwright,firecrawl")
+    def test_old_ticks_render_and_change_nothing(self):
+        self.assertEqual(self.env("mcp-sync", "--set", "mcp.options={playwright,firecrawl}"), self.env("mcp-sync"))
 
-    def test_unknown_option(self):
-        self.assertIn('mcp.options: "nope" is not in mcp.catalog', self.env("--set", "mcp.options={nope}"))
+
+class TeamServer(Render):
+    """mcp-playwright.enabled deploys a team Playwright MCP server, named apart from the agent."""
+
+    def named(self, docs, name):
+        return sorted(d["kind"] for d in docs if d["metadata"].get("name") == name)
+
+    def test_off_by_default(self):
+        self.assertEqual(self.named(self.docs(), "t-playwright"), [])
+
+    def test_on(self):
+        docs = self.docs("--set", "mcp-playwright.enabled=true")
+        self.assertEqual(self.named(docs, "t-playwright"), ["Deployment", "NetworkPolicy", "Service"])
+        svc = [d for d in docs if d["kind"] == "Service" and d["metadata"]["name"] == "t-playwright"][0]
+        self.assertEqual(svc["spec"]["selector"]["app.kubernetes.io/instance"], "t-playwright")
+        self.assertIn("agentgateway.dev/mcp", [p.get("appProtocol") for p in svc["spec"]["ports"]])
+        # the agent's own Service keeps selecting only the agent
+        own = [d for d in docs if d["kind"] == "Service" and d["metadata"]["name"] == "t"]
+        for o in own:
+            self.assertNotEqual(o["spec"]["selector"].get("app.kubernetes.io/instance"), "t-playwright")
+
+
+class McpUpstream(Render):
+    """gateway.mcpUpstream: models stay on gateway.upstream, /mcp goes to the MCP gateway."""
+
+    def test_unset_changes_nothing(self):
+        env = self.env("token-proxy")
+        self.assertNotIn("MCP_UPSTREAM", env)
+        self.assertEqual(self.env("mcp-sync")["UPSTREAM"], "https://api.example.com")
+
+    def test_set(self):
+        args = ("--set", "gateway.mcpUpstream=https://mcp.example.com")
+        proxy = self.env("token-proxy", *args)
+        self.assertEqual(proxy["UPSTREAM"], "https://api.example.com")
+        self.assertEqual(proxy["MCP_UPSTREAM"], "https://mcp.example.com")
+        self.assertEqual(self.env("mcp-sync", *args)["UPSTREAM"], "https://mcp.example.com")
+        sts = [d for d in self.docs(*args) if d["kind"] == "StatefulSet"][0]
+        vols = {v["name"]: v for v in sts["spec"]["template"]["spec"]["volumes"]}
+        self.assertEqual(vols["mcp-token"]["projected"]["sources"][0]["serviceAccountToken"]["audience"], "mcp.example.com")
+
+    def test_same_as_upstream_is_no_separate_gateway(self):
+        self.assertNotIn("MCP_UPSTREAM", self.env("token-proxy", "--set", "gateway.mcpUpstream=https://api.example.com/"))
+
 
 
 if __name__ == "__main__":

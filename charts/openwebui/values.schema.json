@@ -248,14 +248,26 @@
           "items": {
             "type": "string"
           },
-          "description": "ticked public MCP servers: names of mcp.catalog"
+          "description": "no effect; every mcp.catalog server is always offered. Kept so that values which set it keep rendering"
         },
         "catalog": {
           "type": "object",
           "additionalProperties": {
             "type": "string"
           },
-          "description": "name to public server at /mcp/public/<server>"
+          "description": "the platform's public servers, always offered: entry name to server (path /mcp/public/<server>)"
+        }
+      }
+    },
+    "mcp-playwright": {
+      "type": "object",
+      "description": "a Playwright MCP server of the team (chart mcp-playwright); its values apply",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "nameSuffix": {
+          "type": "string"
         }
       }
     }

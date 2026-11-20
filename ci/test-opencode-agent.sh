@@ -347,13 +347,19 @@ OUT=$(render "${BASE[@]}" "${VS[@]}" --set 'mcp.servers[0].auth.secretRef=nope')
 has "unknown secretRef" 'auth.secretRef "nope" is not a vaultSecrets name'
 
 
-# public MCP servers: ticked in mcp.options only; an explicit mcp.servers entry of that name wins
+# public MCP servers: every catalog server always, each its own entry; an explicit mcp.servers entry of that name wins
 OUT=$(render "${BASE[@]}" --set gateway.upstream=https://api.example.com)
-check "no public server by default" 'not any("/mcp/public/" in s.get("url", "") for s in json.loads(cfg()["opencode.json"])["mcp"].values())'
-OUT=$(render "${BASE[@]}" --set gateway.upstream=https://api.example.com --set 'mcp.options={playwright}')
-check "ticked public server" 'json.loads(cfg()["opencode.json"])["mcp"]["playwright"] == {"type": "remote", "url": "http://127.0.0.1:8099/mcp/public/playwright", "enabled": True} and "firecrawl" not in json.loads(cfg()["opencode.json"])["mcp"]'
-OUT=$(render "${BASE[@]}" --set gateway.upstream=https://api.example.com --set 'mcp.options={playwright}' --set 'mcp.servers[0].name=playwright' --set 'mcp.servers[0].path=/mcp/public/playwright' --set 'mcp.servers[0].enabled=false')
+check "public servers by default" 'json.loads(cfg()["opencode.json"])["mcp"]["playwright"] == {"type": "remote", "url": "http://127.0.0.1:8099/mcp/public/playwright", "enabled": True} and json.loads(cfg()["opencode.json"])["mcp"]["firecrawl"]["url"] == "http://127.0.0.1:8099/mcp/public/firecrawl"'
+OUT=$(render "${BASE[@]}" --set gateway.upstream=https://api.example.com --set 'mcp.options={playwright,firecrawl}')
+check "old ticks change nothing" 'sorted(s for s, v in json.loads(cfg()["opencode.json"])["mcp"].items() if "/mcp/public/" in v.get("url", "")) == ["firecrawl", "playwright"]'
+OUT=$(render "${BASE[@]}" --set gateway.upstream=https://api.example.com --set 'mcp.servers[0].name=playwright' --set 'mcp.servers[0].path=/mcp/public/playwright' --set 'mcp.servers[0].enabled=false')
 check "explicit entry wins" 'json.loads(cfg()["opencode.json"])["mcp"]["playwright"]["enabled"] is False'
-render "${BASE[@]}" --set gateway.upstream=https://api.example.com --set 'mcp.options={nope}' | grep -q 'mcp.options: "nope" is not in mcp.catalog' || { echo "FAIL unknown mcp option accepted"; fail=1; }
+OUT=$(render "${BASE[@]}")
+check "no gateway, no public servers" 'not any("/mcp/public/" in s.get("url", "") for s in json.loads(cfg()["opencode.json"]).get("mcp", {}).values())'
+OUT=$(render "${BASE[@]}" --set gateway.upstream=https://api.example.com --set mcp-playwright.enabled=true)
+check "team server entry" 'json.loads(cfg()["opencode.json"])["mcp"]["t-playwright"]["url"] == "http://127.0.0.1:8099/mcp/test/t-playwright"'
+# team Playwright server: off by default, on as Deployment, Service and NetworkPolicy <release>-playwright
+render "${BASE[@]}" --set gateway.upstream=https://api.example.com | grep -q "name: t-playwright" && { echo "FAIL team server rendered by default"; fail=1; }
+[ "$(render "${BASE[@]}" --set gateway.upstream=https://api.example.com --set mcp-playwright.enabled=true | grep -c '^  name: t-playwright$')" = 3 ] || { echo "FAIL team server objects"; fail=1; }
 
 [ $fail = 0 ] && echo "RESULT PASS" || { echo "RESULT FAIL"; exit 1; }
