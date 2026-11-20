@@ -28,7 +28,10 @@ oauth:
   # OpenShift user name (an email) of the only person admitted to the UI.
   # Empty: person.email; both empty: everyone who may edit the project
   ownerEmail: ""
-  # OpenShift groups admitted, strictly (with an owner: the owner must be in one)
+  # true: the owner only, who must also be in one of allowedGroups.
+  # false: every member of allowedGroups, and the owner
+  ownerOnly: true
+  # OpenShift groups admitted, strictly (with ownerOnly: the owner must be in one)
   allowedGroups: []
   # ClusterRole holding the verb login on services/proxy that allowedGroups are bound
   # to. Empty: the chart's own Role, which only an installer holding that verb (a

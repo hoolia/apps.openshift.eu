@@ -65,7 +65,8 @@ The UI keeps the list of open projects in the browser, so it starts empty in a n
 - `route.timeout` (default: 3600s): Router timeout; the UI streams.
 - `route.annotations` (default: cert-manager issuer): Used when `route.host` is set.
 - `oauth.ownerEmail` (default: `person.email`): OpenShift user name of the only person admitted to the UI. Empty: `oauth.allowedGroups`; both empty: everyone who may edit the project.
-- `oauth.allowedGroups` (default: empty): OpenShift groups admitted. Only their members log in: the chart grants them the verb `login` on `services/proxy` of the UI Service, which `admin` and `edit` do not hold, and the login proxy checks that permission. With an owner, the owner must also be in one of them.
+- `oauth.ownerOnly` (default: `true`): `true` admits the owner only. `false` admits every member of `oauth.allowedGroups` and the owner, who gets the login as a user.
+- `oauth.allowedGroups` (default: empty): OpenShift groups admitted. Only their members log in: the chart grants them the verb `login` on `services/proxy` of the UI Service, which `admin` and `edit` do not hold, and the login proxy checks that permission. With `oauth.ownerOnly`, the owner must also be in one of them.
 - `oauth.loginClusterRole` (default: empty): ClusterRole holding the verb `login` on `services/proxy`; `oauth.allowedGroups` are bound to it instead of to the chart's own Role. Creating a Role or binding that grants `login` needs that permission, or `bind` on the ClusterRole: an installer without it (a project admin, the project's Argo CD) needs this value.
 - `oauthProxy.image` (default: `openshift/oauth-proxy:v4.4` from the cluster registry): The login proxy. OpenShift keeps that image stream tag on the oauth-proxy of the running release.
 - `secrets.serverPassword`, `secrets.a2aToken`, `secrets.cookieSecret` (default: empty): Generated once and kept on upgrade.
@@ -101,7 +102,7 @@ OpenCode 2.x converts the session store `opencode.db` in place on its first star
 
 ## How to login
 
-- **Single sign-on**: the OpenShift login of the cluster, through an OAuth proxy. `oauth.ownerEmail` (default `person.email`), `oauth.allowedGroups` and `oauth.loginClusterRole` decide who gets in.
+- **Single sign-on**: the OpenShift login of the cluster, through an OAuth proxy. `oauth.ownerEmail` (default `person.email`), `oauth.ownerOnly`, `oauth.allowedGroups` and `oauth.loginClusterRole` decide who gets in.
 - **Admin user**: OpenCode has one user, `opencode`, password in Secret `<person.name>-agent-server-password`, key `password`:
 
     oc -n <project> extract secret/<person.name>-agent-server-password --keys=password --to=-

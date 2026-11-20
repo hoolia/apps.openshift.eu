@@ -11,6 +11,6 @@ metadata:
 data:
   # The owner's OpenShift user name only; empty: no emails file, the SAR admits project editors
   emails.txt: |
-    {{- with include "opencode-agent.ownerEmail" . }}
+    {{- with include "opencode-agent.loginEmail" . }}
     {{ . }}
     {{- end }}

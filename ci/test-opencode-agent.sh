@@ -191,6 +191,14 @@ check "group flag unused" 'not arg("--openshift-group")'
 check "login role" 'obj("Role", "sam-agent-login")["rules"] == [{"apiGroups": [""], "resources": ["services/proxy"], "resourceNames": ["sam-agent-ui"], "verbs": ["login"]}]'
 check "login binding" 'obj("RoleBinding", "sam-agent-login")["roleRef"] == {"apiGroup": "rbac.authorization.k8s.io", "kind": "Role", "name": "sam-agent-login"} and obj("RoleBinding", "sam-agent-login")["subjects"] == [{"apiGroup": "rbac.authorization.k8s.io", "kind": "Group", "name": "team-admins"}, {"apiGroup": "rbac.authorization.k8s.io", "kind": "Group", "name": "ops"}]'
 
+# ownerOnly false: every group member logs in, and the owner as a user
+OUT=$(render "${BASE[@]}" --set 'oauth.allowedGroups={marketing}' --set oauth.ownerOnly=false --set oauth.ownerEmail=owner@example.org)
+check "group login no emails file" 'not arg("--authenticated-emails-file") and proxy()["emails.txt"].strip() == ""'
+check "group login sar" 'json.loads(arg("--openshift-sar")[0])[0]["verb"] == "login"'
+check "group login binding" 'obj("RoleBinding", "sam-agent-login")["subjects"] == [{"apiGroup": "rbac.authorization.k8s.io", "kind": "Group", "name": "marketing"}, {"apiGroup": "rbac.authorization.k8s.io", "kind": "User", "name": "owner@example.org"}]'
+OUT=$(render "${BASE[@]}" --set 'oauth.allowedGroups={marketing}' --set oauth.ownerEmail=owner@example.org)
+check "owner only by default" 'proxy()["emails.txt"].split() == ["owner@example.org"] and [s["kind"] for s in obj("RoleBinding", "sam-agent-login")["subjects"]] == ["Group"]'
+
 # the owner is an OpenShift user name; OpenCode sees its local part as the Basic user
 OUT=$(render "${BASE[@]}" --set oauth.ownerEmail=Owner.Name@example.org)
 check "owner override" 'proxy()["emails.txt"].split() == ["Owner.Name@example.org"] and env("opencode-a2a")["OPENCODE_AUTH_USERNAME"] == "opencode"'

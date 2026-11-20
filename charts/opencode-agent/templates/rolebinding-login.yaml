@@ -22,4 +22,12 @@ subjects:
   kind: Group
   name: {{ . }}
 {{- end }}
+{{- if not .Values.oauth.ownerOnly }}
+{{- with include "opencode-agent.ownerEmail" . }}
+# The owner keeps the login without being in one of the groups
+- apiGroup: rbac.authorization.k8s.io
+  kind: User
+  name: {{ . }}
+{{- end }}
+{{- end }}
 {{- end }}
