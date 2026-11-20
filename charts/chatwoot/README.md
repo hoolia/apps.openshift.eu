@@ -352,8 +352,8 @@ flowchart LR
 #### Website chat
 
 With `odoo.website.enabled`, the Job keeps a Website inbox whose pre-chat form requires an
-email address, and an account webhook to the bridge path `/chatwoot/website`, signed with
-the inbox secret. Chatwoot sends an account webhook for every inbox; the bridge acts only on
+email address, an account webhook to the bridge path `/chatwoot/website`, signed with
+the inbox secret, and the label `odoo.website.salesLabel`. Chatwoot sends an account webhook for every inbox; the bridge acts only on
 conversations of the Website inbox.
 
 - The first visitor message opens a `helpdesk.ticket` named `Chat: <first line>` for the

@@ -151,6 +151,11 @@ spec:
           value: {{ .Values.odoo.website.inbox | quote }}
         - name: CHATWOOT_ODOO_WEBSITE_URL
           value: {{ .Values.odoo.website.url | trimSuffix "/" | quote }}
+        {{- if .Values.odoo.website.salesLabel }}
+        # the label staff pick to move a chat to a lead
+        - name: CHATWOOT_ODOO_SALES_LABEL
+          value: {{ .Values.odoo.website.salesLabel | quote }}
+        {{- end }}
         {{- end }}
         - name: CHATWOOT_ODOO_BRIDGE_TOKEN
           valueFrom:

@@ -188,6 +188,7 @@ check "no website chat by default" '"RATE_LIMIT_WIDGET_CONVERSATIONS" not in env
 WEB=$(render "${ODOO[@]}" --set secrets.odooApiKey=k --set odoo.website.enabled=true --set odoo.website.url=https://www.example.org/ --set odoo.website.team=Support)
 OUT_KEEP=$OUT; OUT=$WEB
 check "website chat env" 'env("chatwoot-odoo-bridge", "odoo-bridge")["WEBSITE_INBOX"] == "Website" and env("chatwoot-odoo-bridge", "odoo-bridge")["WEBSITE_TEAM"] == "Support" and env("chatwoot-odoo-bridge", "odoo-bridge")["WEBSITE_TICKETS_PER_EMAIL"] == "3" and env("chatwoot-odoo-bridge", "odoo-bridge")["SALES_LABEL"] == "sales" and env("chatwoot-prepare-1", "prepare")["CHATWOOT_ODOO_WEBSITE_INBOX"] == "Website" and env("chatwoot-prepare-1", "prepare")["CHATWOOT_ODOO_WEBSITE_URL"] == "https://www.example.org"'
+check "website chat: the job keeps the sales label" 'env("chatwoot-prepare-1", "prepare")["CHATWOOT_ODOO_SALES_LABEL"] == "sales"'
 check "website chat: the chart's own users are not staff, the draft user also while off" 'env("chatwoot-odoo-bridge", "odoo-bridge")["NOT_STAFF_EMAILS"] == "odoo-bridge@chatwoot.invalid,ai-draft@chatwoot.invalid" and env("chatwoot-prepare-1", "prepare")["CHATWOOT_ODOO_BRIDGE_EMAIL"] == "odoo-bridge@chatwoot.invalid"'
 WEBD=$(render "${ODOO[@]}" "${DRAFT[@]}" --set secrets.odooApiKey=k --set odoo.website.enabled=true --set odoo.website.url=https://www.example.org/ --set odoo.website.team=Support)
 OUT=$WEBD
@@ -307,8 +308,11 @@ fails "triage label is a category" "names no category" "${TRIAGE[@]}" --set tria
 WEBSITE=("${ODOO[@]}" --set secrets.odooApiKey=k --set odoo.website.enabled=true --set odoo.website.url=https://www.example.org)
 fails "sales label is a triage category" "must differ from triage.label" "${TRIAGE[@]}" "${WEBSITE[@]}" --set-json 'triage.categories=[{"name":"engineering"},{"name":"sales"}]'
 fails "sales label is the triage label" "must differ from triage.label" "${TRIAGE[@]}" "${WEBSITE[@]}" --set triage.label=sales
+fails "sales label no label" "does not match pattern" "${WEBSITE[@]}" --set "odoo.website.salesLabel=to sales"
 OUT=$(render "${TRIAGE[@]}" "${WEBSITE[@]}")
 check "website chat with triage" 'env("chatwoot-odoo-bridge", "odoo-bridge")["SALES_LABEL"] == "sales"'
+OUT=$(render "${WEBSITE[@]}" --set odoo.website.salesLabel=)
+check "website chat without sales label: the job keeps none" '"CHATWOOT_ODOO_SALES_LABEL" not in env("chatwoot-prepare-1", "prepare") and env("chatwoot-odoo-bridge", "odoo-bridge")["SALES_LABEL"] == ""'
 fails "triage heading like the draft's" "must not start like draftAgent.heading" "${TRIAGE[@]}" --set "triage.heading=AI draft (check before sending): triage"
 fails "facts without triage" "tenantFacts.enabled needs triage.enabled" "${DRAFT[@]}" "${FACTS[@]}"
 fails "facts without annotation" "tenantFacts.emailAnnotation and tenantFacts.tenantLabel are required" "${TRIAGE[@]}" --set tenantFacts.enabled=true
