@@ -364,7 +364,7 @@
             "ticketsPerEmail": {"type": "integer", "minimum": 1},
             "ticketsPerHour": {"type": "integer", "minimum": 1},
             "conversationsPerMinute": {"type": "integer", "minimum": 1},
-            "salesLabel": {"type": "string", "title": "Label that moves a chat to a lead", "pattern": "^([a-z0-9_-]{1,64})?$"},
+            "salesLabel": {"type": "string", "title": "Label that moves a chat to a lead", "pattern": "^([A-Za-z0-9_-]{1,64})?$"},
             "cancelledStage": {"type": "string", "title": "Stage of a ticket whose chat moved to a lead"}
           }
         },
