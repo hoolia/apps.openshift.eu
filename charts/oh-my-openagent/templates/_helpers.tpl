@@ -168,7 +168,7 @@ seccompProfile:
 {{- $_ := set $servers $name (dict "type" "http" "url" (printf "http://127.0.0.1:%v/mcp/public/%s" $.Values.tokenProxy.port $server) "enabled" true "auth" false) -}}
 {{- end -}}
 {{- with include "oh-my-openagent.teamMcpTarget" . -}}
-{{- $_ := set $servers . (dict "type" "http" "url" (printf "http://127.0.0.1:%v/mcp/%s/%s" $.Values.tokenProxy.port $.Release.Namespace .) "enabled" true "auth" false) -}}
+{{- $_ := set $servers . (dict "type" "http" "url" (printf "http://127.0.0.1:%v/mcp/%s/%s" $.Values.tokenProxy.port (include "oh-my-openagent.namespace" $) .) "enabled" true "auth" false) -}}
 {{- end -}}
 {{- end -}}
 {{- dict "mcpServers" $servers | toPrettyJson -}}

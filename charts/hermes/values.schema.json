@@ -496,6 +496,12 @@
         },
         "nameSuffix": {
           "type": "string"
+        },
+        "team": {
+          "type": "string"
+        },
+        "tenant": {
+          "type": "string"
         }
       }
     }

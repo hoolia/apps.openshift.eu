@@ -14,7 +14,7 @@ Remote MCP servers are entries of `mcp.servers`, written into `opencode.json`: `
 
 With `gateway.upstream` set, every server of `mcp.catalog` (by default `playwright` and `firecrawl`) is the entry `<name>` at `<gateway.upstream>/mcp/public/<server>` through the token proxy, which the user can switch off. An `mcp.servers` entry of the same name wins.
 
-`mcp-playwright.enabled: true` adds a Playwright MCP server of the team: the chart `mcp-playwright` as a dependency, named `<release>-playwright` in the release namespace, offered as the entry `<release>-playwright` at `<gateway.upstream>/mcp/<namespace>/<release>-playwright`. Its values go under `mcp-playwright`; `mcp-playwright.networkPolicy.ingressNamespaces` must admit the MCP gateway.
+`mcp-playwright.enabled: true` adds a Playwright MCP server of the team: the chart `mcp-playwright` as a dependency, named `<release>-playwright` in the release namespace, offered as the entry `<release>-playwright` at `<gateway.upstream>/mcp/<namespace>/<release>-playwright`. Its values go under `mcp-playwright`; `mcp-playwright.networkPolicy.ingressNamespaces` must admit the MCP gateway. With `team` set, set `mcp-playwright.team` and `mcp-playwright.tenant` to the same values, so the server runs beside the agent in `<tenant>-<team>`; the render fails when they differ or when `mcp-playwright.nameSuffix` is empty.
 
 ```yaml
 vaultSecrets:

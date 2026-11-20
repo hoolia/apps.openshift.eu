@@ -245,7 +245,7 @@ header value is a {file:} reference to what mcp-headers.sh writes, never the cre
 {{- end -}}
 {{- with include "opencode-agent.teamMcpTarget" $ -}}
 {{- if not (hasKey $out .) -}}
-{{- $_ := set $out . (dict "type" "remote" "url" (printf "http://127.0.0.1:%v/mcp/%s/%s" $.Values.tokenProxy.port $.Release.Namespace .) "enabled" true) -}}
+{{- $_ := set $out . (dict "type" "remote" "url" (printf "http://127.0.0.1:%v/mcp/%s/%s" $.Values.tokenProxy.port (include "opencode-agent.namespace" $) .) "enabled" true) -}}
 {{- end -}}
 {{- end -}}
 {{- end -}}

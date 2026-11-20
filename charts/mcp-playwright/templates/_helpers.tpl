@@ -1,3 +1,12 @@
+{{/* Namespace of every object: <tenant>-<team> for a server of a team, else the release namespace */}}
+{{- define "mcp-playwright.namespace" -}}
+{{- if .Values.team -}}
+{{- printf "%s-%s" (required "tenant is required with team" .Values.tenant) .Values.team -}}
+{{- else -}}
+{{- .Release.Namespace -}}
+{{- end -}}
+{{- end -}}
+
 {{/* Name of every object: the release name, plus nameSuffix (as a subchart: -playwright) */}}
 {{- define "mcp-playwright.fullname" -}}
 {{- printf "%s%s" .Release.Name (.Values.nameSuffix | default "") | trunc 63 | trimSuffix "-" -}}

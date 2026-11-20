@@ -362,4 +362,12 @@ check "team server entry" 'json.loads(cfg()["opencode.json"])["mcp"]["t-playwrig
 render "${BASE[@]}" --set gateway.upstream=https://api.example.com | grep -q "name: t-playwright" && { echo "FAIL team server rendered by default"; fail=1; }
 [ "$(render "${BASE[@]}" --set gateway.upstream=https://api.example.com --set mcp-playwright.enabled=true | grep -c '^  name: t-playwright$')" = 3 ] || { echo "FAIL team server objects"; fail=1; }
 
+# team Playwright server with team/tenant: beside the agent in <tenant>-<team>, else the render fails
+[ "$(render "${BASE[@]}" --set gateway.upstream=https://api.example.com --set team=dev --set tenant=acme --set mcp-playwright.enabled=true --set mcp-playwright.team=dev --set mcp-playwright.tenant=acme | grep -c '^  namespace: acme-dev$')" -gt 3 ] || { echo "FAIL team server not in acme-dev"; fail=1; }
+render "${BASE[@]}" --set gateway.upstream=https://api.example.com --set team=dev --set tenant=acme --set mcp-playwright.enabled=true | grep -q 'must equal team and tenant' || { echo "FAIL team server in another namespace accepted"; fail=1; }
+render "${BASE[@]}" --set gateway.upstream=https://api.example.com --set mcp-playwright.enabled=true --set mcp-playwright.nameSuffix= | grep -q 'nameSuffix must not be empty' || { echo "FAIL empty nameSuffix accepted"; fail=1; }
+
+OUT=$(render "${BASE[@]}" --set gateway.upstream=https://api.example.com --set team=dev --set tenant=acme --set mcp-playwright.enabled=true --set mcp-playwright.team=dev --set mcp-playwright.tenant=acme)
+check "team server entry in the team namespace" 'json.loads(cfg()["opencode.json"])["mcp"]["t-playwright"]["url"] == "http://127.0.0.1:8099/mcp/acme-dev/t-playwright"'
+
 [ $fail = 0 ] && echo "RESULT PASS" || { echo "RESULT FAIL"; exit 1; }

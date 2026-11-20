@@ -495,3 +495,7 @@ mcp-playwright:
   enabled: false
   # objects are named <release>-playwright, apart from the agent's own
   nameSuffix: -playwright
+  # with team set above, set the same team and tenant here: the server then runs in
+  # <tenant>-<team> beside the agent (the render fails when they differ)
+  team: ""
+  tenant: ""

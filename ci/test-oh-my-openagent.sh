@@ -102,4 +102,12 @@ printf '[]' > "$T/.chart-mcp-servers"; printf '{"mcpServers": {"firecrawl": {"ur
 [ "$(bash "$T/block.sh" 2>/dev/null)" = after ] && pyc 'list(u["mcpServers"]) == ["firecrawl"]' "no mcp.json yet" || { echo "FAIL first start without mcp.json"; fail=1; }
 rm -rf "$T"
 
+# team Playwright server with team/tenant: beside the agent in <tenant>-<team>, else the render fails
+[ "$(render "${G[@]}" --set team=dev --set tenant=acme --set mcp-playwright.enabled=true --set mcp-playwright.team=dev --set mcp-playwright.tenant=acme | grep -c '^  namespace: acme-dev$')" -gt 3 ] || { echo "FAIL team server not in acme-dev"; fail=1; }
+render "${G[@]}" --set team=dev --set tenant=acme --set mcp-playwright.enabled=true | grep -q 'must equal team and tenant' || { echo "FAIL team server in another namespace accepted"; fail=1; }
+render "${G[@]}" --set mcp-playwright.enabled=true --set mcp-playwright.nameSuffix= | grep -q 'nameSuffix must not be empty' || { echo "FAIL empty nameSuffix accepted"; fail=1; }
+
+OUT=$(render "${G[@]}" --set team=dev --set tenant=acme --set mcp-playwright.enabled=true --set mcp-playwright.team=dev --set mcp-playwright.tenant=acme)
+check "team server entry in the team namespace" 'cm("mcp.json")["mcpServers"]["t-playwright"]["url"] == "http://127.0.0.1:8099/mcp/acme-dev/t-playwright"'
+
 [ $fail = 0 ] && echo "PASS oh-my-openagent" || exit 1

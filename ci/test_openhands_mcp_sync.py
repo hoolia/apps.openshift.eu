@@ -356,6 +356,21 @@ class TeamServer(Render):
             self.assertNotEqual(o["spec"]["selector"].get("app.kubernetes.io/instance"), "t-playwright")
 
 
+class TeamServerNamespace(Render):
+    """With team and tenant the server runs beside the agent, in <tenant>-<team>; else the render fails."""
+
+    def test_beside_the_agent(self):
+        docs = self.docs("--set", "team=dev", "--set", "tenant=acme", "--set", "mcp-playwright.enabled=true",
+                         "--set", "mcp-playwright.team=dev", "--set", "mcp-playwright.tenant=acme")
+        self.assertEqual({d["metadata"]["namespace"] for d in docs if d["metadata"].get("name") == "t-playwright"}, {"acme-dev"})
+
+    def test_elsewhere_fails(self):
+        out = subprocess.run(["helm", "template", "t", os.path.join(ROOT, "charts/openhands"), "-n", "test",
+                              "--set", "gateway.upstream=https://api.example.com", "--set", "team=dev", "--set", "tenant=acme",
+                              "--set", "mcp-playwright.enabled=true"], capture_output=True, text=True)
+        self.assertIn("must equal team and tenant", out.stderr)
+
+
 class McpUpstream(Render):
     """gateway.mcpUpstream: models stay on gateway.upstream, /mcp goes to the MCP gateway."""
 
@@ -373,6 +388,19 @@ class McpUpstream(Render):
         sts = [d for d in self.docs(*args) if d["kind"] == "StatefulSet"][0]
         vols = {v["name"]: v for v in sts["spec"]["template"]["spec"]["volumes"]}
         self.assertEqual(vols["mcp-token"]["projected"]["sources"][0]["serviceAccountToken"]["audience"], "mcp.example.com")
+
+    def fails(self, *args):
+        out = subprocess.run(["helm", "template", "t", os.path.join(ROOT, "charts/openhands"), "-n", "test", *args],
+                             capture_output=True, text=True)
+        self.assertNotEqual(out.returncode, 0)
+        return out.stderr
+
+    def test_without_upstream_fails(self):
+        self.assertIn("needs gateway.upstream", self.fails("--set", "gateway.mcpUpstream=https://mcp.example.com"))
+
+    def test_with_a_path_fails(self):
+        self.assertIn("without a path", self.fails("--set", "gateway.upstream=https://api.example.com",
+                                                   "--set", "gateway.mcpUpstream=https://mcp.example.com/mcp"))
 
     def test_same_as_upstream_is_no_separate_gateway(self):
         self.assertNotIn("MCP_UPSTREAM", self.env("token-proxy", "--set", "gateway.mcpUpstream=https://api.example.com/"))
