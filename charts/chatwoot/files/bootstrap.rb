@@ -314,7 +314,8 @@ else
   account.users.where.not(email: services).find_each do |user|
     next if user.email.to_s.end_with?('.invalid')
 
-    if user.message_signature.blank?
+    # nil: never set; an empty signature is one the user cleared
+    if user.message_signature.nil?
       user.message_signature = signature.gsub('{name}', staff_name.call(user))
       signed += 1
     end

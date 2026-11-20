@@ -29,7 +29,7 @@ account:
 
 # The message signature of each staff member, set by the prepare Job for every staff user
 # without one (a staff user appears at the first login and is signed at the next install or
-# upgrade). A signature a user wrote in Chatwoot stays.
+# upgrade). A signature a user wrote or cleared in Chatwoot stays.
 signature:
   # Markdown: **bold**, *italic*, [links](https://...), ![images](https://...), a backslash
   # at the end of a line for a line break. {name} becomes the staff member's display name,

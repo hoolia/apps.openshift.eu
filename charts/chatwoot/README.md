@@ -122,10 +122,11 @@ Markdown text as their Chatwoot message signature, `{name}` replaced by their di
 else their name (a name that is an address becomes its local part: `s.terburg` is
 `S. Terburg`). It switches the signature on in the reply editor for the channel types of
 `signature.channels` (default `Channel::Api`, the Odoo inboxes), unless the user switched it
-off there. A signature a user wrote stays. A staff user appears at the first login and is
+off there. A signature a user wrote or cleared stays. A staff user appears at the first login and is
 signed at the next install or upgrade. The service users of the chart get none.
 
-The Odoo bridge renders the Markdown of a staff reply into the Odoo mail: bold, italic,
+The Odoo bridge renders the Markdown of a staff reply (not of a contact's message) into
+the Odoo mail: bold, italic,
 `https` and `mailto` links, `https` images (64 pixels high) and a backslash at the end of a
 line as a line break. Anything else stays escaped text.
 
