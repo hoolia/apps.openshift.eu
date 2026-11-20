@@ -289,6 +289,47 @@ else
   end
 end
 
+# Message signatures: CHATWOOT_SIGNATURE (Markdown, {name} becomes the staff member's name)
+# for every staff user without one; the reply editor adds it in the channel types of
+# CHATWOOT_SIGNATURE_CHANNELS unless the user switched it off there. A signature a user wrote
+# stays; the service users of the chart get none
+signature = ENV.fetch('CHATWOOT_SIGNATURE', '')
+if signature.strip.empty?
+  puts 'no signature: staff signatures not set'
+else
+  # the key the dashboard uses (useUISettings.js slugifyChannel): first match of each only
+  flags = ENV.fetch('CHATWOOT_SIGNATURE_CHANNELS', '').split(',').map(&:strip).reject(&:empty?)
+             .map { |type| "#{type.downcase.sub(' ', '_').sub('-', '_').sub('::', '_')}_signature_enabled" }
+  services = %w[CHATWOOT_ADMIN_EMAIL CHATWOOT_ODOO_BRIDGE_EMAIL CHATWOOT_DRAFT_EMAIL]
+             .map { |name| ENV.fetch(name, '').strip.downcase }.reject(&:empty?)
+  # a user the login bridge made is named by its address: s.terburg@example.org is S. Terburg
+  staff_name = lambda do |user|
+    name = user.display_name.presence || user.name.to_s
+    next name unless name.include?('@')
+
+    name.split('@').first.split(/[._-]+/).reject(&:empty?)
+        .map { |part| part.length == 1 ? "#{part.upcase}." : part.capitalize }.join(' ')
+  end
+  signed = enabled = 0
+  account.users.where.not(email: services).find_each do |user|
+    next if user.email.to_s.end_with?('.invalid')
+
+    # nil: never set; an empty signature is one the user cleared
+    if user.message_signature.nil?
+      user.message_signature = signature.gsub('{name}', staff_name.call(user))
+      signed += 1
+    end
+    settings = user.ui_settings || {}
+    missing = flags.reject { |flag| settings.key?(flag) }
+    if missing.any?
+      user.ui_settings = settings.merge(missing.to_h { |flag| [flag, true] })
+      enabled += 1
+    end
+    user.save!(validate: false) if user.changed?
+  end
+  puts "signature: set for #{signed} user(s), switched on for #{enabled} user(s) in #{flags.join(', ')}"
+end
+
 # Dashboard Apps: a tab next to every conversation, kept by its title
 { 'agent' => 'CHATWOOT_AGENT_PANEL', 'odoo' => 'CHATWOOT_ODOO_PANEL' }.each do |kind, prefix|
   panel_path = ENV.fetch("#{prefix}_PATH", '')

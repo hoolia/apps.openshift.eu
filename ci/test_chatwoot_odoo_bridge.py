@@ -481,6 +481,11 @@ class BridgeTest(unittest.TestCase):
         self.assertEqual(post["body"], "<p>Hi Ada,<br>we reset it.</p><p>Regards</p>")
         self.assertIs(post["body_is_html"], True)
 
+    def test_reply_markdown_is_rendered(self):
+        self.event("ticket.created")
+        self.bridge.handle_webhook(self.staff_reply(next(iter(self.conversations())), "**Ann**\\\nSupport"))
+        self.assertEqual(self.posts()[0]["body"], "<p><strong>Ann</strong><br>Support</p>")
+
     def test_reply_text_is_escaped(self):
         self.event("ticket.created")
         self.bridge.handle_webhook(self.staff_reply(next(iter(self.conversations())), "<script>x</script> & y"))
@@ -1515,6 +1520,41 @@ class PureTest(unittest.TestCase):
 
     def test_text_to_html(self):
         self.assertEqual(odoo_bridge.text_to_html("a\nb\n\n\nc & d"), "<p>a<br>b</p><p>c &amp; d</p>")
+
+    def test_text_to_html_renders_the_markdown_of_a_signature(self):
+        sig = ("Thanks!\n\n--\n\n**Ann Smith**\\\nGRN.CLOUD Support\n\n"
+               "![GRN.CLOUD](https://example.org/logo.png)\n\n"
+               "*green* cloud\\\n[example.org](https://example.org) · [mail](mailto:help@example.org)")
+        self.assertEqual(odoo_bridge.text_to_html(sig, markdown=True),
+                         "<p>Thanks!</p><p>--</p><p><strong>Ann Smith</strong><br>GRN.CLOUD Support</p>"
+                         '<p><img src="https://example.org/logo.png" alt="GRN.CLOUD" height="64"></p>'
+                         '<p><em>green</em> cloud<br><a href="https://example.org">example.org</a> · '
+                         '<a href="mailto:help@example.org">mail</a></p>')
+
+    def test_text_of_a_contact_gets_no_markdown(self):
+        self.assertEqual(odoo_bridge.text_to_html("![x](https://e.org/p.png) **b**\\\nc"),
+                         "<p>![x](https://e.org/p.png) **b**\\<br>c</p>")
+
+    def test_markdown_scan_stays_linear(self):
+        started = time.monotonic()
+        odoo_bridge.text_to_html("[a" * 20000 + " *b" * 20000 + " _c" * 20000, markdown=True)
+        self.assertLess(time.monotonic() - started, 1.0)
+
+    def test_text_to_html_keeps_everything_else_escaped_text(self):
+        for text, html_ in [
+            ("[x](javascript:alert(1))", "<p>[x](javascript:alert(1))</p>"),
+            ("![x](http://example.org/a.png)", "<p>![x](http://example.org/a.png)</p>"),
+            ('[x](https://e.org/"onmouseover=1)', '<p><a href="https://e.org/&quot;onmouseover=1">x</a></p>'),
+            ("**<b>hi</b>**", "<p><strong>&lt;b&gt;hi&lt;/b&gt;</strong></p>"),
+            ("a_file_name and 2*3*4", "<p>a_file_name and 2*3*4</p>"),
+            ("[**x**](https://e.org)", '<p><a href="https://e.org">**x**</a></p>'),
+            ("see https://e.org/_x_/y", "<p>see https://e.org/_x_/y</p>"),
+            ("files *.txt and *.py", "<p>files *.txt and *.py</p>"),
+            ("grn\\_cloud and 2\\*3", "<p>grn_cloud and 2*3</p>"),
+            ("**[x](https://e.org)**", '<p><strong><a href="https://e.org">x</a></strong></p>'),
+            ("_snake_case_ name", "<p>_snake_case_ name</p>"),
+        ]:
+            self.assertEqual(odoo_bridge.text_to_html(text, markdown=True), html_, text)
 
     def test_config_refuses_plain_http(self):
         env = {"PUBLIC_URL": "https://x", "CHATWOOT_TOKEN_FILE": "t", "INBOX_SECRET_FILE": "i", "ODOO_URL": "http://odoo",

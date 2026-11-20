@@ -27,6 +27,20 @@ account:
   # Its password is the key super-admin-password of Secret chatwoot-credentials
   adminEmail: ""
 
+# The message signature of each staff member, set by the prepare Job for every staff user
+# without one (a staff user appears at the first login and is signed at the next install or
+# upgrade). A signature a user wrote or cleared in Chatwoot stays.
+signature:
+  # Markdown: **bold**, *italic*, [links](https://...), ![images](https://...), a backslash
+  # at the end of a line for a line break. {name} becomes the staff member's display name,
+  # else their name; a name that is an address becomes its local part (s.terburg: S. Terburg).
+  # Empty: no signature is set
+  text: ""
+  # channel types where the reply editor adds the signature, unless the user switched it
+  # off there: Channel::Api (the Odoo inboxes), Channel::Email, Channel::WebWidget
+  channels:
+    - Channel::Api
+
 # the web server: dashboard, widget and API
 web:
   replicas: 1

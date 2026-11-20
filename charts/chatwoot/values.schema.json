@@ -43,6 +43,24 @@
         }
       }
     },
+    "signature": {
+      "type": "object",
+      "title": "Message signature",
+      "properties": {
+        "text": {
+          "type": "string",
+          "title": "Signature",
+          "description": "Markdown; {name} becomes the staff member's name. Empty: none"
+        },
+        "channels": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^Channel::[A-Za-z]+$"
+          }
+        }
+      }
+    },
     "web": {
       "type": "object",
       "properties": {

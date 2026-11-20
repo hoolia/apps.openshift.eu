@@ -64,6 +64,15 @@ spec:
           value: 600s
         - name: CHATWOOT_ACCOUNT_NAME
           value: {{ .Values.account.name | quote }}
+        {{- with .Values.signature }}
+        {{- if .text }}
+        # the message signature of staff users without one, and where the editor adds it
+        - name: CHATWOOT_SIGNATURE
+          value: {{ .text | quote }}
+        - name: CHATWOOT_SIGNATURE_CHANNELS
+          value: {{ join "," .channels | quote }}
+        {{- end }}
+        {{- end }}
         - name: CHATWOOT_ADMIN_EMAIL
           value: {{ include "wrapper.adminEmail" . | quote }}
         - name: CHATWOOT_ADMIN_PASSWORD
