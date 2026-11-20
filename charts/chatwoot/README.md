@@ -115,6 +115,20 @@ when they are in no other account, deletes the user with all its sessions. Then 
 the web pods (`oc rollout restart deployment/chatwoot-web`), which ends their open live
 update connection.
 
+### Message signature
+
+With `signature.text`, the prepare Job gives every staff user without a signature that
+Markdown text as their Chatwoot message signature, `{name}` replaced by their display name,
+else their name (a name that is an address becomes its local part: `s.terburg` is
+`S. Terburg`). It switches the signature on in the reply editor for the channel types of
+`signature.channels` (default `Channel::Api`, the Odoo inboxes), unless the user switched it
+off there. A signature a user wrote stays. A staff user appears at the first login and is
+signed at the next install or upgrade. The service users of the chart get none.
+
+The Odoo bridge renders the Markdown of a staff reply into the Odoo mail: bold, italic,
+`https` and `mailto` links, `https` images (64 pixels high) and a backslash at the end of a
+line as a line break. Anything else stays escaped text.
+
 ### Network
 
 The chart's NetworkPolicies admit the paths between its own components, but they add to

@@ -242,10 +242,39 @@ def html_to_text(body):
     return re.sub(r"\n{3,}", "\n\n", text).strip()
 
 
+# the Markdown a staff reply or signature uses; anything else stays text
+_MARKDOWN = re.compile(
+    r"!\[(?P<alt>[^\]\n]*)\]\((?P<src>https://[^\s()]+)\)"
+    r"|\[(?P<label>[^\]\n]+)\]\((?P<href>(?:https://|mailto:)[^\s()]+)\)"
+    r"|\*\*(?P<strong>[^*\n]+)\*\*"
+    r"|(?<![\w*])\*(?P<em>[^*\s][^*\n]*?)\*(?![\w*])"
+    r"|(?<![\w_])_(?P<em2>[^_\s][^_\n]*?)_(?![\w_])")
+
+
+def _inline(text):
+    out, pos = [], 0
+    for m in _MARKDOWN.finditer(text):
+        out.append(html.escape(text[pos:m.start()]))
+        pos = m.end()
+        if m["src"]:
+            out.append('<img src="%s" alt="%s" height="64">' % (html.escape(m["src"]), html.escape(m["alt"])))
+        elif m["href"]:
+            out.append('<a href="%s">%s</a>' % (html.escape(m["href"]), html.escape(m["label"])))
+        elif m["strong"]:
+            out.append("<strong>%s</strong>" % html.escape(m["strong"]))
+        else:
+            out.append("<em>%s</em>" % html.escape(m["em"] or m["em2"]))
+    out.append(html.escape(text[pos:]))
+    return "".join(out)
+
+
 def text_to_html(text):
-    """A staff reply as Odoo mail HTML: escaped, one paragraph per block, line breaks kept."""
-    blocks = [b for b in re.split(r"\n\s*\n", (text or "").strip()) if b.strip()]
-    return "".join("<p>%s</p>" % html.escape(b.strip()).replace("\n", "<br>") for b in blocks)
+    """A staff reply as Odoo mail HTML: one paragraph per block, line breaks kept (also the
+    Markdown hard break, a backslash at the end of a line), bold, italic, https and mailto
+    links and https images rendered; everything else escaped text."""
+    text = re.sub(r"\\\n", "\n", (text or "").strip())
+    blocks = [b for b in re.split(r"\n\s*\n", text) if b.strip()]
+    return "".join("<p>%s</p>" % _inline(b.strip()).replace("\n", "<br>") for b in blocks)
 
 
 def bare_email(value):

@@ -1516,6 +1516,27 @@ class PureTest(unittest.TestCase):
     def test_text_to_html(self):
         self.assertEqual(odoo_bridge.text_to_html("a\nb\n\n\nc & d"), "<p>a<br>b</p><p>c &amp; d</p>")
 
+    def test_text_to_html_renders_the_markdown_of_a_signature(self):
+        sig = ("Thanks!\n\n--\n\n**Ann Smith**\\\nGRN.CLOUD Support\n\n"
+               "![GRN.CLOUD](https://example.org/logo.png)\n\n"
+               "*green* cloud\\\n[example.org](https://example.org) · [mail](mailto:help@example.org)")
+        self.assertEqual(odoo_bridge.text_to_html(sig),
+                         "<p>Thanks!</p><p>--</p><p><strong>Ann Smith</strong><br>GRN.CLOUD Support</p>"
+                         '<p><img src="https://example.org/logo.png" alt="GRN.CLOUD" height="64"></p>'
+                         '<p><em>green</em> cloud<br><a href="https://example.org">example.org</a> · '
+                         '<a href="mailto:help@example.org">mail</a></p>')
+
+    def test_text_to_html_keeps_everything_else_escaped_text(self):
+        for text, html_ in [
+            ("[x](javascript:alert(1))", "<p>[x](javascript:alert(1))</p>"),
+            ("![x](http://example.org/a.png)", "<p>![x](http://example.org/a.png)</p>"),
+            ('[x](https://e.org/"onmouseover=1)', '<p><a href="https://e.org/&quot;onmouseover=1">x</a></p>'),
+            ("**<b>hi</b>**", "<p><strong>&lt;b&gt;hi&lt;/b&gt;</strong></p>"),
+            ("a_file_name and 2*3*4", "<p>a_file_name and 2*3*4</p>"),
+            ("[**x**](https://e.org)", '<p><a href="https://e.org">**x**</a></p>'),
+        ]:
+            self.assertEqual(odoo_bridge.text_to_html(text), html_, text)
+
     def test_config_refuses_plain_http(self):
         env = {"PUBLIC_URL": "https://x", "CHATWOOT_TOKEN_FILE": "t", "INBOX_SECRET_FILE": "i", "ODOO_URL": "http://odoo",
                "ODOO_API_KEY_FILE": "k", "EVENT_SECRET_FILE": "e"}
