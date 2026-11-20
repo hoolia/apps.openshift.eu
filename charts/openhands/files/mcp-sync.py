@@ -537,8 +537,8 @@ def to_server(obj: dict) -> tuple[dict | None, str]:
         "url": url,
         "transport": "sse" if spec.get("protocol") == "SSE" else "streamable-http",
         "description": f"{DESCRIPTION_PREFIX}{meta['namespace']}/{meta['name']}",
-        # milliseconds: fastmcp 4 reads an MCPConfig timeout in ms
-        "timeout": 60000,
+        # seconds, as the UI writes it; mcp_timeout_seconds converts it for fastmcp
+        "timeout": 60,
     }
     icon = (meta.get("annotations") or {}).get(ICON_ANNOTATION)
     if not icon:
