@@ -80,6 +80,13 @@ spec:
           value: /var/run/secrets/api-token/token
         - name: UPSTREAM
           value: {{ .Values.gateway.upstream | quote }}
+        {{- if include "openhands.separateMcpUpstream" . }}
+        # /mcp goes to the MCP gateway, with a token for that gateway
+        - name: MCP_UPSTREAM
+          value: {{ include "openhands.mcpUpstream" . | quote }}
+        - name: MCP_TOKEN_FILE
+          value: /var/run/secrets/mcp-token/token
+        {{- end }}
         - name: PORT
           value: {{ .Values.tokenProxy.port | quote }}
         {{- with .Values.tokenProxy.agentToken }}
@@ -109,6 +116,11 @@ spec:
         - name: api-token
           mountPath: /var/run/secrets/api-token
           readOnly: true
+        {{- if include "openhands.separateMcpUpstream" . }}
+        - name: mcp-token
+          mountPath: /var/run/secrets/mcp-token
+          readOnly: true
+        {{- end }}
         {{- if .Values.tokenProxy.agentToken.tokenUrl }}
         - name: agent-token
           mountPath: /var/run/secrets/agent-token
@@ -346,14 +358,12 @@ spec:
           value: {{ join "," ($mcp.bundles | default list) | quote }}
         - name: SERVERS
           value: {{ join "," (include "openhands.mcpServerNames" . | fromJsonArray) | quote }}
-        # public servers: used only when their name is in SERVERS
-        - name: PUBLIC_SERVERS
-          value: {{ join "," (include "openhands.mcpPublicServers" . | fromJsonArray) | quote }}
         # mcp.servers with a url or an auth; credentials are read from the mounted files
         - name: SERVER_SETTINGS
           value: {{ include "openhands.mcpServerSettings" . | quote }}
+        # RemoteMCPServers on the MCP gateway go through the token proxy
         - name: UPSTREAM
-          value: {{ .Values.gateway.upstream | quote }}
+          value: {{ include "openhands.mcpUpstream" . | quote }}
         - name: TOKEN_PROXY_PORT
           value: {{ .Values.tokenProxy.port | quote }}
         {{- if and .Values.gateway.upstream .Values.tokenProxy.agentToken.tokenUrl }}
@@ -520,6 +530,16 @@ spec:
               {{- end }}
               expirationSeconds: 3600
               path: token
+      {{- if include "openhands.separateMcpUpstream" . }}
+      # the agent's credential for the MCP gateway
+      - name: mcp-token
+        projected:
+          sources:
+          - serviceAccountToken:
+              audience: {{ include "openhands.mcpAudience" . }}
+              expirationSeconds: 3600
+              path: token
+      {{- end }}
       {{- with .Values.tokenProxy.agentToken }}
       {{- if .tokenUrl }}
       # proves the agent's identity to the OpenID Connect provider; short-lived as it asks

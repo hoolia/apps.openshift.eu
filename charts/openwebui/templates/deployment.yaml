@@ -149,7 +149,7 @@ spec:
               name: {{ .Values.qdrant.apiKeySecret.name }}
               key: {{ .Values.qdrant.apiKeySecret.key }}
         {{- end }}
-        {{- if or .Values.mcp.enabled .Values.mcp.options }}
+        {{- if or .Values.mcp.enabled (and .Values.gateway.upstream (or .Values.mcp.catalog (include "openwebui.teamMcpTarget" .))) }}
         - name: TOOL_SERVER_CONNECTIONS
           value: {{ include "openwebui.toolServers" . | quote }}
         {{- end }}

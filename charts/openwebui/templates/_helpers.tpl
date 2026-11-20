@@ -70,11 +70,14 @@ the cluster, else a new random one. Takes value, existing (Secret data), key, le
 {{- end -}}
 {{- $ids := list -}}
 {{- range $endpoints }}{{ $ids = append $ids .id }}{{ end -}}
-{{- range (.Values.mcp.options | default list) -}}
-{{- $server := index ($.Values.mcp.catalog | default dict) . -}}
-{{- if not $server }}{{ fail (printf "mcp.options: %q is not in mcp.catalog" .) }}{{ end -}}
-{{- if not $.Values.gateway.upstream }}{{ fail (printf "mcp.options %s: needs gateway.upstream" .) }}{{ end -}}
-{{- if not (has . $ids) }}{{ $endpoints = append $endpoints (dict "id" . "endpoint" (printf "public/%s" $server)) }}{{ end -}}
+{{- if .Values.gateway.upstream -}}
+{{- /* the platform's public servers, always, each its own tool server */ -}}
+{{- range $name, $server := (.Values.mcp.catalog | default dict) -}}
+{{- if not (has $name $ids) }}{{ $endpoints = append $endpoints (dict "id" $name "endpoint" (printf "public/%s" $server)) }}{{ end -}}
+{{- end -}}
+{{- with include "openwebui.teamMcpTarget" . -}}
+{{- if not (has . $ids) }}{{ $endpoints = append $endpoints (dict "id" . "endpoint" (printf "%s/%s" (include "openwebui.namespace" $) .)) }}{{ end -}}
+{{- end -}}
 {{- end -}}
 {{- $connections := list -}}
 {{- range $endpoints -}}
@@ -108,3 +111,12 @@ seccompProfile:
 {{- .Release.Namespace -}}
 {{- end -}}
 {{- end -}}
+
+{{/* The team Playwright server (mcp-playwright.enabled): its target name, else nothing */}}
+{{- define "openwebui.teamMcpTarget" -}}
+{{- $pw := index .Values "mcp-playwright" | default dict -}}
+{{- if $pw.enabled -}}
+{{- ($pw.mcp | default dict).targetName | default (printf "%s%s" .Release.Name ($pw.nameSuffix | default "") | trunc 63 | trimSuffix "-") -}}
+{{- end -}}
+{{- end -}}
+

@@ -232,6 +232,69 @@ class ForwardTest(ProxyCase):
         self.assertEqual(resp.status, 503)
 
 
+class McpUpstreamTest(ProxyCase):
+    """MCP_UPSTREAM: /mcp goes to the MCP gateway with a token for that gateway."""
+
+    def start(self, token_file=None):
+        self.mcp = FakeUpstream()
+        self.mcp_token_file = os.path.join(os.path.dirname(self.token_file), "mcp-token")
+        with open(self.mcp_token_file, "w") as handle:
+            handle.write("mcp-audience\n")
+        self.settings = tp.Settings(
+            token_file=token_file or self.token_file,
+            upstream=self.upstream.url,
+            port=0,
+            mcp_upstream=self.mcp.url,
+            mcp_token_file=self.mcp_token_file,
+        )
+        self.proxy = tp.build_server(self.settings, port=0)
+        threading.Thread(target=self.proxy.serve_forever, daemon=True).start()
+        self.addCleanup(self.proxy.shutdown)
+        self.addCleanup(self.proxy.server_close)
+        self.port = self.proxy.server_port
+
+    def test_mcp_path_goes_to_the_mcp_upstream_with_its_token(self):
+        _, resp = self.get("/mcp/public/playwright")
+        resp.read()
+        self.assertEqual(resp.status, 200)
+        self.assertEqual(self.upstream.requests, [])
+        method, path, headers, _ = self.mcp.requests[0]
+        self.assertEqual(path, "/mcp/public/playwright")
+        self.assertEqual(headers["Authorization"], "Bearer mcp-audience")
+        self.assertEqual(headers["Host"], self.mcp.url.split("://", 1)[1])
+
+    def test_model_path_stays_on_the_upstream_with_the_pod_token(self):
+        _, resp = self.get("/v1/models")
+        resp.read()
+        self.assertEqual(self.mcp.requests, [])
+        self.assertEqual(self.upstream.requests[0][2]["Authorization"], "Bearer projected-1")
+
+    def test_a_path_that_only_starts_with_mcp_stays_on_the_upstream(self):
+        _, resp = self.get("/mcpx")
+        resp.read()
+        self.assertEqual(self.mcp.requests, [])
+        self.assertEqual(self.upstream.requests[0][1], "/mcpx")
+
+    def test_mcp_upstream_without_its_token_file_is_refused(self):
+        settings = tp.Settings(token_file=self.token_file, upstream=self.upstream.url, port=0, mcp_upstream=self.mcp.url)
+        with self.assertRaises(tp.ConfigError):
+            settings.validate()
+
+    def test_settings_from_env_read_the_mcp_variables(self):
+        keys = ("UPSTREAM", "MCP_UPSTREAM", "MCP_TOKEN_FILE")
+        saved = {k: os.environ.pop(k, None) for k in keys}
+        try:
+            os.environ.update({"UPSTREAM": "https://llm.example", "MCP_UPSTREAM": "https://mcp.example/", "MCP_TOKEN_FILE": "/t/mcp"})
+            settings = tp.Settings.from_env()
+        finally:
+            for k, v in saved.items():
+                if v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = v
+        self.assertEqual((settings.mcp_upstream, settings.mcp_token_file), ("https://mcp.example", "/t/mcp"))
+
+
 class SettingsTest(unittest.TestCase):
     def test_upstream_has_no_default(self):
         saved = {k: os.environ.pop(k, None) for k in ("UPSTREAM", "TOKEN_FILE")}

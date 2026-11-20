@@ -194,13 +194,7 @@ secrets.externalSecret.items.approvalSigningKey; empty: no key */}}
 {{- end -}}
 {{- end -}}
 
-{{/* mcp.servers, then the catalog server of each mcp.options name */}}
+{{/* mcp.servers, each once */}}
 {{- define "hermes.mcpServerNames" -}}
-{{- $names := .Values.mcp.servers | default list -}}
-{{- range (.Values.mcp.options | default list) -}}
-{{- $server := index ($.Values.mcp.catalog | default dict) . -}}
-{{- if not $server }}{{ fail (printf "mcp.options: %q is not in mcp.catalog" .) }}{{ end -}}
-{{- $names = append $names $server -}}
-{{- end -}}
-{{- toJson ($names | uniq) -}}
+{{- toJson (.Values.mcp.servers | default list | uniq) -}}
 {{- end -}}

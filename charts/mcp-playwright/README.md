@@ -10,6 +10,7 @@ Runs one [Playwright MCP](https://github.com/microsoft/playwright-mcp) server in
 Choices:
 
 - The Service port carries `appProtocol: agentgateway.dev/mcp` and the annotations `agentgateway.dev/mcp-path` and `agentgateway.dev/mcp-target-name`, so an agentgateway backend with a label selector discovers it and prefixes its tools with the target name (default: the release name).
+- `nameSuffix` (default empty) is appended to the release name for every object, the pod labels and the default target name. The agent charts that include this chart set `-playwright`, so its objects do not take the agent's names.
 - Every MCP session gets its own in-memory browser profile (`--isolated`); sessions share no cookies or storage.
 - The pod has no ServiceAccount token and no browser sandbox of its own; the pod is the sandbox (non-root, no capabilities, `RuntimeDefault` seccomp).
 - A NetworkPolicy admits callers from the own project and from `networkPolicy.ingressNamespaces` only, and lets the browser reach cluster DNS and the public internet, never private ranges (`networkPolicy.egress.exceptCidrs` plus your own public ranges in `extraExceptCidrs`).
