@@ -33,7 +33,7 @@ jobs:
     - name: Test agent-identity token proxy
       run: python3 -m unittest images/agent-identity/test_token_proxy.py
     - name: Test openhands MCP sync agent token routing
-      run: python3 -m unittest ci/test_openhands_mcp_sync.py
+      run: python3 -m unittest ci/test_openhands_mcp_sync.py ci/test_openhands_image.py
     - name: Test the Renovate release step
       run: python3 -m unittest ci/test_renovate_release.py
     - name: Test openhands editor chat sync
