@@ -121,7 +121,7 @@ spec:
   description: Kubernetes tools of the example agents; they read this namespace only
   protocol: STREAMABLE_HTTP
   url: http://{{ $name }}.{{ .Release.Namespace }}:8084/mcp
-  timeout: 30s
+  timeout: 300s
   sseReadTimeout: 5m0s
   terminateOnClose: true
   allowedNamespaces:

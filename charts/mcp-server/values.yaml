@@ -115,7 +115,8 @@ remoteMCPServer:
   url: ""
   # Same: agents of this project only; All: every project
   allowedNamespaces: Same
-  timeout: 60s
+  # One MCP tool call; the same as the platform gateway and every MCP client
+  timeout: 300s
   sseReadTimeout: 5m0s
 
 # The server's credential Secret from a secret store (External Secrets Operator)

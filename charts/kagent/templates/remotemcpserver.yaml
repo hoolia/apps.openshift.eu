@@ -54,7 +54,7 @@ spec:
   description: {{ required "remoteMCPServers[].description is required" $s.description | quote }}
   url: {{ required "remoteMCPServers[].url is required" $s.url | quote }}
   protocol: {{ $s.protocol | default "STREAMABLE_HTTP" }}
-  timeout: {{ $s.timeout | default "30s" }}
+  timeout: {{ $s.timeout | default "300s" }}
   sseReadTimeout: {{ $s.sseReadTimeout | default "5m0s" }}
   terminateOnClose: true
   {{- with $s.headers }}
