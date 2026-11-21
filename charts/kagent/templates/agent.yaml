@@ -67,7 +67,8 @@ spec:
 ---
 # Bearer the gateway sends upstream. A Declarative agent checks no bearer, so this is
 # a fixed placeholder, not a secret: the gateway's caller check and the NetworkPolicy
-# below are the boundary
+# below are the boundary; for the namespaces of a2a.callerNamespaceSelector the
+# NetworkPolicy alone
 apiVersion: v1
 kind: Secret
 metadata:

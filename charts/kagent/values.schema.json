@@ -453,7 +453,42 @@
           "type": "string"
         },
         "callerNamespaceSelector": {
-          "type": "object"
+          "description": "LabelSelector of namespaces that reach the A2A port without the gateway; empty: none. A present selector must hold at least one label or expression: an empty one selects every namespace",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "matchLabels": {
+              "type": "object",
+              "minProperties": 1,
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "matchExpressions": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["key", "operator"],
+                "properties": {
+                  "key": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "operator": {
+                    "enum": ["In", "NotIn", "Exists", "DoesNotExist"]
+                  },
+                  "values": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
         }
       }
     }
