@@ -480,19 +480,22 @@ agentBot:
   # posted to the customer when the agent does not answer; the conversation then goes to a
   # person. Empty: nothing
   failureMessage: Sorry, I cannot answer right now. A colleague will take over this conversation.
-  # quotations from the chat: an answer of the agent that is a line "<marker> {json}" never
-  # reaches the visitor; the bridge passes the JSON to Odoo (sale.order grncloud_chat_quote
-  # of module grncloud_chat_order) with the bridge's Odoo key, so it needs
+  # quotations from the chat: an answer of the agent that holds "<marker> {json}" never
+  # reaches the visitor, none of it; the bridge passes the JSON to the quotation method of
+  # an Odoo module (README, Quotations) with the bridge's Odoo key, so it needs
   # odoo.website.identity.records. Odoo checks products, options and limits, makes the
   # quotation on the verified customer's own partner or a new contact, and mails it; the
   # visitor gets sentMessage ({order}, {email}) or refusedMessage ({error}). A failure of
   # Odoo hands the conversation to a person
   quotations:
     enabled: false
+    # the word before the JSON object, upper case; the agent's instructions must name it
     marker: QUOTE
+    # to the visitor after Odoo sent the quotation; {order} and {email} only
     sentMessage: >-
       Quotation {order} is on its way to {email}. Review it in the customer portal, then sign
       and pay it there to order; nothing is ordered before that.
+    # to the visitor when Odoo refused; {error} only
     refusedMessage: "I could not make that quotation: {error}"
 
 # A panel in the conversation sidebar (Chatwoot Dashboard App) where staff ask the agent to

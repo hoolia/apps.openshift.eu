@@ -612,6 +612,76 @@ class QuoteTest(Base):
         self.assertEqual(self.answers(), ["A quote costs nothing."])
         self.assertEqual(odoo.calls, [])
 
+    def test_marker_inside_a_line_or_with_a_colon_never_leaks(self):
+        for prefix in ("Sure! ", "Here: ", ""):
+            for sep in (" ", ": ", ":"):
+                odoo = FakeQuoteOdoo()
+                self.state["chatwoot"].clear()
+                self.state["agent"] = lambda b, t=prefix + "QUOTE" + sep + json.dumps(QUOTE): message(t)
+                self.bot(odoo).handle(event())
+                self.assertEqual(len(odoo.calls), 1, prefix + sep)
+                self.assertNotIn("product_id", "".join(self.answers()))
+
+    def test_json_over_several_lines_is_read(self):
+        odoo = FakeQuoteOdoo()
+        self.state["agent"] = lambda b: message("QUOTE " + json.dumps(QUOTE, indent=2) + "\nThanks!")
+        self.bot(odoo).handle(event())
+        self.assertEqual(odoo.calls[0][2]["quote"], QUOTE)
+        self.assertEqual(len(self.answers()), 1)
+        self.assertNotIn("Thanks", self.answers()[0])
+
+    def test_marker_without_an_object_is_plain_text(self):
+        odoo = FakeQuoteOdoo()
+        self.state["agent"] = lambda b: message("QUOTE requests take a minute.")
+        self.bot(odoo).handle(event())
+        self.assertEqual(self.answers(), ["QUOTE requests take a minute."])
+        self.assertEqual(odoo.calls, [])
+
+    def test_quote_and_handoff_in_one_answer_does_both(self):
+        self.state["agent"] = lambda b: message("QUOTE " + json.dumps(QUOTE) + "\nHANDOFF")
+        odoo = FakeQuoteOdoo()
+        self.bot(odoo).handle(event())
+        self.assertEqual(len(odoo.calls), 1)
+        self.assertIn("S00042", self.answers()[0])
+        self.assertEqual(self.answers()[1], "A colleague takes over.")
+        self.assertTrue(self.paths()[-1].endswith("/toggle_status"))
+
+    def test_ok_without_order_hands_off(self):
+        self.quote_answer()
+        bot = self.bot(FakeQuoteOdoo(answer={"ok": True}))
+        bot.handle(event())
+        self.assertEqual(self.answers(), ["Sorry."])
+        self.assertIn("may or may not exist", bot.notes[(1, 7)])
+
+    def test_note_survives_a_failed_agent_call(self):
+        self.quote_answer()
+        bot = self.bot()
+        bot.handle(event())
+        self.state["agent"] = lambda b: 500
+        bot.handle(event("Thanks"))
+        self.state["agent"] = lambda b: message("Welcome.")
+        bot.handle(event("Hello?"))
+        self.assertIn("made quotation S00042", self.text())
+
+    def test_notes_stay_with_their_conversation(self):
+        self.quote_answer()
+        bot = self.bot()
+        bot.handle(event())
+        other = event("Hi")
+        other["conversation"]["id"] = 8
+        self.state["agent"] = lambda b: message("Hello.")
+        bot.handle(other)
+        self.assertNotIn("Your QUOTE", self.text())
+        other = event("Hi")
+        other["account"] = {"id": 2}
+        bot.handle(other)
+        self.assertNotIn("Your QUOTE", self.text())
+
+    def test_broken_message_templates_stop_the_start(self):
+        for env in ({"QUOTE_SENT_MESSAGE": "Quote {Order}"}, {"QUOTE_REFUSED_MESSAGE": "No: {"}):
+            with self.assertRaises(ValueError):
+                self.bot(**env)
+
     def test_quotations_need_odoo(self):
         with self.assertRaises(ValueError):
             agent_bot.Config({**self.env, "QUOTATIONS": "1"})

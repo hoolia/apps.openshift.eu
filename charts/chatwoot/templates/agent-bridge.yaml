@@ -98,7 +98,7 @@ spec:
         {{- if not (include "wrapper.botRecords" $) }}
         {{- fail "agentBot.quotations.enabled needs odoo.website.identity.records: the bridge's Odoo key" }}
         {{- end }}
-        # a QUOTE answer of the bot's agent becomes an Odoo quotation (grncloud_chat_order)
+        # a QUOTE answer of the bot's agent becomes an Odoo quotation (see README, Quotations)
         - name: QUOTATIONS
           value: "1"
         - name: QUOTE_MARKER

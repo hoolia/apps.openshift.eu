@@ -278,15 +278,23 @@ sequenceDiagram
     Note over B,A: next message: "[Bridge] Your QUOTE made quotation S00042"
 ```
 
-- An answer with a line `<marker> {json}` never reaches the visitor; text before it is
-  dropped too.
+- An answer that holds `<marker> {json}` (the marker as a word, then the object, which may
+  span lines) never reaches the visitor, none of it. The marker without `{` is plain text.
+- The JSON object, checked by Odoo: `product_id` (from the agent's catalog tool),
+  `options` (name to value), `quantity`, or `lines` with several such objects instead;
+  `contact` (`name`, `email`, `phone`) and `company` (`name`, `kvk_number`, `vat`,
+  `street`, `zip`, `city`, `country`). A logged-in customer's contact and company come from
+  Odoo, not from the JSON.
 - Only a verified email goes to Odoo as `verified_email`. Odoo puts the quotation on that
   customer's own partner; for anyone else it makes a new contact from the JSON.
 - Odoo checks the products, options, prices and limits and mails the quotation. The visitor
   gets `sentMessage` (`{order}`, `{email}`) or `refusedMessage` (`{error}`); the agent gets
   the outcome in the bridge note of the next message.
-- A failure of Odoo, or an answer that is no `{"ok": ...}` object, hands the conversation
-  to a person with `agentBot.failureMessage`.
+- A failure of Odoo, or an answer that is no `{"ok": ...}` object or names no order, hands
+  the conversation to a person with `agentBot.failureMessage`. A `HANDOFF` in the same
+  answer hands off after the quotation.
+- `sentMessage` and `refusedMessage` are checked at start: an unknown `{placeholder}` stops
+  the bridge.
 
 ### Agent panel
 
