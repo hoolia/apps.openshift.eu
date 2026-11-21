@@ -1,0 +1,31 @@
+{{- if .Values.monitoring.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: codex-worker
+    app.kubernetes.io/name: codex-worker
+    app.kubernetes.io/component: worker
+    {{- include "codex-worker.commonLabels" . | nindent 4 }}
+spec:
+  namespaceSelector:
+    matchNames:
+    - {{ .Release.Namespace }}
+  selector:
+    matchLabels:
+      app: codex-worker
+      app.kubernetes.io/part-of: {{ .Release.Name | quote }}
+  endpoints:
+  - port: https
+    path: /metrics
+    scheme: https
+    interval: {{ .Values.monitoring.interval }}
+    tlsConfig:
+      serverName: {{ printf "%s.%s.svc" .Release.Name .Release.Namespace | quote }}
+      ca:
+        configMap:
+          name: {{ if .Values.tls.openshift.injectServiceCa }}{{ .Release.Name }}-service-ca{{ else }}{{ .Values.tls.caConfigMap.name }}{{ end }}
+          key: {{ if .Values.tls.openshift.injectServiceCa }}service-ca.crt{{ else }}{{ .Values.tls.caConfigMap.key }}{{ end }}
+{{- end }}

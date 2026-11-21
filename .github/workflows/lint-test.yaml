@@ -63,6 +63,8 @@ jobs:
         sudo tar -xzf /tmp/prometheus.tgz -C /usr/local/bin --strip-components=1 prometheus-3.5.0.linux-amd64/promtool
     - name: Test chatwoot alert rules
       run: ci/test-chatwoot-alerts.sh
+    - name: Test codex-worker chart
+      run: python3 -m unittest discover -s charts/codex-worker/ci -p 'test_*.py'
     - name: Test chatwoot login bridge
       run: python3 -m unittest ci/test_chatwoot_login_bridge.py ci/test_chatwoot_route_host.py ci/test_chatwoot_start.py ci/test_chatwoot_agent_bot.py ci/test_chatwoot_odoo_bridge.py ci/test_chatwoot_odoo_panel.py
     - name: Test chatwoot initializer

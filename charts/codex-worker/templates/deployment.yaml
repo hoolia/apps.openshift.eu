@@ -1,0 +1,175 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: codex-worker
+    app.kubernetes.io/name: codex-worker
+    app.kubernetes.io/component: worker
+    {{- include "codex-worker.commonLabels" . | nindent 4 }}
+    app.openshift.io/runtime: nodejs
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: codex-worker
+      app.kubernetes.io/part-of: {{ .Release.Name | quote }}
+  template:
+    metadata:
+      labels:
+        app: codex-worker
+        app.kubernetes.io/name: codex-worker
+        app.kubernetes.io/component: worker
+        app.kubernetes.io/part-of: {{ .Release.Name | quote }}
+      annotations:
+        checksum/credentials: {{ toJson .Values.secrets | sha256sum }}
+    spec:
+      serviceAccountName: {{ .Release.Name }}
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- with .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+      # a subPath the kubelet creates is root-owned; the worker refuses it
+      - name: state-init
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command:
+        - sh
+        - -c
+        - umask 077 && mkdir -p /volume/state /volume/exchange
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+          limits:
+            memory: 64Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        volumeMounts:
+        - name: state
+          mountPath: /volume
+      containers:
+      - name: worker
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        env:
+        - name: HOME
+          value: /tmp
+        - name: TMPDIR
+          value: /tmp
+        - name: CODEX_WORKER_HOST
+          value: "0.0.0.0"
+        - name: CODEX_WORKER_PORT
+          value: "3443"
+        - name: CODEX_AUTH_STATE_DIR
+          value: /var/lib/codex/state
+        - name: CODEX_EXCHANGE_DIR
+          value: /var/lib/codex/exchange
+        - name: CODEX_AGENT_URL
+          value: http://127.0.0.1:3444
+        - name: CODEX_WORKER_TLS_CERT_FILE
+          value: /etc/codex-worker/tls/tls.crt
+        - name: CODEX_WORKER_TLS_KEY_FILE
+          value: /etc/codex-worker/tls/tls.key
+        - name: CI_API_V4_URL
+          value: {{ .Values.gitlab.apiV4Url | quote }}
+        - name: CI_PROJECT_ID
+          value: {{ .Values.gitlab.projectId | quote }}
+        - name: CODEX_AUTH_STORE_PROJECT_ID
+          value: {{ .Values.authStore.projectId | quote }}
+        - name: CODEX_WORKER_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: {{ default (printf "%s-worker-token" .Release.Name) .Values.secrets.workerTokenSecret }}
+              key: token
+        - name: CODEX_AUTH_STORE_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: {{ default (printf "%s-auth-store-token" .Release.Name) .Values.secrets.authStoreTokenSecret }}
+              key: token
+        ports:
+        - name: https
+          containerPort: 3443
+          protocol: TCP
+        readinessProbe:
+          tcpSocket:
+            port: https
+          periodSeconds: 10
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+        - name: state
+          mountPath: /var/lib/codex/state
+          subPath: state
+        - name: state
+          mountPath: /var/lib/codex/exchange
+          subPath: exchange
+        - name: tls
+          mountPath: /etc/codex-worker/tls
+          readOnly: true
+      # runs the CLI; holds no Secret, token or private state
+      - name: codex
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command:
+        - node
+        - scripts/codex-exec-agent.mjs
+        env:
+        - name: HOME
+          value: /tmp
+        - name: TMPDIR
+          value: /tmp
+        - name: CODEX_EXCHANGE_DIR
+          value: /var/lib/codex/exchange
+        - name: CODEX_AGENT_PORT
+          value: "3444"
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        volumeMounts:
+        - name: codex-tmp
+          mountPath: /tmp
+        - name: state
+          mountPath: /var/lib/codex/exchange
+          subPath: exchange
+      volumes:
+      - name: tmp
+        emptyDir: {}
+      - name: codex-tmp
+        emptyDir: {}
+      - name: state
+        persistentVolumeClaim:
+          claimName: {{ default (printf "%s-state" .Release.Name) .Values.storage.existingClaim }}
+      - name: tls
+        secret:
+          secretName: {{ if .Values.tls.openshift.enabled }}{{ .Release.Name }}-tls{{ else }}{{ .Values.tls.existingSecret }}{{ end }}
+          defaultMode: 0444

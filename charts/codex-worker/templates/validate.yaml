@@ -1,0 +1,32 @@
+{{- if and (eq .Values.secrets.type "kubernetes") (not (and .Values.secrets.workerTokenSecret .Values.secrets.authStoreTokenSecret)) }}
+{{- fail "secrets.workerTokenSecret and secrets.authStoreTokenSecret are required with secrets.type=kubernetes" }}
+{{- end }}
+{{- if eq .Values.gitlab.projectId .Values.authStore.projectId }}
+{{- fail "authStore.projectId must be separate from gitlab.projectId" }}
+{{- end }}
+{{- if and (not .Values.storage.existingClaim) (not .Values.storage.storageClass) }}
+{{- fail "storage.storageClass is required unless storage.existingClaim is supplied" }}
+{{- end }}
+{{- if .Values.tls.openshift.enabled }}
+{{- if .Values.tls.existingSecret }}{{ fail "tls.existingSecret requires tls.openshift.enabled=false" }}{{ end }}
+{{- else }}
+{{- if not .Values.tls.existingSecret }}{{ fail "tls.existingSecret is required when tls.openshift.enabled=false" }}{{ end }}
+{{- if .Values.tls.openshift.injectServiceCa }}{{ fail "tls.openshift.injectServiceCa requires tls.openshift.enabled=true" }}{{ end }}
+{{- end }}
+{{- if and .Values.tls.openshift.injectServiceCa .Values.tls.caConfigMap.name }}
+{{- fail "tls.caConfigMap.name requires tls.openshift.injectServiceCa=false" }}
+{{- end }}
+{{- if and .Values.monitoring.enabled (not .Values.tls.openshift.injectServiceCa) (not .Values.tls.caConfigMap.name) }}
+{{- fail "tls.caConfigMap.name is required for monitoring without service CA injection" }}
+{{- end }}
+{{- if .Values.networkPolicy.enabled }}
+{{- if not .Values.networkPolicy.runnerNamespaceSelector }}{{ fail "networkPolicy.runnerNamespaceSelector is required" }}{{ end }}
+{{- if not .Values.networkPolicy.egress.dnsNamespaceSelector }}{{ fail "networkPolicy.egress.dnsNamespaceSelector is required" }}{{ end }}
+{{- if and .Values.monitoring.enabled (not .Values.networkPolicy.monitoringNamespaceSelector) }}
+{{- fail "networkPolicy.monitoringNamespaceSelector is required with monitoring" }}
+{{- end }}
+{{- end }}
+{{- if .Values.monitoring.rules.enabled }}
+{{- if not .Values.monitoring.enabled }}{{ fail "monitoring.rules.enabled requires monitoring.enabled=true" }}{{ end }}
+{{- if not .Values.monitoring.rules.runbookUrl }}{{ fail "monitoring.rules.runbookUrl is required" }}{{ end }}
+{{- end }}
