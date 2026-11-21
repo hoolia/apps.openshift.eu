@@ -18,9 +18,12 @@ and the bridge's own incoming messages are never mirrored.
 
 Website chat, with WEBSITE_INBOX: the account webhook posts to /chatwoot/website, signed with
 the same secret; the bridge acts only on conversations of that inbox. The first visitor
-message creates a helpdesk.ticket for the visitor's address (the pre-chat form asks for it),
-at most WEBSITE_TICKETS_PER_EMAIL per address in 24 hours and WEBSITE_TICKETS_PER_HOUR in
-all; over a limit staff get a private note instead. Every public chat message, the
+message creates a helpdesk.ticket, at most WEBSITE_TICKETS_PER_EMAIL per address in 24 hours
+and WEBSITE_TICKETS_PER_HOUR in all; over a limit staff get a private note instead. A visitor
+the website verified (Chatwoot identity validation, meta.hmac_verified) gets the ticket on the
+partner of the signed identifier. Any other visitor's ticket goes to one neutral partner,
+WEBSITE_VISITOR_PARTNER (ref chatwoot-website-visitor, created once), whatever address the
+pre-chat form took: that name and address stay text in the ticket for staff to confirm. Every public chat message, the
 visitor's and staff's, is copied to the record as an internal note, so Odoo mails nobody:
 the widget already showed it. The label SALES_LABEL moves the chat to a new crm.lead with
 the transcript and cancels the ticket.
@@ -99,6 +102,12 @@ MOVED_NOTE = "This conversation moved to sales:"
 FROM_NOTE = "Moved from the support conversation"
 TICKET_FIELDS = ["name", "partner_id", "partner_email", "partner_name", "team_id"]
 LIMIT_NOTE = "No Odoo ticket for this chat"
+# res.partner ref of the neutral partner of chats the website did not verify
+VISITOR_REF = "chatwoot-website-visitor"
+# the line of a chat ticket's description with the address an unverified visitor typed
+CLAIMED = "Claimed address, unverified: "
+# the identifier Chatwoot verified: an address, as the website signs it
+EMAIL = re.compile(r"^[^@\s<>]{1,64}@[A-Za-z0-9.-]{1,253}\.[A-Za-z]{2,63}$")
 CONVERSATION_PATH = re.compile(r"/conversations/(\d+)/?$")
 MODELS = {
     "helpdesk.ticket": {
@@ -146,6 +155,8 @@ class Config:
         self.website_team = env.get("WEBSITE_TEAM", "").strip()
         self.website_per_email = int(env.get("WEBSITE_TICKETS_PER_EMAIL", "3"))
         self.website_per_hour = int(env.get("WEBSITE_TICKETS_PER_HOUR", "20"))
+        # the partner of every chat ticket the website did not verify
+        self.website_visitor = env.get("WEBSITE_VISITOR_PARTNER", "").strip() or "Website visitor"
         # a chat with this label becomes a crm.lead; empty: chats stay tickets
         self.sales_label = env.get("SALES_LABEL", "sales").strip().lower()
         self.not_staff = {e.strip().lower() for e in env.get("NOT_STAFF_EMAILS", "").split(",") if e.strip()}
@@ -293,6 +304,21 @@ def bare_email(value):
     """The address alone: a mailed-in lead keeps the whole From header ("Bob" <bob@example.org>)."""
     address = email.utils.parseaddr(value or "")[1].strip()
     return address if re.fullmatch(r"[^@\s]+@[^@\s]+", address) else None
+
+
+def verified_email(conv):
+    """The visitor's email when Chatwoot verified the contact of this conversation, else None.
+
+    hmac_verified belongs to the conversation's contact inbox: only the browser that passed
+    identity validation has it, and the identifier is what the website signed. The pre-chat
+    form and a contact merge can set the contact's email to any address."""
+    meta = (conv or {}).get("meta") or {}
+    if meta.get("hmac_verified") is not True:
+        return None
+    identifier = (meta.get("sender") or {}).get("identifier")
+    if not isinstance(identifier, str) or not EMAIL.match(identifier.strip()):
+        return None
+    return identifier.strip().lower()
 
 
 def like_escape(value):
@@ -515,6 +541,8 @@ class Bridge:
         self._chat_starts = collections.deque()
         self._chat_lock = threading.Lock()
         self._team = None
+        # one neutral partner: two first chats must not both create it
+        self._visitor_lock = threading.Lock()
         self._sales_team = None
         # one lock for every move from support to sales: the move takes the lead's striped
         # lock, and two nested stripes can deadlock. Moves are rare
@@ -918,25 +946,31 @@ class Bridge:
             if target:
                 return target
             sender = (conv.get("meta") or {}).get("sender") or {}
-            email = bare_email(sender.get("email"))
+            verified = verified_email(conv)
+            email = verified or bare_email(sender.get("email"))
             if not email:
                 LOG.info("website conversation %s has no visitor address; no ticket", cid)
                 self.metrics.inc("chats", result="no_email")
                 return "ignored"
             # one address at a time: two first messages must not both pass the limit
             with self._email_lock:
-                why = self._chat_limit(email)
+                why = self._chat_limit(email, bool(verified))
                 if why:
                     self._tell_limit(cid, why)
                     self.metrics.inc("chats", result="limited")
                     return "limited"
-                rid = self._chat_create(conv, sender, email, url)
+                rid = self._chat_create(conv, sender, email, url, bool(verified))
             self._name_record(cid, "helpdesk.ticket", rid)
-            # the pre-chat form takes any address: staff check who they talk to
-            self.chatwoot.create_message(
-                cid, f"Odoo ticket {self.odoo.url('helpdesk.ticket', rid)} opened for {email}. The visitor typed "
-                "this address in the chat form and it is not verified: check who you talk to before you share "
-                "account details.", "outgoing", private=True)
+            ticket = self.odoo.url("helpdesk.ticket", rid)
+            if verified:
+                note = f"Odoo ticket {ticket} opened for {email}, verified by the website login."
+            else:
+                # the pre-chat form takes any address: staff check who they talk to
+                note = (f"Odoo ticket {ticket} opened for the neutral contact {self.cfg.website_visitor}. The "
+                        f"visitor typed the address {email} in the chat form and it is not verified: check who "
+                        "you talk to before you share account details. Once you confirmed who it is, set the "
+                        "customer on the ticket in Odoo and merge the contact here.")
+            self.chatwoot.create_message(cid, note, "outgoing", private=True)
             return "helpdesk.ticket", rid
 
     def _chat_linked(self, cid):
@@ -952,11 +986,15 @@ class Bridge:
                 return model, found[0]["id"]
         return None
 
-    def _chat_limit(self, email):
+    def _chat_limit(self, email, verified):
         """Why this address may not open a ticket now, or None."""
         since = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(time.time() - 86400))
-        domain = [["partner_email", "=ilike", like_escape(email)], ["name", "=ilike", like_escape(CHAT_PREFIX) + "%"],
-                  ["create_date", ">=", since]]
+        if verified:
+            by_email = ["partner_email", "=ilike", like_escape(email)]
+        else:
+            # the ticket of an unverified chat names the typed address in its description only
+            by_email = ["description", "=ilike", "%" + like_escape(html.escape(CLAIMED + email)) + "<%"]
+        domain = [by_email, ["name", "=ilike", like_escape(CHAT_PREFIX) + "%"], ["create_date", ">=", since]]
         if len(self.odoo.search_read("helpdesk.ticket", domain, ["id"], limit=self.cfg.website_per_email)) \
                 >= self.cfg.website_per_email:
             return f"this address opened {self.cfg.website_per_email} chat tickets in 24 hours"
@@ -973,16 +1011,22 @@ class Bridge:
         self.chatwoot.create_message(cid, f"{LIMIT_NOTE}: {why}. Create one in Odoo when it is needed.",
                                      "outgoing", private=True)
 
-    def _chat_create(self, conv, sender, email, url):
+    def _chat_create(self, conv, sender, email, url, verified):
         name = (sender.get("name") or "").replace('"', "").replace("\\", "").strip()
-        found = self.odoo.call("res.partner", "find_or_create", email=f'"{name}" <{email}>' if name else email)
-        partner = found[0] if isinstance(found, list) else found
+        page = (conv.get("additional_attributes") or {}).get("referer") or ""
+        about = "Website chat" + (f" from {page}"[:300] if page else "")
+        if verified:
+            found = self.odoo.call("res.partner", "find_or_create", email=f'"{name}" <{email}>' if name else email)
+            partner = found[0] if isinstance(found, list) else found
+        else:
+            # never the partner of the typed address: anyone can type a customer's
+            partner = self._visitor_partner()
+            about += "\n" + self.claim_text(name, email)
         first = next((m for m in reversed(list(self.chatwoot.messages(conv["id"])))
                       if m.get("message_type") in (0, "incoming") and not m.get("private")), {})
         title = ((first.get("content") or "").strip().splitlines() or ["website chat"])[0][:80]
-        page = (conv.get("additional_attributes") or {}).get("referer") or ""
         vals = {"name": CHAT_PREFIX + title, "partner_id": partner, "x_chatwoot_url": url,
-                "description": text_to_html("Website chat" + (f" from {page}"[:300] if page else ""))}
+                "description": text_to_html(about)}
         team = self._team_id()
         if team:
             vals["team_id"] = team
@@ -992,6 +1036,27 @@ class Bridge:
         self.metrics.inc("chats", result="ticket")
         LOG.info("website conversation %s opened helpdesk.ticket %s", conv["id"], rid)
         return rid
+
+    @staticmethod
+    def claim_text(name, email):
+        """The identity an unverified visitor typed, as text for staff."""
+        return (f"Claimed name, unverified: {name or '-'}\n{CLAIMED}{email}\n"
+                "Confirm who this is before you set the customer.")
+
+    def _visitor_partner(self):
+        """The neutral res.partner of unverified chats: found by its ref, created once."""
+        with self._visitor_lock:
+            found = self.odoo.call("res.partner", "search_read", domain=[["ref", "=", VISITOR_REF]],
+                                   fields=["id"], limit=1, context={"active_test": False})
+            if found:
+                return found[0]["id"]
+            pid = self.odoo.call(
+                "res.partner", "create", context=NO_MAIL,
+                vals_list=[{"name": self.cfg.website_visitor, "ref": VISITOR_REF,
+                            "comment": "Website chats whose visitor is not verified. Staff move each "
+                                       "ticket to its real customer once they confirmed who it is."}])[0]
+            LOG.info("created the neutral partner %s for unverified website chats", pid)
+            return pid
 
     def _team_id(self):
         if self._team is None and self.cfg.website_team:
@@ -1092,10 +1157,16 @@ class Bridge:
                 # unlink first: Odoo's event of the new lead must find the chat free, not the ticket's
                 self._name_record(cid, None, None)
                 name = ticket.get("name") or "Website chat"
+                transcript = self._transcript_text(cid)
+                if not verified_email(conv):
+                    # the lead keeps the ticket's neutral partner; the typed identity stays text
+                    sender = (conv.get("meta") or {}).get("sender") or {}
+                    claim = self.claim_text((sender.get("name") or "").strip(), bare_email(sender.get("email")) or "-")
+                    transcript = claim + "\n\n" + transcript
                 vals = {"name": name[len(CHAT_PREFIX):] if name.startswith(CHAT_PREFIX) else name,
                         "email_from": ticket.get("partner_email") or False,
                         "contact_name": ticket.get("partner_name") or False,
-                        "x_chatwoot_url": url, "description": self._transcript(cid)}
+                        "x_chatwoot_url": url, "description": text_to_html(transcript)}
                 if ticket.get("partner_id"):
                     vals["partner_id"] = ticket["partner_id"][0]
                 team = self._sales_team_id()
@@ -1192,9 +1263,6 @@ class Bridge:
             elif kind in (1, "outgoing") and sender == "user":
                 lines.append("Staff: " + m["content"].strip())
         return title + "\n\n" + "\n\n".join(lines)
-
-    def _transcript(self, cid):
-        return text_to_html(self._transcript_text(cid))
 
     def _sales_team_id(self):
         if self._sales_team is None and self.cfg.sales_team:
