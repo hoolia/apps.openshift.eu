@@ -22,7 +22,9 @@ visitor counts as logged in only when Chatwoot verified the contact in this conv
 (identity validation: the website signed the contact's identifier, and hmac_verified is set
 on the conversation's contact inbox); the identifier is then the customer's email. With
 IDENTITY_RECORDS the note of a logged-in customer holds that customer's own partner, sale
-orders, subscriptions and tickets, read by the bridge from Odoo for exactly that email. Any
+orders, subscriptions and tickets, read by the bridge from Odoo for exactly that email, and
+the profile a quotation needs (name, company, VAT, phone, invoice address) with the fields
+Odoo lacks after "missing:"; phone and company the login passed fill a gap only. Any
 other visitor is not logged in, whatever address they type: the agent gets no name, no email
 and no record. The agent never reads Odoo itself on this path.
 
@@ -310,8 +312,12 @@ MAX_RECORDS = 10
 
 class CustomerRecords:
     """The own records of one logged-in customer, read from Odoo with the bridge's API key: the
-    partner whose email is exactly that address, and its company's sale orders, subscriptions
-    and helpdesk tickets. Kept two minutes per address. Nothing else is read."""
+    partner whose email is exactly that address, its profile (name, company, VAT, phone and
+    invoice address), and its company's sale orders, subscriptions and helpdesk tickets. Kept
+    two minutes per address. Nothing else is read."""
+
+    ADDRESS = ["street", "street2", "zip", "city", "country_id"]
+    PROFILE = ["name", "company", "VAT", "phone", "invoice address"]
 
     def __init__(self, config, odoo=None):
         self.config = config
@@ -328,19 +334,47 @@ class CustomerRecords:
         return value[1] if isinstance(value, list) and len(value) == 2 else ""
 
     def partner(self, email):
-        """(company partner id, its name) of the address, None for no or several companies."""
+        """((company partner id, its name, the contact rows of the address), 1), or (None, the
+        number of companies) for no or several companies."""
         escaped = email.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
         rows = self.odoo.call("res.partner", "search_read", domain=[["email", "=ilike", escaped]],
-                              fields=["id", "name", "commercial_partner_id"], limit=20) or []
+                              fields=["id", "name", "commercial_partner_id", "phone"], limit=20) or []
         companies = {}
         for r in rows:
             cp = r.get("commercial_partner_id")
             pid = cp[0] if isinstance(cp, list) and cp else r.get("id")
-            companies[pid] = self.name(cp) or r.get("name") or ""
+            companies.setdefault(pid, [self.name(cp) or r.get("name") or "", []])[1].append(r)
         if len(companies) != 1:
             return None, len(companies)
-        (pid, name), = companies.items()
-        return (pid, name), 1
+        (pid, (name, people)), = companies.items()
+        return (pid, name, people), 1
+
+    def address(self, row):
+        """One line of an address, empty without street or city."""
+        if not (plain(row.get("street"), " ", 100) and plain(row.get("city"), " ", 60)):
+            return ""
+        parts = [plain(row.get(k), " ", 100) for k in ("street", "street2")]
+        parts.append(" ".join(x for x in (plain(row.get("zip"), " ", 20), plain(row.get("city"), " ", 60)) if x))
+        parts.append(plain(self.name(row.get("country_id")), " ", 60))
+        return ", ".join(x for x in parts if x)
+
+    def profile(self, pid, people):
+        """What a quotation needs, as Odoo holds it: the contact's name and phone, the company's
+        name and VAT, and the invoice address (an invoice contact of the company, else the
+        company's own address)."""
+        person = next((r for r in people if r.get("id") != pid), people[0] if people else {})
+        company = (self.odoo.call("res.partner", "read", ids=[pid],
+                                  fields=["name", "is_company", "vat", "phone"] + self.ADDRESS) or [{}])[0]
+        invoice = self.odoo.call("res.partner", "search_read",
+                                 domain=[["parent_id", "=", pid], ["type", "=", "invoice"]],
+                                 fields=self.ADDRESS, limit=1) or []
+        return {
+            "name": plain(person.get("name"), " ", 100),
+            "company": plain(company.get("name"), " ", 100) if company.get("is_company") else "",
+            "VAT": plain(company.get("vat"), "", 30),
+            "phone": plain(person.get("phone") or company.get("phone"), " ", 40),
+            "invoice address": (self.address(invoice[0]) if invoice else "") or self.address(company),
+        }
 
     def part(self, title, read):
         try:
@@ -374,8 +408,8 @@ class CustomerRecords:
         return [f"{plain(r.get('name'), ' ', 120)}, {plain(self.name(r.get('stage_id')), ' ', 40)}, "
                 f"opened {(r.get('create_date') or '')[:10]}" for r in rows]
 
-    def text(self, email):
-        """The records as lines for the bridge's note."""
+    def read(self, email):
+        """(records text, profile) of the address; the profile is None when there is none."""
         now = time.time()
         with self.lock:
             hit = self.cache.get(email)
@@ -385,20 +419,56 @@ class CustomerRecords:
             found, count = self.partner(email)
         except Exception as e:  # Odoo down: the customer is logged in, the records are missing
             LOG.warning("customer records: partner not read: %s", type(e).__name__)
-            return "Their records are not available right now."
+            return "Their records are not available right now.", None
+        profile = None
         if not found:
             text = ("No customer record has this address." if count == 0 else
                     "Several customer records have this address; none is shown.")
         else:
-            pid, name = found
+            pid, name, people = found
+            try:
+                profile = self.profile(pid, people)
+            except Exception as e:  # the records still show; the note says the profile is missing
+                LOG.warning("customer records: profile not read: %s", type(e).__name__)
+                profile = {}
             lines = [f"Customer: {plain(name, ' ', 100)}"]
             lines += self.part("Sale orders", lambda: self.orders(pid))
             lines += self.part("Subscriptions", lambda: self.subscriptions(pid))
             lines += self.part("Support tickets", lambda: self.tickets(pid))
             text = "Their own records, read by the bridge from Odoo:\n" + "\n".join(lines)
         with self.lock:
-            self.cache[email] = (text, now + 120)
-        return text
+            self.cache[email] = ((text, profile), now + 120)
+        return text, profile
+
+    def text(self, email, login=None):
+        """The records and the profile as lines for the bridge's note. login: phone and company
+        of the customer's login profile, which fill only what Odoo lacks."""
+        text, profile = self.read(email)
+        if profile is None:
+            return text
+        login = login or {}
+        lines = ["Profile for a quotation (from Odoo unless marked):"]
+        missing = []
+        for field in self.PROFILE:
+            value, source = profile.get(field, ""), ""
+            if not value and login.get(field):
+                value, source = login[field], " (from their login profile)"
+            if value:
+                lines.append(f"- {field}: {value}{source}")
+            else:
+                missing.append(field)
+        lines.append("missing: " + (", ".join(missing) if missing else "none"))
+        return text + "\n" + "\n".join(lines)
+
+
+def login_profile(conversation):
+    """Phone and company of a verified contact as the website's login passed them (setUser):
+    the customer's own words, as plain text. They fill only what Odoo lacks."""
+    sender = ((conversation or {}).get("meta") or {}).get("sender") or {}
+    extra = sender.get("additional_attributes")
+    extra = extra if isinstance(extra, dict) else {}
+    out = {"phone": plain(sender.get("phone_number"), " ", 40), "company": plain(extra.get("company_name"), " ", 100)}
+    return {k: v for k, v in out.items() if v}
 
 
 NOT_LOGGED_IN = ("[Bridge] The visitor is not logged in. You have no customer data and must not "
@@ -502,7 +572,8 @@ class Bot:
             return NOT_LOGGED_IN
         note = (f"[Bridge] The visitor is logged in as {email} (verified by the website login). "
                 "Use only the records below, and only for this customer.")
-        return note + "\n" + (self.records.text(email) if self.records else "No records are shared on this chat.")
+        return note + "\n" + (self.records.text(email, login_profile(conv)) if self.records
+                               else "No records are shared on this chat.")
 
     # --- events -----------------------------------------------------------------------
     def wanted(self, event):
