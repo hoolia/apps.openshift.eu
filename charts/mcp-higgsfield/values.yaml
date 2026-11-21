@@ -1,0 +1,113 @@
+# Team of the tenant the server serves: the chart puts every object into <tenant>-<team>, a
+# namespace the team already has. Empty: the release namespace
+team: ""
+# Tenant the server belongs to; required with team
+tenant: ""
+
+# switch of this server when a bundle chart includes it
+enabled: true
+
+# name of the server's objects, of its AgentgatewayBackend and of the server on an MCP
+# gateway (tools <name>_*). Empty: mcp.server
+nameOverride: ""
+
+# Node.js image that runs the npm package
+image:
+  repository: docker.io/library/node
+  tag: 22.21.1-alpine3.22@sha256:b2358485e3e33bc3a33114d2b1bdb18cdbe4df01bd2b257198eb51beb1f026c5
+  pullPolicy: IfNotPresent
+
+higgsfield:
+  # npm package and pinned version of the server, installed by npx at every start
+  package: higgsfield-mcp
+  version: 0.2.0
+  # further server settings as environment variables, name to value
+  extraEnv: {}
+
+secrets:
+  # kubernetes: the key Secret from apiKey and apiSecret (both empty: no Secret).
+  # externalSecret: from a secret store
+  type: kubernetes
+  # API key and secret of cloud.higgsfield.ai (HF_API_KEY, HF_SECRET)
+  apiKey: ""
+  apiSecret: ""
+  # existing Secret with the keys HF_API_KEY and HF_SECRET; overrides type
+  existingSecret: ""
+  externalSecret:
+    # kind of the secret store
+    storeKind: ClusterSecretStore
+    # name of the secret store; required with type externalSecret
+    storeName: ""
+    # how often the Secret is refreshed from the store
+    refreshInterval: 1h
+    # vault item: username is the API key, password the API secret. Empty: <release>-<server>
+    item: ""
+    # fields of the item with the key and the secret
+    apiKeyProperty: login.username
+    apiSecretProperty: login.password
+
+# port of the streamable HTTP endpoint that kagent's MCPServer opens in front of the server
+port: 3000
+
+# seconds kagent's MCPServer waits for one call of the server
+timeout: 30s
+
+mcp:
+  # prefix of the catalog labels
+  labelDomain: mcp.openshift.eu
+  # <labelDomain>/server
+  server: higgsfield
+  # <labelDomain>/bundle
+  bundle: higgsfield
+  # <labelDomain>/category
+  category: marketing
+  # what the server offers, on the backend and RemoteMCPServer
+  description: "Higgsfield AI: generate images and videos (Soul, Seedream, Kling, Seedance, DoP) and manage characters"
+  # image URL of the server's card
+  icon: https://higgsfield.ai/favicon.ico
+
+# AgentgatewayBackend of the server: an MCP gateway that generates endpoints from backends
+# serves it as /mcp/<namespace>/<name>
+agentgatewayBackend:
+  enabled: true
+  # extra labels on the backend, for example the gateway's exposure label of the platform
+  labels: {}
+
+# kagent RemoteMCPServer for the project's agents, for a cluster whose gateway does not
+# write one itself
+remoteMCPServer:
+  enabled: false
+  # address of the server for the agents; empty: http://<name>.<namespace>:<port>/mcp
+  url: ""
+  # Same: agents of this project only; All: every project
+  allowedNamespaces: Same
+  timeout: 60s
+  sseReadTimeout: 5m0s
+
+# requests and limits of the server container
+resources:
+  requests:
+    cpu: 20m
+    memory: 128Mi
+  limits:
+    cpu: "1"
+    memory: 512Mi
+
+networkPolicy:
+  enabled: true
+  # namespaces (label selectors) that may call the server besides its own, e.g. the gateway's
+  ingressNamespaces: []
+  egress:
+    # the server reaches DNS and the public internet only (npm registry, Higgsfield API)
+    enabled: true
+    exceptCidrs:
+    - 10.0.0.0/8
+    - 172.16.0.0/12
+    - 192.168.0.0/16
+    - 100.64.0.0/10
+    - 169.254.0.0/16
+    - 127.0.0.0/8
+    # your own public ranges
+    extraExceptCidrs: []
+    # a proxy or mirror at a private address the server must reach: [{cidr, ports}]
+    allow: []

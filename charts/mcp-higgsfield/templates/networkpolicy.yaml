@@ -1,0 +1,74 @@
+{{- if and .Values.enabled .Values.networkPolicy.enabled }}
+{{- $n := .Values.networkPolicy }}
+# Callers: the own project and the listed namespaces (an MCP gateway); out: DNS and the
+# public internet
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "mcp-higgsfield.name" . }}
+  namespace: {{ include "mcp-higgsfield.namespace" . }}
+  labels:
+    app: {{ include "mcp-higgsfield.name" . }}
+    app.kubernetes.io/name: mcp-higgsfield
+    app.kubernetes.io/component: server
+    {{- include "mcp-higgsfield.commonLabels" . | nindent 4 }}
+spec:
+  # the pods of the Deployment kagent's MCPServer writes
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ include "mcp-higgsfield.name" . }}
+      app.kubernetes.io/managed-by: kmcp
+  policyTypes:
+  - Ingress
+  {{- if $n.egress.enabled }}
+  - Egress
+  {{- end }}
+  ingress:
+  - ports:
+    - protocol: TCP
+      port: {{ .Values.port }}
+    from:
+    - podSelector: {}
+    {{- range $n.ingressNamespaces }}
+    - namespaceSelector:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+  {{- with $n.egress }}
+  {{- if .enabled }}
+  egress:
+  - to:
+    - namespaceSelector: {}
+      podSelector:
+        matchLabels:
+          dns.operator.openshift.io/daemonset-dns: default
+    ports:
+    - protocol: UDP
+      port: 5353
+    - protocol: TCP
+      port: 5353
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+        {{- range concat .exceptCidrs .extraExceptCidrs }}
+        - {{ . }}
+        {{- end }}
+  {{- range .allow }}
+  - to:
+    - ipBlock:
+        cidr: {{ .cidr }}
+    {{- with .ports }}
+    ports:
+    {{- range . }}
+    - protocol: TCP
+      port: {{ . }}
+    {{- end }}
+    {{- end }}
+  {{- end }}
+  {{- end }}
+  {{- end }}
+{{- end }}

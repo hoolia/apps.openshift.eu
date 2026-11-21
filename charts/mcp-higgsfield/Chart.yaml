@@ -1,0 +1,30 @@
+apiVersion: v2
+name: mcp-higgsfield
+description: Higgsfield AI MCP server (higgsfield-mcp) for the agents of a project; image and video generation with the team's Higgsfield API key, run as streamable HTTP by kagent's MCPServer
+type: application
+version: 0.1.0
+appVersion: "0.2.0"
+home: https://apps.openshift.eu
+icon: https://higgsfield.ai/favicon.ico
+keywords:
+- ai
+- mcp
+- mcp-server
+- higgsfield
+- marketing
+- image-generation
+- video-generation
+sources:
+- https://github.com/hoolia/apps.openshift.eu
+- https://github.com/Storyvord/higgsfield-mcp
+maintainers:
+- name: GRN.CLOUD B.V.
+  url: https://apps.openshift.eu
+annotations:
+  charts.openshift.io/name: Higgsfield MCP server
+  charts.openshift.io/provider: GRN.CLOUD B.V.
+  apps.openshift.eu/vendor: Storyvord
+  mcp.openshift.eu/server: higgsfield
+  mcp.openshift.eu/bundle: higgsfield
+  mcp.openshift.eu/category: marketing
+  mcp.openshift.eu/auth: api-key

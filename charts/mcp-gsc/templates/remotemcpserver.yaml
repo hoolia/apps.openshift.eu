@@ -1,0 +1,28 @@
+{{- $r := .Values.remoteMCPServer }}
+{{- if and (include "mcp-gsc.ready" .) $r.enabled }}
+# registers the server for the agents of the project (kagent)
+apiVersion: kagent.dev/v1alpha2
+kind: RemoteMCPServer
+metadata:
+  name: {{ include "mcp-gsc.name" . }}
+  namespace: {{ include "mcp-gsc.namespace" . }}
+  labels:
+    app: {{ include "mcp-gsc.name" . }}
+    app.kubernetes.io/name: mcp-gsc
+    app.kubernetes.io/component: server
+    {{- include "mcp-gsc.commonLabels" . | nindent 4 }}
+    {{- include "mcp-gsc.catalogLabels" . | nindent 4 }}
+  {{- with .Values.mcp.icon }}
+  annotations:
+    openhands.dev/icon: {{ . }}
+  {{- end }}
+spec:
+  allowedNamespaces:
+    from: {{ $r.allowedNamespaces }}
+  description: {{ .Values.mcp.description | quote }}
+  url: {{ required "remoteMCPServer.url is required" $r.url }}
+  protocol: {{ $r.protocol }}
+  timeout: {{ $r.timeout }}
+  sseReadTimeout: {{ $r.sseReadTimeout }}
+  terminateOnClose: true
+{{- end }}

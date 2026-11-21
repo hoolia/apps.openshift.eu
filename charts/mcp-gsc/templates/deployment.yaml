@@ -1,0 +1,112 @@
+{{- if .Values.enabled }}
+{{- $g := .Values.gsc }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "mcp-gsc.name" . }}
+  namespace: {{ include "mcp-gsc.namespace" . }}
+  labels:
+    app: {{ include "mcp-gsc.name" . }}
+    app.kubernetes.io/name: mcp-gsc
+    app.kubernetes.io/component: server
+    {{- include "mcp-gsc.commonLabels" . | nindent 4 }}
+    {{- include "mcp-gsc.catalogLabels" . | nindent 4 }}
+    app.openshift.io/runtime: python
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "mcp-gsc.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "mcp-gsc.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      # the server needs no Kubernetes API access
+      automountServiceAccountToken: false
+      containers:
+      - name: server
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        # upstream publishes no image: uv installs the pinned release into /tmp
+        command:
+        - uvx
+        - --from
+        - "{{ $g.package }}=={{ $g.version }}"
+        - mcp-gsc
+        env:
+        - name: HOME
+          value: /tmp
+        - name: UV_CACHE_DIR
+          value: /tmp/uv/cache
+        - name: UV_TOOL_DIR
+          value: /tmp/uv/tools
+        # the image's own Python
+        - name: UV_PYTHON_DOWNLOADS
+          value: never
+        - name: MCP_TRANSPORT
+          value: sse
+        - name: MCP_HOST
+          value: 0.0.0.0
+        - name: MCP_PORT
+          value: {{ .Values.port | quote }}
+        - name: GSC_CREDENTIALS_PATH
+          value: /etc/gsc/credentials.json
+        - name: GSC_CONFIG_DIR
+          value: /tmp/gsc
+        # a service account only, never a browser login in the pod
+        - name: GSC_SKIP_OAUTH
+          value: "true"
+        - name: GSC_ALLOW_DESTRUCTIVE
+          value: {{ $g.allowDestructive | quote }}
+        - name: GSC_DATA_STATE
+          value: {{ $g.dataState | quote }}
+        {{- range $k, $v := $g.extraEnv }}
+        - name: {{ $k }}
+          value: {{ $v | toString | quote }}
+        {{- end }}
+        ports:
+        - name: mcp
+          containerPort: {{ .Values.port }}
+          protocol: TCP
+        # the first start downloads the package
+        startupProbe:
+          tcpSocket:
+            port: mcp
+          periodSeconds: 5
+          failureThreshold: 60
+        readinessProbe:
+          tcpSocket:
+            port: mcp
+          periodSeconds: 10
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+        - name: key
+          mountPath: /etc/gsc
+          readOnly: true
+      volumes:
+      - name: tmp
+        emptyDir: {}
+      # without the key the server starts, and every tool answers that it has no credential
+      - name: key
+        secret:
+          secretName: {{ include "mcp-gsc.secret" . }}
+          optional: true
+          items:
+          - key: {{ include "mcp-gsc.secretKey" . }}
+            path: credentials.json
+{{- end }}

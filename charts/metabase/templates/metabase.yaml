@@ -265,6 +265,7 @@ spec:
   {{- with .Values.route.hostname }}
   host: {{ . }}
   {{- end }}
+  path: /
   to:
     kind: Service
     name: metabase

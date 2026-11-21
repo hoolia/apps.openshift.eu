@@ -1,0 +1,119 @@
+# SearXNG image
+image:
+  repository: docker.io/searxng/searxng
+  # pinned SearXNG release
+  tag: 2026.11.19-368baa340
+  pullPolicy: IfNotPresent
+
+# container port of SearXNG; not 80, 443, 8080 or 8443 (open to every project)
+port: 8888
+
+# settings.yml of SearXNG on top of its defaults (use_default_settings); server.secret_key
+# comes from the Secret
+settings:
+  general:
+    instance_name: SearXNG
+    enable_metrics: false
+  server:
+    # agents and the own team call it: no bot limiter, no image proxy
+    limiter: false
+    public_instance: false
+    image_proxy: false
+    method: GET
+  search:
+    safe_search: 0
+    # json is what the MCP server reads
+    formats:
+    - html
+    - json
+  ui:
+    static_use_hash: true
+
+# requests and limits of SearXNG
+resources:
+  requests:
+    cpu: 50m
+    memory: 256Mi
+  limits:
+    cpu: "1"
+    memory: 1Gi
+
+# extra pod labels, for example sidecar.istio.io/inject: "false" in a mesh namespace
+podLabels: {}
+
+secrets:
+  # kubernetes: Secret <release> from secretKey. externalSecret: from a secret store
+  type: kubernetes
+  # server.secret_key of SearXNG; empty: generated once and kept. A GitOps tool that
+  # renders without cluster access must pass it
+  secretKey: ""
+  # existing Secret with the key SEARXNG_SECRET; the chart then renders none
+  existingSecret: ""
+  externalSecret:
+    # kind of the secret store
+    storeKind: ClusterSecretStore
+    # name of the secret store; required with type externalSecret
+    storeName: ""
+    # how often the Secret is refreshed from the store
+    refreshInterval: 1h
+    # vault item with the secret key in its password. Empty: <release>-secret
+    item: ""
+
+# the web interface for people; off: agents search through the MCP server only
+route:
+  enabled: false
+  # empty: the cluster's default host name for the Route
+  host: ""
+  # extra labels of the Route, such as the one that picks a router shard
+  labels: {}
+  # for example cert-manager.io/issuer-kind and cert-manager.io/issuer-name
+  annotations: {}
+
+# Web search tools for AI agents: mcp-searxng (searxng_web_search, web_url_read) on
+# streamable HTTP, discovered by an MCP gateway
+mcp:
+  enabled: true
+  image:
+    repository: docker.io/isokoliuk/mcp-searxng
+    tag: 2.10.1
+    pullPolicy: IfNotPresent
+  # not 80, 443, 8080 or 8443 (open to every project)
+  port: 8000
+  path: /mcp
+  # port appProtocol an MCP gateway discovers; empty leaves it unset
+  appProtocol: agentgateway.dev/mcp
+  # tool prefix on the gateway (<targetName>_<tool>); empty: the release name
+  targetName: ""
+  # further Host header values the server answers for, besides its Service names, for
+  # example the gateway's public host name
+  allowedHosts: []
+  # further mcp-searxng settings as environment variables, name to value
+  extraEnv: {}
+  # extra pod labels, for example sidecar.istio.io/inject: "false" in a mesh namespace
+  podLabels: {}
+  # extra labels on the MCP Service, for example the gateway's exposure label
+  serviceLabels: {}
+  resources:
+    requests:
+      cpu: 10m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  # namespaces (label selectors) that may call the tools besides the own one: the gateway's
+  ingressNamespaces: []
+  # web_url_read reaches the public internet, never these ranges
+  egressExceptCidrs:
+  - 10.0.0.0/8
+  - 172.16.0.0/12
+  - 192.168.0.0/16
+  - 100.64.0.0/10
+  - 169.254.0.0/16
+  - 127.0.0.0/8
+  # your own public ranges
+  extraEgressExceptCidrs: []
+
+networkPolicy:
+  # SearXNG takes calls from its MCP server (and the router with route.enabled) only; the
+  # MCP server from the own project and mcp.ingressNamespaces
+  enabled: true
