@@ -1,6 +1,9 @@
 {{- $proxy := .Values.oauthProxy }}
 {{- $port := ternary 4180 3000 $proxy.enabled }}
 {{- $groups := and $proxy.allowedGroups $proxy.loginClusterRole }}
+{{- if and $proxy.enabled $proxy.allowedGroups (not $proxy.loginClusterRole) }}
+{{- fail "oauthProxy.loginClusterRole is required with oauthProxy.allowedGroups" }}
+{{- end }}
 {{- if $proxy.enabled }}
 apiVersion: v1
 kind: ServiceAccount

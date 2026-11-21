@@ -52,6 +52,8 @@ OUT=$(render --set oauthProxy.enabled=true --set 'oauthProxy.allowedGroups={a,b}
 check groups "[s['name'] for s in obj('RoleBinding', 'metabase-app-login')['subjects']] == ['a', 'b']"
 check groups "obj('RoleBinding')['roleRef']['name'] == 'login'"
 check groups "'\"verb\":\"login\"' in ' '.join(ctr('oauth-proxy')['args'])"
+render --set oauthProxy.enabled=true --set 'oauthProxy.allowedGroups={a}' | grep -q 'loginClusterRole is required' \
+  || { echo "FAIL groups: allowedGroups without loginClusterRole renders"; fail=1; }
 
 OUT=$(render --set secrets.existingSecret=mine --set oauthProxy.enabled=true)
 check existingSecret "not objs('Secret') and not objs('ExternalSecret')"

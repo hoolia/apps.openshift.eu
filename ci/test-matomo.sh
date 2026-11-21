@@ -62,4 +62,11 @@ check backup "obj('Backup')['metadata']['annotations']['argocd.argoproj.io/ignor
 check route "obj('Route')['spec']['host'] == 'a.example.org' and obj('Route')['metadata']['labels']['shard'] == 'public'"
 check podLabels "obj('Deployment')['spec']['template']['metadata']['labels'] == {'app.kubernetes.io/name': 'matomo', 'mesh': 'false'}"
 
+# a change of the nginx configuration restarts the pod
+A=$(render | grep 'checksum/nginx:')
+B=$(render --set 'nginx.realIpFrom={192.0.2.0/24}' | grep 'checksum/nginx:')
+[ -n "$A" ] && [ "$A" != "$B" ] || { echo "FAIL checksum: nginx config change keeps the pod template"; fail=1; }
+OUT=$(render --set 'nginx.realIpFrom={192.0.2.0/24}')
+check nginx "'set_real_ip_from 192.0.2.0/24;' in obj('ConfigMap', 'matomo-nginx')['data']['default.conf']"
+
 [ $fail = 0 ] && echo "PASS matomo" || exit 1

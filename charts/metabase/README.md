@@ -23,7 +23,7 @@ the browser.
 | `route.hostname` | empty | Hostname. Empty: OpenShift assigns one. Also Metabase's site URL. |
 | `oauthProxy.enabled` | `false` | OpenShift login before Metabase. |
 | `oauthProxy.allowedGroups` | empty | Groups that pass the login. Empty: who may view this project's Services. |
-| `oauthProxy.loginClusterRole` | empty | ClusterRole with verb `login` on `services/proxy`, bound to the groups. |
+| `oauthProxy.loginClusterRole` | empty | ClusterRole with verb `login` on `services/proxy`, bound to the groups; required with `allowedGroups`. |
 | `database.instances` | `1` | PostgreSQL instances. `2` adds a standby. |
 | `database.size` | `5Gi` | Size of the database volume of each instance. |
 | `database.backup.enabled` | `false` | Daily backup through the barman-cloud plugin. |
