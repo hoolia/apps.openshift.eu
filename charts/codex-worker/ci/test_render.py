@@ -45,13 +45,14 @@ class RenderTests(unittest.TestCase):
         self.assertEqual(pod["terminationGracePeriodSeconds"], 3600)
         self.assertEqual(pod["securityContext"], {
             "runAsNonRoot": True, "seccompProfile": {"type": "RuntimeDefault"},
+            "fsGroupChangePolicy": "OnRootMismatch",
         })
         self.assertEqual(container["securityContext"], {
             "allowPrivilegeEscalation": False, "readOnlyRootFilesystem": True,
             "capabilities": {"drop": ["ALL"]},
         })
         self.assertNotIn("runAsUser", json.dumps(pod))
-        self.assertNotIn("fsGroup", json.dumps(pod))
+        self.assertNotIn('"fsGroup"', json.dumps(pod))
         self.assertNotIn("hostPath", json.dumps(pod))
         self.assertNotIn("hostNetwork", pod)
         self.assertNotIn("command", container)
