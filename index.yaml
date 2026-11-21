@@ -1289,6 +1289,40 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 0.23.0
+    created: "2026-11-21T20:50:40.857055331Z"
+    dependencies:
+    - condition: mcp-playwright.enabled
+      name: mcp-playwright
+      repository: file://../mcp-playwright
+      version: 0.2.3
+    description: Hermes Agent with its web dashboard behind an OpenShift login, the
+      cluster's model gateway and the project's MCP servers
+    digest: 8df9cb05b3e575e7956d00f63ec45a02a022332a402f4fe493ffb6be91f11a00
+    home: https://apps.openshift.eu
+    icon: https://avatars.githubusercontent.com/u/134472424
+    keywords:
+    - ai
+    - agent
+    - hermes
+    - assistant
+    maintainers:
+    - name: GRN.CLOUD B.V.
+      url: https://apps.openshift.eu
+    name: hermes
+    sources:
+    - https://github.com/NousResearch/hermes-agent
+    - https://github.com/hoolia/apps.openshift.eu
+    type: application
+    urls:
+    - https://github.com/hoolia/apps.openshift.eu/releases/download/hermes-0.5.1/hermes-0.5.1.tgz
+    version: 0.5.1
+  - annotations:
+      apps.openshift.eu/category: ai-agent
+      apps.openshift.eu/vendor: Nous Research
+      charts.openshift.io/name: Hermes Agent
+      charts.openshift.io/provider: GRN.CLOUD B.V.
+    apiVersion: v2
+    appVersion: 0.23.0
     created: "2026-11-21T19:48:25.299209942Z"
     dependencies:
     - condition: mcp-playwright.enabled
@@ -1752,6 +1786,41 @@ entries:
     - https://github.com/hoolia/apps.openshift.eu/releases/download/hermes-0.1.0/hermes-0.1.0.tgz
     version: 0.1.0
   kagent:
+  - annotations:
+      apps.openshift.eu/category: ai-agent
+      apps.openshift.eu/vendor: CNCF
+      charts.openshift.io/name: kagent
+      charts.openshift.io/provider: GRN.CLOUD B.V.
+    apiVersion: v2
+    appVersion: 0.10.6
+    created: "2026-11-21T20:50:41.092431923Z"
+    dependencies:
+    - alias: upstream
+      name: kagent
+      repository: oci://ghcr.io/kagent-dev/kagent/helm
+      version: 0.10.6
+    description: kagent agent controller and UI for one tenant behind the OpenShift
+      login; the platform kagent-operator provides the CRDs and the access to team
+      namespaces
+    digest: 24719c61181b000440319e76e208ff517d5a72febdcddc7f623451e5bf870dc4
+    home: https://apps.openshift.eu
+    icon: https://raw.githubusercontent.com/kagent-dev/kagent/main/img/icon-light.svg
+    keywords:
+    - ai
+    - agents
+    - kagent
+    - mcp
+    maintainers:
+    - name: GRN.CLOUD B.V.
+      url: https://apps.openshift.eu
+    name: kagent
+    sources:
+    - https://github.com/kagent-dev/kagent
+    - https://github.com/hoolia/apps.openshift.eu
+    type: application
+    urls:
+    - https://github.com/hoolia/apps.openshift.eu/releases/download/kagent-0.7.1/kagent-0.7.1.tgz
+    version: 0.7.1
   - annotations:
       apps.openshift.eu/category: ai-agent
       apps.openshift.eu/vendor: CNCF
@@ -4075,6 +4144,37 @@ entries:
     - https://github.com/hoolia/apps.openshift.eu/releases/download/mcp-playwright-0.2.0/mcp-playwright-0.2.0.tgz
     version: 0.2.0
   mcp-server:
+  - annotations:
+      apps.openshift.eu/category: custom
+      apps.openshift.eu/vendor: GRN.CLOUD B.V.
+      charts.openshift.io/name: MCP server
+      charts.openshift.io/provider: GRN.CLOUD B.V.
+    apiVersion: v2
+    appVersion: 0.1.0
+    created: "2026-11-21T20:50:41.296420073Z"
+    dependencies:
+    - name: mcp-auth
+      repository: file://../mcp-auth
+      version: 0.1.0
+    description: Any streamable HTTP MCP server image for one team, with its credential
+      from a Secret, discovered by an MCP gateway
+    digest: a12e572fdc6190fa5e559920cd9762abfb2f8e8c36c731aaedccbf4f7245fe20
+    home: https://apps.openshift.eu
+    icon: https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/main/docs/logo/light.svg
+    keywords:
+    - ai
+    - mcp
+    - mcp-server
+    maintainers:
+    - name: GRN.CLOUD B.V.
+      url: https://apps.openshift.eu
+    name: mcp-server
+    sources:
+    - https://github.com/hoolia/apps.openshift.eu
+    type: application
+    urls:
+    - https://github.com/hoolia/apps.openshift.eu/releases/download/mcp-server-0.5.1/mcp-server-0.5.1.tgz
+    version: 0.5.1
   - annotations:
       apps.openshift.eu/category: custom
       apps.openshift.eu/vendor: GRN.CLOUD B.V.
@@ -10204,4 +10304,4 @@ entries:
     urls:
     - https://github.com/hoolia/apps.openshift.eu/releases/download/vaultwarden-0.1.0/vaultwarden-0.1.0.tgz
     version: 0.1.0
-generated: "2026-11-21T19:53:27.77036077Z"
+generated: "2026-11-21T20:50:41.286407213Z"
