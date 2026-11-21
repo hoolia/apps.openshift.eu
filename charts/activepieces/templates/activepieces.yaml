@@ -31,6 +31,31 @@ spec:
       automountServiceAccountToken: false
       # the worker finishes its running flows before the API stops
       terminationGracePeriodSeconds: 705
+      initContainers:
+      # the API exits when the database does not answer; on a first install the
+      # database starts minutes later, so wait instead of crash-looping
+      - name: wait-for-database
+        image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command:
+        - node
+        - -e
+        - |
+          const net = require('net');
+          const tryOnce = () => {
+            const s = net.connect(5432, 'activepieces-db-rw');
+            s.on('connect', () => { s.end(); process.exit(0); });
+            s.on('error', () => { s.destroy(); setTimeout(tryOnce, 3000); });
+          };
+          tryOnce();
+        resources:
+          requests:
+            cpu: 10m
+            memory: 64Mi
+          limits:
+            memory: 256Mi
+        securityContext:
+          {{- include "activepieces.restricted" . | nindent 10 }}
       containers:
       - name: activepieces
         image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
