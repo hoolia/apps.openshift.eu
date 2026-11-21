@@ -66,8 +66,10 @@ route:
   host: ""
   # extra labels of the Route, such as the one that picks a router shard
   labels: {}
-  # for example cert-manager.io/issuer-kind and cert-manager.io/issuer-name
-  annotations: {}
+  # annotations of the Route; the cert-manager ones issue its certificate
+  annotations:
+    cert-manager.io/issuer-kind: ClusterIssuer
+    cert-manager.io/issuer-name: letsencrypt
 
 # Web search tools for AI agents: mcp-searxng (searxng_web_search, web_url_read) on
 # streamable HTTP, discovered by an MCP gateway

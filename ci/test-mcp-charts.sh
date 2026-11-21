@@ -37,6 +37,7 @@ check searxng "obj('NetworkPolicy', 't')['spec']['ingress'][0]['from'][0]['podSe
 OUT=$(render searxng --set secrets.secretKey=k --set route.enabled=true --set mcp.allowedHosts[0]=gw.example.org --set mcp.targetName=web)
 check searxng-values "obj('Secret', 't')['data']['SEARXNG_SECRET'] == 'aw=='"
 check searxng-values "obj('Route', 't')['spec']['path'] == '/'"
+check searxng-values "obj('Route', 't')['metadata']['annotations']['cert-manager.io/issuer-name'] == 'letsencrypt'"
 check searxng-values "env('t-mcp', 'mcp', 'MCP_HTTP_ALLOWED_HOSTS')[0].endswith(',gw.example.org')"
 check searxng-values "obj('Service', 't-mcp')['metadata']['annotations']['agentgateway.dev/mcp-target-name'] == 'web'"
 OUT=$(render searxng --set mcp.enabled=false --set secrets.existingSecret=mine)
@@ -45,6 +46,7 @@ check searxng-nomcp "not obj('Deployment', 't-mcp') and not objs('Secret')"
 # mcp-gsc: SSE behind its own backend; nothing reaches agents without a key source
 OUT=$(render mcp-gsc)
 check gsc-default "obj('Deployment', 'gsc') and not objs('AgentgatewayBackend') and not objs('Secret')"
+check gsc-default "obj('Deployment', 'gsc')['metadata']['labels']['mcp.openshift.eu/bundle'] == 'gsc'"
 check gsc-default "'appProtocol' not in obj('Service', 'gsc')['spec']['ports'][0]"
 check gsc-default "ctr('gsc', 'server')['command'] == ['uvx', '--from', 'mcp-search-console==0.4.2', 'mcp-gsc']"
 check gsc-default "env('gsc', 'server', 'GSC_ALLOW_DESTRUCTIVE') == ['false'] and env('gsc', 'server', 'MCP_TRANSPORT') == ['sse']"

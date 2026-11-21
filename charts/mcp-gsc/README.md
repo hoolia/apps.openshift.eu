@@ -28,7 +28,7 @@ helm install gsc grncloud/mcp-gsc --set-file secrets.serviceAccountJson=key.json
 - `secrets.existingSecret`, `secrets.existingSecretKey` (default: empty, `credentials.json`): Use an existing Secret instead.
 - `agentgatewayBackend.enabled` (default: true), `agentgatewayBackend.labels`: The backend, and extra labels on it such as the gateway's exposure label.
 - `remoteMCPServer.enabled` (default: false), `remoteMCPServer.url`, `remoteMCPServer.protocol` (default: `STREAMABLE_HTTP`), `remoteMCPServer.allowedNamespaces` (default: `Same`): A kagent `RemoteMCPServer` at that address; `SSE` with `http://<name>.<namespace>:8000/sse` points it at the server itself.
-- `mcp.labelDomain`, `mcp.server`, `mcp.bundle`, `mcp.category` (default: `mcp.openshift.eu`, `gsc`, `market-research`, `marketing`): Catalog labels.
+- `mcp.labelDomain`, `mcp.server`, `mcp.bundle`, `mcp.category` (default: `mcp.openshift.eu`, `gsc`, `gsc`, `marketing`): Catalog labels.
 - `podLabels`, `service.labels`, `service.annotations`: Extra labels and annotations.
 - `resources` (default: requests 50m CPU and 192Mi, limits 1 CPU and 768Mi).
 - `networkPolicy.ingressNamespaces` (default: empty): Label selectors of further namespaces that may call the server, for example the gateway's.

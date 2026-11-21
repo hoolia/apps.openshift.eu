@@ -43,6 +43,7 @@ check default "ref('matomo', 'MATOMO_DATABASE_PASSWORD') == [{'name': 'matomo-db
 check default "obj('Secret', 'matomo-db')['type'] == 'Opaque' and set(obj('Secret', 'matomo-db')['data']) == {'password', 'root-password'}"
 check default "not objs('Backup') and not objs('ExternalSecret')"
 check default "'host' not in obj('Route', 'matomo')['spec'] and obj('Route')['spec']['path'] == '/'"
+check default "obj('Route')['metadata']['annotations'] == {'cert-manager.io/issuer-kind': 'ClusterIssuer', 'cert-manager.io/issuer-name': 'letsencrypt'}"
 
 OUT=$(render --set secrets.existingSecret=mine)
 check existingSecret "not objs('Secret') and not objs('ExternalSecret')"

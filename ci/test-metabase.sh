@@ -31,6 +31,7 @@ OUT=$(render)
 check default "obj('Cluster', 'metabase-db')['spec']['bootstrap']['initdb'] == {'database': 'metabase', 'owner': 'metabase'}"
 check default "obj('Cluster')['spec']['enablePDB'] is False and 'plugins' not in obj('Cluster')['spec']"
 check default "ctr('metabase')['image'] == 'docker.io/metabase/metabase:v0.64.8.2'"
+check default "obj('Route')['metadata']['annotations'] == {'cert-manager.io/issuer-kind': 'ClusterIssuer', 'cert-manager.io/issuer-name': 'letsencrypt'}"
 check default "obj('Deployment')['spec']['selector'] == {'matchLabels': {'app.kubernetes.io/name': 'metabase'}}"
 check default "[c['name'] for c in pod()['containers']] == ['metabase']"
 check default "env('metabase')['MB_JETTY_HOST'] == '0.0.0.0' and 'MB_SITE_URL' not in env('metabase')"

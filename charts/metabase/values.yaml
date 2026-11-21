@@ -3,9 +3,10 @@ route:
   hostname: ""
   # extra labels of the Route, such as the one that picks a router shard
   labels: {}
-  # extra annotations of the Route, such as the cert-manager issuer
-  # (cert-manager.io/issuer-kind, cert-manager.io/issuer-name)
-  annotations: {}
+  # annotations of the Route; the cert-manager ones issue its certificate
+  annotations:
+    cert-manager.io/issuer-kind: ClusterIssuer
+    cert-manager.io/issuer-name: letsencrypt
 
 image:
   # Metabase OSS image
