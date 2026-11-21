@@ -262,8 +262,10 @@ class Fake(http.server.BaseHTTPRequestHandler):
 
     def _conv(self, conv):
         contact = self.state["chatwoot"]["contacts"][conv["contact_id"]]
-        return {"labels": [], **conv,
-                "meta": {"sender": {"id": contact["id"], "email": contact.get("email"), "name": contact.get("name")}}}
+        return {"labels": [], **{k: v for k, v in conv.items() if k != "hmac_verified"},
+                "meta": {"sender": {"id": contact["id"], "email": contact.get("email"), "name": contact.get("name"),
+                                    "identifier": contact.get("identifier")},
+                         "hmac_verified": conv.get("hmac_verified", False)}}
 
 
 def sign(secret, body, ts=None):
@@ -746,14 +748,18 @@ class BridgeTest(unittest.TestCase):
         self.state["odoo"]["helpdesk.team"] = {3: {"name": "Customer Care"}, 5: {"name": "Other"}}
         self.state["odoo"]["res.partner"] = {42: {"email": "ada@example.org", "name": "Ada"}}
 
-    def chat_start(self, email="ada@example.org", name="Ada", content="Hi, my site is down"):
-        """A visitor's new Website conversation and the webhook of its first message."""
+    def chat_start(self, email="ada@example.org", name="Ada", content="Hi, my site is down", verified=None):
+        """A visitor's new Website conversation and the webhook of its first message.
+
+        verified: the identifier the website signed (Chatwoot identity validation); None: an
+        anonymous visitor, whose email is only what the pre-chat form took."""
         contacts = self.state["chatwoot"]["contacts"]
         contact = len(contacts) + 1
-        contacts[contact] = {"id": contact, "name": name, "email": email}
+        contacts[contact] = {"id": contact, "name": name, "email": email, "identifier": verified}
         cid = len(self.conversations()) + 11
         self.conversations()[cid] = {"id": cid, "inbox_id": WEBSITE, "contact_id": contact, "status": "open",
-                                     "custom_attributes": {}, "additional_attributes": {"referer": "https://www.example.org/"}}
+                                     "custom_attributes": {}, "additional_attributes": {"referer": "https://www.example.org/"},
+                                     "hmac_verified": verified is not None}
         self.state["chatwoot"]["messages"][cid] = []
         return cid, self.visitor(cid, content)
 
@@ -805,7 +811,7 @@ class BridgeTest(unittest.TestCase):
 
     def test_website_first_message_creates_one_linked_ticket(self):
         self.website()
-        cid, first = self.chat_start()
+        cid, first = self.chat_start(verified="ada@example.org")
         self.assertEqual(self.hook(first), "done")
         self.assertEqual(self.hook(first), "done")
         (rid, ticket), = self.tickets().items()
@@ -825,7 +831,7 @@ class BridgeTest(unittest.TestCase):
 
     def test_website_new_visitor_gets_a_partner(self):
         self.website()
-        _, first = self.chat_start(email="new@example.org", name="New Person")
+        _, first = self.chat_start(email="new@example.org", name="New Person", verified="new@example.org")
         self.assertEqual(self.hook(first), "done")
         (ticket,) = self.tickets().values()
         self.assertEqual(self.state["odoo"]["res.partner"][ticket["partner_id"][0]]["email"], "new@example.org")
@@ -991,7 +997,7 @@ class BridgeTest(unittest.TestCase):
             self.state["odoo"]["helpdesk.ticket"][rid] = {
                 "name": "Chat: old question", "partner_email": "ada@example.org", "create_date": now,
                 "x_chatwoot_url": f"https://support.example.org/app/accounts/1/conversations/{rid}"}
-        cid, first = self.chat_start()
+        cid, first = self.chat_start(verified="ada@example.org")
         self.assertEqual(self.hook(first), "limited")
         self.assertEqual(self.hook(self.visitor(cid, "hello?")), "limited")
         self.assertEqual(len(self.tickets()), 2)
@@ -1016,7 +1022,7 @@ class BridgeTest(unittest.TestCase):
 
     def test_website_sales_label_moves_the_chat_to_a_lead(self):
         self.website()
-        cid, first = self.chat_start(content="What does a 3-node cluster cost?")
+        cid, first = self.chat_start(content="What does a 3-node cluster cost?", verified="ada@example.org")
         self.hook(first)
         (rid,) = self.tickets()
         self.hook(self.staff_reply(cid, "Let me ask sales."))
@@ -1042,6 +1048,91 @@ class BridgeTest(unittest.TestCase):
         # the chat now goes to the lead
         self.hook(self.visitor(cid, "And with GPUs?"))
         self.assertEqual(self.notes()[-1]["model"], "crm.lead")
+
+    # ------------------------------------------------------------ unverified visitors
+
+    def visitor_partners(self):
+        return {pid: p for pid, p in self.state["odoo"]["res.partner"].items() if p.get("ref") == "chatwoot-website-visitor"}
+
+    def test_website_unverified_visitor_never_gets_the_typed_customer(self):
+        # anyone can type a customer's address in the pre-chat form
+        self.website()
+        cid, first = self.chat_start(email="ada@example.org", name="Ada")
+        self.assertEqual(self.hook(first), "done")
+        (rid, ticket), = self.tickets().items()
+        (visitor, partner), = self.visitor_partners().items()
+        self.assertEqual(partner["name"], "Website visitor")
+        self.assertFalse(partner.get("email"))
+        self.assertEqual(ticket["partner_id"][0], visitor)
+        self.assertNotEqual(ticket["partner_id"][0], 42)
+        self.assertFalse([kw for model, m, kw in self.state["odoo_calls"] if m == "find_or_create"],
+                         "the typed address is never looked up as a partner")
+        # the claim is text for staff only
+        self.assertIn("Claimed address, unverified: ada@example.org", ticket["description"])
+        self.assertIn("Claimed name, unverified: Ada", ticket["description"])
+        (note,) = [m for m in self.chat(cid) if m["private"]]
+        self.assertIn("not verified", note["content"])
+        self.assertIn("Website visitor", note["content"])
+        # the visitor's notes on the ticket name the neutral partner as author
+        self.assertEqual(self.notes()[-1]["author_id"], visitor)
+        # a second chat reuses the one neutral partner
+        self.assertEqual(self.hook(self.chat_start(email="bob@example.org", name="Bob")[1]), "done")
+        self.assertEqual(len(self.visitor_partners()), 1)
+        self.assertEqual({t["partner_id"][0] for t in self.tickets().values()}, {visitor})
+
+    def test_website_existing_neutral_partner_is_reused(self):
+        self.website(WEBSITE_VISITOR_PARTNER="Bezoeker")
+        self.state["odoo"]["res.partner"][77] = {"name": "Website visitor", "ref": "chatwoot-website-visitor"}
+        self.assertEqual(self.hook(self.chat_start()[1]), "done")
+        (ticket,) = self.tickets().values()
+        self.assertEqual(ticket["partner_id"][0], 77)
+        self.assertEqual(len(self.visitor_partners()), 1)
+
+    def test_website_neutral_partner_name_is_a_value(self):
+        self.website(WEBSITE_VISITOR_PARTNER="Bezoeker")
+        self.assertEqual(self.hook(self.chat_start()[1]), "done")
+        (partner,) = self.visitor_partners().values()
+        self.assertEqual(partner["name"], "Bezoeker")
+
+    def test_website_verified_flag_without_a_valid_identifier_is_unverified(self):
+        self.website()
+        cid, first = self.chat_start(verified="not an address")
+        self.assertEqual(self.hook(first), "done")
+        (ticket,) = self.tickets().values()
+        self.assertIn(ticket["partner_id"][0], self.visitor_partners())
+
+    def test_website_verified_visitor_gets_the_signed_identity_not_the_typed_one(self):
+        # a verified contact whose email was later changed keeps the identifier the website signed
+        self.website()
+        cid, first = self.chat_start(email="mallory@example.org", name="Ada", verified="ada@example.org")
+        self.assertEqual(self.hook(first), "done")
+        (ticket,) = self.tickets().values()
+        self.assertEqual(ticket["partner_id"][0], 42)
+        self.assertEqual(self.visitor_partners(), {})
+        (note,) = [m for m in self.chat(cid) if m["private"]]
+        self.assertIn("verified by the website login", note["content"])
+
+    def test_website_unverified_tickets_per_claimed_address_are_limited(self):
+        self.website(WEBSITE_TICKETS_PER_EMAIL="2")
+        for _ in range(2):
+            self.assertEqual(self.hook(self.chat_start(email="ada@example.org")[1]), "done")
+        self.assertEqual(self.hook(self.chat_start(email="ada@example.org")[1]), "limited")
+        # another address, and one that only starts like it, still open tickets
+        self.assertEqual(self.hook(self.chat_start(email="da@example.org")[1]), "done")
+        self.assertEqual(self.hook(self.chat_start(email="ada@example.org.evil")[1]), "done")
+        self.assertEqual(len(self.tickets()), 4)
+
+    def test_website_unverified_sales_move_keeps_the_neutral_partner(self):
+        self.website()
+        cid, first = self.chat_start(content="What does a 3-node cluster cost?")
+        self.hook(first)
+        self.hook(self.staff_reply(cid, "Let me ask sales."))
+        self.assertEqual(self.hook(self.label(cid)), "done")
+        (lead,) = [v for k, v in self.state["odoo"]["crm.lead"].items() if k != 9]
+        self.assertIn(lead["partner_id"][0], self.visitor_partners())
+        self.assertFalse(lead["email_from"])
+        self.assertIn("Claimed address, unverified: ada@example.org", lead["description"])
+        self.assertIn("3-node cluster", lead["description"])
 
     def assert_no_lead(self, cid):
         self.assertEqual(len(self.not_moved(cid)), 1, "one note for staff")

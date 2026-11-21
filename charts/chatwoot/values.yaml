@@ -247,6 +247,10 @@ odoo:
     # a limit staff get a private note instead of a ticket
     ticketsPerEmail: 3
     ticketsPerHour: 20
+    # Odoo partner of every chat ticket whose visitor the website did not verify (identity
+    # below): the address typed in the pre-chat form can be anyone's, so it stays text in
+    # the ticket. Created once by the bridge with ref chatwoot-website-visitor
+    visitorPartner: Website visitor
     # new widget conversations one client address may start in a minute (Chatwoot's
     # RATE_LIMIT_WIDGET_CONVERSATIONS)
     conversationsPerMinute: 5

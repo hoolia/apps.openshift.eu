@@ -74,6 +74,7 @@ a super admin.
 | `odoo.website.enabled` | `false` | Website inbox `odoo.website.inbox` (`Website`) for the widget on `odoo.website.url`; each chat becomes an Odoo ticket. |
 | `odoo.website.team` | empty | Helpdesk team of chat tickets; empty: Odoo's default team. |
 | `odoo.website.ticketsPerEmail`, `odoo.website.ticketsPerHour` | `3`, `20` | New chat tickets per address in 24 hours, and in all in one hour. |
+| `odoo.website.visitorPartner` | `Website visitor` | Odoo partner of every chat ticket whose visitor the website did not verify. |
 | `odoo.website.conversationsPerMinute` | `5` | New widget conversations per client address in one minute (Chatwoot's `RATE_LIMIT_WIDGET_CONVERSATIONS`). |
 | `odoo.website.salesLabel`, `odoo.website.cancelledStage` | `sales`, `Cancelled` | The label that moves a chat to a new lead, and the stage its ticket moves to. Must not be a triage label. Empty label: chats stay tickets. |
 | `odoo.sales.fromSupport` | `false` | The sales label also moves a conversation of `odoo.ticketInbox` to a new lead with a conversation in `odoo.leadInbox`. Needs `leadInbox` and a sales label. |
@@ -174,6 +175,9 @@ flowchart LR
   text.
 - The first message of a conversation carries `agentBot.instructions`; the A2A context id is
   kept in the conversation's custom attribute `a2a_context_id`, so later messages continue it.
+  The bot signs that value for the conversation with its webhook secret: the widget API
+  lets a visitor write any custom attribute, and a value the bot did not sign for this
+  conversation starts a new context instead of continuing someone else's.
 - Chatwoot refuses webhooks to private addresses. The chart initializer of web and worker
   allows a private address for the bridge Service alone.
 - Once a conversation is open the bot stays silent in it, until staff set it back to
@@ -409,10 +413,19 @@ email address, an account webhook to the bridge path `/chatwoot/website`, signed
 the inbox secret, and the label `odoo.website.salesLabel`. Chatwoot sends an account webhook for every inbox; the bridge acts only on
 conversations of the Website inbox.
 
-- The first visitor message opens a `helpdesk.ticket` named `Chat: <first line>` for the
-  partner of the address the visitor typed, which Odoo finds or creates, in team
-  `odoo.website.team`. A private note links the ticket and tells staff that the address is
-  not verified.
+- The first visitor message opens a `helpdesk.ticket` named `Chat: <first line>` in team
+  `odoo.website.team`. A visitor whose identity the website verified
+  (`odoo.website.identity`, `meta.hmac_verified`) gets it on the partner of the signed
+  identifier, which Odoo finds or creates. Every other visitor gets it on one neutral
+  partner, `odoo.website.visitorPartner` (ref `chatwoot-website-visitor`, created once by
+  the bridge), never on the partner of the typed address: anyone can type a customer's
+  address. The typed name and address stay text in the ticket description (`Claimed
+  address, unverified: ...`). A private note links the ticket and tells staff whether the
+  identity is verified.
+- Staff confirm an unverified visitor themselves, then link the chat: in Odoo they set the
+  ticket's customer, in Chatwoot they merge the visitor's contact into the customer's. A
+  lead moved from an unverified chat keeps the neutral partner and the claimed identity as
+  text as well.
 - The address is not verified, so the bridge sends nothing to it. It creates and moves chat
   tickets and leads without stage tracking (`mail_notrack`), so no stage template (Ticket
   Received, Solved) mails it. Every public chat message, the visitor's and staff's, is
@@ -420,13 +433,13 @@ conversations of the Website inbox.
   reach the record appears in the chat as a private note, never in the widget.
 - Odoo itself still mails the partner when staff send a message from Odoo, move the ticket
   to a stage with a template, or when the team closes tickets automatically or asks for
-  ratings. Check those team settings before enabling. The typed address may be a real
-  customer's: the chat ticket then belongs to that customer's partner and shows in their
-  portal.
+  ratings. Check those team settings before enabling. The neutral partner has no address,
+  so Odoo mails nobody for an unverified chat until staff set its customer.
 - Chatwoot limits conversation starts from the widget to
   `odoo.website.conversationsPerMinute` per client address. A widget message can also open a
   conversation; Chatwoot limits those to 60 a minute per address. An address opens at most `odoo.website.ticketsPerEmail` chat tickets in
-  24 hours, counted in Odoo by the `Chat: ` name, and the bridge pod at most
+  24 hours, counted in Odoo by the `Chat: ` name and the ticket's address (an unverified
+  chat: the claimed address in the description), and the bridge pod at most
   `odoo.website.ticketsPerHour` in one hour; that count starts again when the pod restarts.
   Over a limit the chat gets a private note instead of a ticket, and messages of that chat
   are not copied to Odoo.

@@ -10,6 +10,12 @@ case as configured: "HANDOFF", "I'll pass you on. HANDOFF"), or a failure sets t
 conversation to open, so staff take over; the customer then gets the handoff message, never
 the rest of that answer. The bot never sees a conversation that is open.
 
+The A2A contextId of a conversation is kept in memory and in the conversation's custom
+attribute CONTEXT_ATTRIBUTE, signed: "<contextId>.<HMAC-SHA256 of the bot's secret over account,
+conversation and contextId>". A visitor can write that attribute through the widget API, so
+the bot continues only a context whose signature names this conversation; any other value
+starts a new context.
+
 BOT_A2A_URL names the bot's own agent; without it the bot asks A2A_URL like the other
 paths. Every message the bot passes on starts with a note of the bridge on who writes. A
 visitor counts as logged in only when Chatwoot verified the contact in this conversation
@@ -428,13 +434,36 @@ class Bot:
             self.chatwoot(f"/api/v1/accounts/{account}/conversations/{conversation}/toggle_status",
                           {"status": "open"})
 
+    def _context_mac(self, account, cid, context_id):
+        secret = read_file(self.config.webhook_secret_file)
+        return hmac.new(secret.encode(), f"a2a-context:{account}:{cid}:{context_id}".encode(),
+                        hashlib.sha256).hexdigest()
+
+    def context_of(self, account, conv):
+        """The A2A context of this conversation: the bot's own, never one the visitor set.
+
+        The widget API lets a visitor write any custom attribute; only a value the bot signed
+        for this account and conversation counts."""
+        key = (account, conv["id"])
+        if key in self.contexts:
+            return self.contexts[key]
+        stored = (conv.get("custom_attributes") or {}).get(self.config.context_attribute)
+        if not isinstance(stored, str):
+            return None
+        context_id, _, mac = stored.rpartition(".")
+        if not context_id or not hmac.compare_digest(mac.encode(), self._context_mac(account, conv["id"], context_id).encode()):
+            LOG.warning("conversation %s: %s is not the bot's; a new context starts", conv["id"],
+                        self.config.context_attribute)
+            return None
+        return context_id
+
     def remember(self, account, conv, context_id):
         key = (account, conv["id"])
         if not context_id or self.contexts.get(key) == context_id:
             return
         self.contexts[key] = context_id
         attributes = dict(conv.get("custom_attributes") or {})
-        attributes[self.config.context_attribute] = context_id
+        attributes[self.config.context_attribute] = f"{context_id}.{self._context_mac(account, conv['id'], context_id)}"
         try:
             self.chatwoot(f"/api/v1/accounts/{account}/conversations/{conv['id']}/custom_attributes",
                           {"custom_attributes": attributes})
@@ -513,8 +542,7 @@ class Bot:
             LOG.info("conversation %s: handoff on request", conv["id"])
             self.hand_off(account, conv["id"], c.handoff_message)
             return
-        context_id = (conv.get("custom_attributes") or {}).get(c.context_attribute) \
-            or self.contexts.get((account, conv["id"]))
+        context_id = self.context_of(account, conv)
         text = self.who(conv) + "\n\n" + content
         if c.instructions and not context_id:
             text = c.instructions + "\n\n" + text

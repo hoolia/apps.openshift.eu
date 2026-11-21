@@ -74,6 +74,8 @@ spec:
           value: {{ .ticketsPerEmail | quote }}
         - name: WEBSITE_TICKETS_PER_HOUR
           value: {{ .ticketsPerHour | quote }}
+        - name: WEBSITE_VISITOR_PARTNER
+          value: {{ .visitorPartner | quote }}
         {{- end }}
         {{- end }}
         {{- if or .Values.odoo.website.enabled .Values.odoo.sales.fromSupport }}

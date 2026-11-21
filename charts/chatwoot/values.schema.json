@@ -381,6 +381,7 @@
             "team": {"type": "string", "title": "Helpdesk team of chat tickets"},
             "ticketsPerEmail": {"type": "integer", "minimum": 1},
             "ticketsPerHour": {"type": "integer", "minimum": 1},
+            "visitorPartner": {"type": "string", "title": "Odoo partner of unverified chat tickets", "minLength": 1},
             "conversationsPerMinute": {"type": "integer", "minimum": 1},
             "salesLabel": {"type": "string", "title": "Label that moves a chat to a lead", "pattern": "^([A-Za-z0-9_-]{1,64})?$"},
             "cancelledStage": {"type": "string", "title": "Stage of a ticket whose chat moved to a lead"},
