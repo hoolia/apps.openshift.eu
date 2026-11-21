@@ -1,0 +1,25 @@
+apiVersion: v2
+name: openoutreach
+description: Read-only LinkedIn scout on the OpenOutreach LinkedIn library, with human pacing, signals to ClickHouse and an opt-in send path for human-approved messages
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+home: https://apps.openshift.eu
+icon: https://raw.githubusercontent.com/eracle/OpenOutreach/ade7fbdbd5a4595581fabf3cec1e803519a299a6/docs/logo.png
+keywords:
+- linkedin
+- marketing
+- lead-generation
+- scout
+sources:
+- https://github.com/hoolia/openoutreach-scout
+- https://github.com/eracle/OpenOutreach/tree/ade7fbdbd5a4595581fabf3cec1e803519a299a6
+- https://github.com/hoolia/apps.openshift.eu
+maintainers:
+- name: GRN.CLOUD B.V.
+  url: https://apps.openshift.eu
+annotations:
+  charts.openshift.io/name: OpenOutreach scout
+  charts.openshift.io/provider: GRN.CLOUD B.V.
+  apps.openshift.eu/category: marketing
+  apps.openshift.eu/vendor: GRN.CLOUD B.V.

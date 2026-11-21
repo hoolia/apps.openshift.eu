@@ -1,0 +1,188 @@
+{{- $send := include "openoutreach.maySend" . }}
+{{- $credentials := include "openoutreach.credentialsSecret" . }}
+{{- if and $send (not .Values.chatwoot.excludedSenderIds) }}
+{{- fail "sending needs chatwoot.excludedSenderIds: the agent and bot user ids whose notes never count as approval" }}
+{{- end }}
+{{- if and $send (not $credentials) }}
+{{- fail "sending needs CHATWOOT_API_TOKEN, ODOO_USER and ODOO_PASSWORD: set secrets.existingSecret, the secrets values or secrets.externalSecret.items" }}
+{{- end }}
+{{- if and .Values.testRun.enabled (or (not .Values.readOnly) .Values.sendEnabled) }}
+{{- fail "testRun needs readOnly: true and sendEnabled: false" }}
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "openoutreach.name" . }}
+  labels:
+    app: openoutreach
+    app.kubernetes.io/name: openoutreach
+    app.kubernetes.io/component: worker
+    app.openshift.io/runtime: python
+    {{- include "openoutreach.commonLabels" $ | nindent 4 }}
+  annotations:
+    app.openshift.io/vcs-uri: https://github.com/hoolia/openoutreach-scout
+spec:
+  # one browser profile, one LinkedIn session: never two pods
+  replicas: {{ if .Values.suspend }}0{{ else }}1{{ end }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "openoutreach.selector" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "openoutreach.selector" . | nindent 8 }}
+      annotations:
+        checksum/playbook: {{ include "openoutreach.playbook" . | sha256sum }}
+        {{- if and $credentials (not .Values.secrets.existingSecret) (eq .Values.secrets.type "kubernetes") }}
+        checksum/credentials: {{ include "openoutreach.credentialValues" . | sha256sum }}
+        {{- end }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+      {{- range . }}
+      - name: {{ . }}
+      {{- end }}
+      {{- end }}
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: scout
+        image: {{ include "openoutreach.image" . }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        args: [{{ .Values.mode | quote }}]
+        env:
+        - name: READ_ONLY
+          value: {{ .Values.readOnly | quote }}
+        - name: SEND_ENABLED
+          value: {{ .Values.sendEnabled | quote }}
+        - name: SCOUT_DATA_DIR
+          value: /data
+        - name: SCOUT_PLAYBOOK
+          value: /etc/oo-scout/playbook.yaml
+        - name: SCOUT_TIMEZONE
+          value: {{ .Values.timezone | quote }}
+        - name: SCOUT_LOCALE
+          value: {{ .Values.locale | quote }}
+        - name: LINKEDIN_STORAGE_STATE
+          value: /var/run/secrets/linkedin/storage_state.json
+        - name: SCOUT_WORKING_DAYS
+          value: {{ .Values.pacing.workingDays | quote }}
+        - name: SCOUT_WINDOW_START
+          value: {{ .Values.pacing.windowStart | quote }}
+        - name: SCOUT_WINDOW_END
+          value: {{ .Values.pacing.windowEnd | quote }}
+        - name: SCOUT_TEST_RUN
+          value: {{ .Values.testRun.enabled | quote }}
+        - name: SCOUT_MAX_PAGE_VIEWS_DAY
+          value: {{ ternary .Values.testRun.maxPageViews .Values.pacing.maxPageViewsDay .Values.testRun.enabled | quote }}
+        - name: SCOUT_MAX_CONNECTS_DAY
+          value: {{ .Values.pacing.maxConnectsDay | quote }}
+        - name: SCOUT_MAX_CONNECTS_WEEK
+          value: {{ .Values.pacing.maxConnectsWeek | quote }}
+        - name: SCOUT_MAX_MESSAGES_DAY
+          value: {{ .Values.pacing.maxMessagesDay | quote }}
+        - name: SCOUT_DELAY_MIN_S
+          value: {{ .Values.pacing.delayMinS | quote }}
+        - name: SCOUT_DELAY_MAX_S
+          value: {{ .Values.pacing.delayMaxS | quote }}
+        - name: SCOUT_SESSION_MAX_MIN
+          value: {{ ternary .Values.testRun.sessionMaxMin .Values.pacing.sessionMaxMin .Values.testRun.enabled | quote }}
+        - name: SCOUT_REST_HOURS
+          value: {{ .Values.pacing.restHours | quote }}
+        - name: SCOUT_PAUSE_MIN_MIN
+          value: {{ .Values.pacing.pauseMinMin | quote }}
+        - name: SCOUT_PAUSE_MAX_MIN
+          value: {{ .Values.pacing.pauseMaxMin | quote }}
+        - name: CLICKHOUSE_URL
+          value: {{ .Values.clickhouse.url | quote }}
+        - name: CLICKHOUSE_TABLE
+          value: {{ .Values.clickhouse.table | quote }}
+        - name: CHATWOOT_URL
+          value: {{ .Values.chatwoot.url | quote }}
+        - name: CHATWOOT_ACCOUNT_ID
+          value: {{ .Values.chatwoot.accountId | quote }}
+        - name: CHATWOOT_LEAD_ATTRIBUTE
+          value: {{ .Values.chatwoot.leadAttribute | quote }}
+        - name: CHATWOOT_EXCLUDED_SENDER_IDS
+          value: {{ .Values.chatwoot.excludedSenderIds | quote }}
+        - name: ODOO_URL
+          value: {{ .Values.odoo.url | quote }}
+        - name: ODOO_DB
+          value: {{ .Values.odoo.db | quote }}
+        {{- with $credentials }}
+        envFrom:
+        - secretRef:
+            name: {{ . }}
+        {{- end }}
+        # the ledger and the halt record are readable; a configuration error exits the
+        # container before this probe
+        readinessProbe:
+          exec:
+            command: [oo-scout, status]
+          initialDelaySeconds: 10
+          periodSeconds: 60
+          timeoutSeconds: 20
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: [ALL]
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
+        volumeMounts:
+        - name: data
+          mountPath: /data
+        - name: playbook
+          mountPath: /etc/oo-scout
+          readOnly: true
+        - name: linkedin-session
+          mountPath: /var/run/secrets/linkedin
+          readOnly: true
+        - name: dshm
+          mountPath: /dev/shm
+        - name: tmp
+          mountPath: /tmp
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: {{ include "openoutreach.name" . }}-data
+      - name: playbook
+        configMap:
+          name: {{ include "openoutreach.name" . }}-playbook
+      - name: linkedin-session
+        {{- if .Values.linkedinSession.existingSecret }}
+        secret:
+          secretName: {{ .Values.linkedinSession.existingSecret }}
+          optional: true
+        {{- else }}
+        emptyDir:
+          sizeLimit: 1Mi
+        {{- end }}
+      - name: dshm
+        emptyDir:
+          medium: Memory
+          sizeLimit: {{ .Values.shmSize }}
+      - name: tmp
+        emptyDir:
+          sizeLimit: 1Gi
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

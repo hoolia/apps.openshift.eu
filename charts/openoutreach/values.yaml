@@ -1,0 +1,176 @@
+# Kill switch: true scales the Deployment to 0. Keep it true until the account owner has
+# logged in once (README, How to login).
+suspend: true
+
+# run: paced scouting. bootstrap: open the LinkedIn login page on a localhost-only VNC
+# display for the one-time human login, then idle.
+mode: run
+
+image:
+  # the scout image, built from github.com/hoolia/openoutreach-scout at tag v<tag>
+  repository: ghcr.io/hoolia/openoutreach-scout
+  # version of the scout
+  tag: "0.1.0"
+  # manifest digest of that tag; empty pulls by tag alone
+  digest: sha256:d34477111ff3c0a083f99b499557f96e26b06210d2319fe61d5d353358fc555f
+  # pull policy of the scout container
+  pullPolicy: IfNotPresent
+
+# names of pull Secrets for a private registry or mirror of the image
+imagePullSecrets: []
+
+# readOnly true blocks every connect and message path in code and on the network.
+# Sending needs readOnly false AND sendEnabled true.
+readOnly: true
+# second switch of the send path; ignored while readOnly is true
+sendEnabled: false
+
+# Time zone of the working window and the day caps; the browser reports it too
+timezone: Europe/Amsterdam
+# Browser locale, as LinkedIn sees it
+locale: nl-NL
+
+# Human pacing. These defaults are the hard upper bounds of the scout; values.schema.json
+# and the program both refuse anything beyond them.
+pacing:
+  # days the scout may run, a subset of mon..fri
+  workingDays: mon,tue,wed,thu,fri
+  # start of the daily working window, not before 08:30
+  windowStart: "08:30"
+  # end of the daily working window, not after 18:00
+  windowEnd: "18:00"
+  # profile, search and post views per day, at most 50
+  maxPageViewsDay: 50
+  # connection requests per day, at most 10
+  maxConnectsDay: 10
+  # connection requests per rolling 7 days, at most 80
+  maxConnectsWeek: 80
+  # messages per day, at most 15
+  maxMessagesDay: 15
+  # shortest random delay between two actions in seconds, at least 20
+  delayMinS: 20
+  # longest random delay between two actions in seconds, at most 120
+  delayMaxS: 120
+  # longest session in minutes, at most 45
+  sessionMaxMin: 45
+  # rest after a checkpoint, captcha or warning page in hours, at least 24
+  restHours: 24
+  # shortest pause between sessions in minutes, at least 30
+  pauseMinMin: 30
+  # longest pause between sessions in minutes, at most 120
+  pauseMaxMin: 120
+
+clickhouse:
+  # HTTP interface of ClickHouse, for example http://clickhouse:8123; empty writes the
+  # signals to /data/signals.jsonl instead (dry run)
+  url: ""
+  # table the signals go to; the scout does not create it (scout README, Signal table)
+  table: signals.signal
+
+chatwoot:
+  # base URL of Chatwoot, for the send path only
+  url: ""
+  # Chatwoot account id
+  accountId: 1
+  # conversation custom attribute holding the Odoo crm.lead id
+  leadAttribute: odoo_lead_id
+  # comma-separated Chatwoot user ids whose notes never count as approval (agent users,
+  # bots); required when sending
+  excludedSenderIds: ""
+
+odoo:
+  # base URL of Odoo, for the send path only
+  url: ""
+  # Odoo database name
+  db: ""
+
+# Credentials, read as environment variables. Every key is optional for a read-only run:
+# CLICKHOUSE_USER and CLICKHOUSE_PASSWORD when clickhouse.url is set, SLACK_WEBHOOK_URL
+# for alerts, CHATWOOT_API_TOKEN, ODOO_USER and ODOO_PASSWORD when sending.
+secrets:
+  # kubernetes: a Secret from the values below, rendered only when one is set.
+  # externalSecret: an ExternalSecret from a secret store, rendered only when items is set
+  type: kubernetes
+  # name of an existing Secret with any of the keys above; the chart then renders no
+  # Secret or ExternalSecret of its own
+  existingSecret: ""
+  # ClickHouse user with INSERT on clickhouse.table
+  clickhouseUser: ""
+  # password of that ClickHouse user
+  clickhousePassword: ""
+  # Slack incoming webhook for halt and pacing alerts; empty logs alerts only
+  slackWebhookUrl: ""
+  # Chatwoot API access token of a user that may read conversations and set labels
+  chatwootApiToken: ""
+  # Odoo login of the user that reads and marks leads
+  odooUser: ""
+  # API key of that Odoo user
+  odooPassword: ""
+  externalSecret:
+    # kind of the secret store
+    storeKind: ClusterSecretStore
+    # name of the secret store; required with type externalSecret
+    storeName: ""
+    # how often the Secret is refreshed from the store
+    refreshInterval: 1h
+    # vault item per key: an item name reads the item's password, or a map with key and
+    # property reads another field, for example
+    #   CLICKHOUSE_USER: {key: clickhouse-writer, property: login.username}
+    #   CLICKHOUSE_PASSWORD: clickhouse-writer
+    items: {}
+
+linkedinSession:
+  # optional Secret with key storage_state.json: a Playwright storage state that seeds an
+  # empty browser profile. The VNC login (mode bootstrap) needs no Secret.
+  existingSecret: ""
+
+# Acceptance test only: one session outside the working window, at most maxPageViews
+# page views and sessionMaxMin minutes, with the normal random delays, using its own
+# playbook. Refused unless readOnly is true and sendEnabled false. Set enabled back to
+# false and suspend to true afterwards.
+testRun:
+  # run the acceptance session
+  enabled: false
+  # page views of the test session, at most 5
+  maxPageViews: 5
+  # length of the test session in minutes, at most 10
+  sessionMaxMin: 10
+  # playbook of the test session, same format as playbook
+  playbook:
+    linkedin:
+      rules: []
+
+# LinkedIn rules of the playbook (scout README, Configuration). Mounted as a ConfigMap and
+# re-read at every session start; no rule means the scout only opens the feed.
+playbook:
+  linkedin:
+    rules: []
+
+persistence:
+  # size of the volume with the browser profile (the login) and the pacing ledger
+  size: 5Gi
+  # storage class of that volume; empty uses the cluster default
+  storageClassName: ""
+  # one browser profile, one pod
+  accessMode: ReadWriteOnce
+
+# requests and limits of the scout container (Chromium with Xvfb)
+resources:
+  requests:
+    cpu: 250m
+    memory: 1Gi
+  limits:
+    cpu: "2"
+    memory: 2Gi
+
+# size of the in-memory /dev/shm; Chromium needs a large one
+shmSize: 1Gi
+
+# node selector of the pod
+nodeSelector: {}
+# tolerations of the pod
+tolerations: []
+# affinity of the pod
+affinity: {}
+# extra annotations on the pod template
+podAnnotations: {}
