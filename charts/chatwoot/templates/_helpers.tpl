@@ -209,6 +209,23 @@ identity provider can deliver to or verify, so no login of a person can match it
 {{- if has .Values.agent.auth.type (list "serviceAccountToken" "clientAssertion") }}true{{ end }}
 {{- end -}}
 
+{{/* Host headers the MCP server answers, with any port: the Route host, mcp.allowedHosts and, with mcp.callers, the Service. */}}
+{{- define "wrapper.mcpAllowedHosts" -}}
+{{- $ns := .Release.Namespace }}
+{{- $hosts := list }}
+{{- if and .Values.mcp.route.enabled .Values.mcp.route.hostname }}
+{{- $hosts = append $hosts .Values.mcp.route.hostname }}
+{{- end }}
+{{- $hosts = concat $hosts .Values.mcp.allowedHosts }}
+{{- if .Values.mcp.callers }}
+{{- /* callers in the cluster use the Service */}}
+{{- $hosts = concat $hosts (list "chatwoot-mcp" (printf "chatwoot-mcp.%s" $ns) (printf "chatwoot-mcp.%s.svc" $ns) (printf "chatwoot-mcp.%s.svc.cluster.local" $ns)) }}
+{{- end }}
+{{- $out := list }}
+{{- range ($hosts | uniq) }}{{- $out = append $out . }}{{- $out = append $out (printf "%s:*" .) }}{{- end }}
+{{- $out | join "," }}
+{{- end -}}
+
 {{/* Non-empty for a release of the bridge alone. */}}
 {{- define "wrapper.standalone" -}}
 {{- if .Values.agentBridge.standalone.enabled }}true{{ end }}

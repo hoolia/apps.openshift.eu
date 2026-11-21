@@ -606,6 +606,56 @@ Only `clientSecret` stores a credential of the agent in the project. Use it when
 server cannot tell this cluster's ServiceAccount tokens from those of another cluster with
 the same issuer.
 
+### MCP server
+
+With `mcp.enabled`, Deployment `chatwoot-mcp` serves tools for AI agents over MCP
+(streamable HTTP at `/mcp`): list conversations, read one, and post a private note. No tool
+sends anything to a contact. The server calls Service `chatwoot-web` inside the project as
+one Chatwoot agent user; that user reads only the inboxes it is a member of.
+
+1. In Chatwoot, create an agent user for the server, add it to the inboxes it may read, and
+   copy its access token from its profile. A bot token cannot list conversations.
+2. Pass that token as `secrets.mcpToken`, or as vault item
+   `secrets.externalSecret.items.mcp-token`.
+3. Name the callers. kube-rbac-proxy in front of the server admits a call only with a
+   ServiceAccount token that may create `services/proxy` on Service `chatwoot-mcp`
+   (Role `chatwoot-mcp-caller`):
+   - a pod in the cluster: list its ServiceAccount in `mcp.callers`; its namespace may
+     then reach port 8443;
+   - a gateway elsewhere: `mcp.callerAccount.enabled` creates ServiceAccount
+     `chatwoot-mcp-caller` with a long-lived token in Secret `chatwoot-mcp-caller-token`,
+     and `mcp.route.enabled` publishes `https://<host>/mcp`.
+4. Ask the platform team to bind ServiceAccount `chatwoot-mcp` of the project to ClusterRole
+   `system:auth-delegator`: the proxy reviews each token with the Kubernetes API, a
+   cluster-wide right that a chart cannot grant. Without it every call is refused.
+
+| Value | Default | Meaning |
+|---|---|---|
+| `mcp.enabled` | `false` | Run the MCP server. |
+| `mcp.image.repository`, `mcp.image.tag` | empty | Image of the chatwoot-mcp server; required. |
+| `mcp.accountId` | `1` | Chatwoot account the tools work in. |
+| `mcp.noteInboxIds` | empty | Inbox ids `post_private_note` may write to. Empty: every inbox of the user. |
+| `mcp.organization` | empty | Organisation the server's instructions name the support desk after. Empty: the image's default. |
+| `mcp.targetName` | `chatwoot` | Tool prefix an MCP gateway that discovers the Service gives the tools. |
+| `mcp.callers` | empty | ServiceAccounts allowed to call, `{kind: ServiceAccount, name, namespace}`. |
+| `mcp.callerAccount.enabled` | `false` | ServiceAccount `chatwoot-mcp-caller` with a long-lived token, for a gateway outside the cluster. |
+| `mcp.route.enabled` | `false` | Route `chatwoot-mcp`, reencrypted to the proxy. |
+| `mcp.route.hostname` | empty | Host of the Route. Empty: OpenShift assigns one under the default application domain. |
+| `mcp.route.annotations` | empty | Annotations of the Route, such as cert-manager's for a host outside that domain. |
+| `mcp.allowedHosts` | empty | Further host names the server answers with any port, besides `mcp.route.hostname` and, with `mcp.callers`, the Service names. With a Route but no hostname, the host OpenShift assigns is required here. |
+| `mcp.ingressFrom` | empty | Further NetworkPolicy peers that may reach port 8443, besides the routers and the namespaces of `mcp.callers`. |
+| `mcp.rbacProxy.image`, `mcp.rbacProxy.resources` | kube-rbac-proxy v0.23.0 | The proxy container. |
+| `mcp.resources` | 10m, 64Mi to 256Mi | The server container. |
+
+Service `chatwoot-mcp` port 8443 carries `appProtocol: agentgateway.dev/mcp`. A gateway
+that discovers MCP servers by it must speak TLS to the port, trust the OpenShift service
+CA, and send the token of a ServiceAccount in `mcp.callers`.
+
+The proxy reaches the Kubernetes API through `networkPolicy.apiServerEgress`. A caller
+sends `Authorization: Bearer <token>`; the token of `chatwoot-mcp-caller` is read with:
+
+    oc -n <project> extract secret/chatwoot-mcp-caller-token --keys=token --to=-
+
 ### Interfaces for integrations
 
 Service `chatwoot-web` port 3000 serves the Chatwoot API (`/api/v1/accounts/...` with a
@@ -638,6 +688,9 @@ bucket.
 - A hostname outside the default application domain needs a DNS record pointing at the
   platform's ingress. Ask the platform team for the target; the certificate follows
   automatically once the name resolves.
+- With `mcp.enabled`, ServiceAccount `chatwoot-mcp` needs ClusterRole
+  `system:auth-delegator` from the platform team. Check: pod `chatwoot-mcp` is 2/2 ready,
+  and a POST of an MCP `initialize` to `/mcp` with a caller's token returns 200.
 - `attachments.storage: objectBucketClaim` needs an object bucket storage class from the
   platform team. Chatwoot serves the files itself, so the bucket needs no public address.
 - For single sign-on, ask the platform team for the OIDC issuer and a client as described

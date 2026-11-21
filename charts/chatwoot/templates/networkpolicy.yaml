@@ -47,6 +47,12 @@ spec:
         matchLabels:
           app.kubernetes.io/name: chatwoot-odoo-bridge
     {{- end }}
+    {{- if .Values.mcp.enabled }}
+    # the MCP server reads conversations and writes private notes through the API
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: chatwoot-mcp
+    {{- end }}
     {{- with .Values.networkPolicy.webIngressFrom }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
@@ -236,6 +242,80 @@ spec:
         - key: app.kubernetes.io/name
           operator: In
           values: [chatwoot-web, chatwoot-worker, chatwoot-prepare]
+{{- if .Values.mcp.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: chatwoot-mcp
+  labels:
+    app: chatwoot-mcp
+    app.kubernetes.io/name: chatwoot-mcp
+    app.kubernetes.io/component: network
+    {{- include "chatwoot.commonLabels" $ | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: chatwoot-mcp
+  policyTypes:
+  - Ingress
+  - Egress
+  {{- if or .Values.mcp.route.enabled .Values.mcp.ingressFrom .Values.mcp.callers }}
+  # the proxy only; every call carries a token it reviews
+  ingress:
+  - ports:
+    - protocol: TCP
+      port: 8443
+    from:
+    {{- if .Values.mcp.route.enabled }}
+    - namespaceSelector:
+        matchLabels:
+          policy-group.network.openshift.io/ingress: ""
+    {{- end }}
+    {{- /* the namespaces of mcp.callers */}}
+    {{- $callerNs := list }}
+    {{- range .Values.mcp.callers }}{{- $callerNs = append $callerNs .namespace }}{{- end }}
+    {{- range ($callerNs | uniq) }}
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: {{ . }}
+    {{- end }}
+    {{- with .Values.mcp.ingressFrom }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- else }}
+  ingress: []
+  {{- end }}
+  # the server reaches Chatwoot and DNS, the proxy the Kubernetes API for its reviews
+  egress:
+  - ports:
+    - protocol: TCP
+      port: 3000
+    to:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: chatwoot-web
+  - ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+    - protocol: UDP
+      port: 5353
+    - protocol: TCP
+      port: 5353
+    to:
+    {{- toYaml .Values.networkPolicy.dnsPeers | nindent 4 }}
+  - ports:
+    {{- range .Values.networkPolicy.apiServerEgress.ports }}
+    - protocol: TCP
+      port: {{ . }}
+    {{- end }}
+    {{- with .Values.networkPolicy.apiServerEgress.to }}
+    to:
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+{{- end }}
 {{- end }}
 {{- if and .Values.networkPolicy.enabled (include "wrapper.standalone" .) }}
 apiVersion: networking.k8s.io/v1

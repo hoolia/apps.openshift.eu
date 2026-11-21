@@ -234,8 +234,9 @@ networkPolicy:
     to: []
     ports:
     - 443
-  # where the agent bridge may reach the Kubernetes API, with tenantFacts.enabled: the
-  # endpoints of Service kubernetes in namespace default. Empty: any address on these ports
+  # where the agent bridge (with tenantFacts.enabled) and the MCP proxy (with mcp.enabled)
+  # may reach the Kubernetes API: the endpoints of Service kubernetes in namespace default.
+  # Empty: any address on these ports
   apiServerEgress:
     to: []
     ports:
@@ -544,6 +545,71 @@ agentBridge:
       cpu: 500m
       memory: 192Mi
 
+# MCP server for AI agents: list and read conversations, leave private notes; no tool sends
+# anything to a contact. It calls Chatwoot web inside the release as one Chatwoot agent
+# user (secrets.mcpToken). kube-rbac-proxy in front checks every call: the caller's
+# ServiceAccount token must allow services/proxy on Service chatwoot-mcp. ServiceAccount
+# chatwoot-mcp needs ClusterRole system:auth-delegator, which this chart cannot bind (a
+# cluster-scoped object): an administrator binds it. See the README
+mcp:
+  enabled: false
+  # a chatwoot-mcp image: streamable HTTP on port 8000 at /mcp; required with mcp.enabled
+  image:
+    repository: ""
+    # a version tag
+    tag: ""
+    # IfNotPresent or Always
+    pullPolicy: IfNotPresent
+  # id of the Chatwoot account the tools work in
+  accountId: 1
+  # inbox ids post_private_note may write to; empty: every inbox of the MCP user. The user
+  # reads only the inboxes it is a member of
+  noteInboxIds: []
+  # the organisation the server's instructions name the support desk after; empty: the
+  # image's default
+  organization: ""
+  # tool prefix an MCP gateway that discovers the Service gives the tools (<name>_<tool>)
+  targetName: chatwoot
+  # ServiceAccounts allowed to call: [{kind: ServiceAccount, name, namespace}]
+  callers: []
+  # ServiceAccount chatwoot-mcp-caller with a long-lived token in Secret
+  # chatwoot-mcp-caller-token, allowed to call: the identity of a gateway outside the
+  # cluster
+  callerAccount:
+    enabled: false
+  # https://<hostname>/mcp, reencrypted to the proxy
+  route:
+    enabled: false
+    # empty: OpenShift assigns a host under the default application domain
+    hostname: ""
+    # with a hostname outside that domain, the cert-manager annotations of route.annotations
+    annotations: {}
+  # further host names the server answers with any port (MCP_ALLOWED_HOSTS), besides
+  # mcp.route.hostname and, with mcp.callers, the Service names; with mcp.route.enabled and
+  # no hostname, the host OpenShift assigns (<route>-<namespace>.<application domain>) is
+  # required here
+  allowedHosts: []
+  # further peers (NetworkPolicyPeer) that may reach the proxy port 8443; the routers may
+  # with mcp.route.enabled, the namespaces of mcp.callers always
+  ingressFrom: []
+  # kube-rbac-proxy in front of the server on port 8443
+  rbacProxy:
+    image: quay.io/brancz/kube-rbac-proxy:v0.23.0
+    # resources of the proxy container
+    resources:
+      requests:
+        cpu: 5m
+        memory: 32Mi
+      limits:
+        memory: 128Mi
+  # resources of the server container
+  resources:
+    requests:
+      cpu: 10m
+      memory: 64Mi
+    limits:
+      memory: 256Mi
+
 secrets:
   # kubernetes: Secrets from the values below. externalSecret: from a secret store
   type: kubernetes
@@ -588,6 +654,9 @@ secrets:
   # identity validation key of the Website inbox, with odoo.website.identity.enabled; the
   # site that signs customers needs the same value. Empty: generated once and kept
   websiteIdentityKey: ""
+  # access token of the Chatwoot agent user the MCP server works as, with mcp.enabled;
+  # required (an agent bot token cannot list conversations)
+  mcpToken: ""
   externalSecret:
     storeKind: ClusterSecretStore
     storeName: ""
@@ -611,3 +680,4 @@ secrets:
       odoo-inbox-secret: chatwoot-odoo-inbox-secret
       issue-tracker-token: chatwoot-issue-tracker-token
       website-identity-key: chatwoot-website-identity-key
+      mcp-token: chatwoot-mcp-token

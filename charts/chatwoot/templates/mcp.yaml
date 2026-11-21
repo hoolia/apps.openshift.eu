@@ -1,0 +1,291 @@
+{{- $m := .Values.mcp }}
+{{- if and $m.enabled (include "wrapper.standalone" .) }}
+{{- fail "mcp.enabled and agentBridge.standalone.enabled exclude each other: the server calls the Chatwoot of its own release" }}
+{{- end }}
+{{- if and $m.enabled (not $m.callers) (not $m.callerAccount.enabled) }}
+{{- fail "mcp.enabled needs mcp.callers or mcp.callerAccount.enabled: no one could call the server" }}
+{{- end }}
+{{- if and $m.enabled $m.route.enabled (not $m.route.hostname) (not $m.allowedHosts) }}
+{{- fail "mcp.route.enabled without mcp.route.hostname needs the host OpenShift assigns in mcp.allowedHosts: the server refuses any other Host header" }}
+{{- end }}
+{{- if and $m.enabled (not (include "wrapper.mcpAllowedHosts" .)) }}
+{{- fail "mcp.enabled answers no Host header: set mcp.callers, mcp.route.hostname or mcp.allowedHosts" }}
+{{- end }}
+{{- if $m.enabled }}
+{{- /*
+The MCP server: tools over Chatwoot's API as one agent user (Secret chatwoot-mcp), behind
+kube-rbac-proxy on port 8443. A call passes when the caller's ServiceAccount token may
+create services/proxy on Service chatwoot-mcp (Role and RoleBinding chatwoot-mcp-caller).
+The proxy reviews tokens as ServiceAccount chatwoot-mcp, which needs ClusterRole
+system:auth-delegator; that binding is cluster-scoped and not part of this chart.
+*/}}
+{{- $callers := $m.callers }}
+{{- if $m.callerAccount.enabled }}
+{{- $callers = append $callers (dict "kind" "ServiceAccount" "name" "chatwoot-mcp-caller" "namespace" .Release.Namespace) }}
+{{- end }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: chatwoot-mcp
+  labels:
+    app: chatwoot-mcp
+    app.kubernetes.io/name: chatwoot-mcp
+    app.kubernetes.io/component: rbac
+    {{- include "chatwoot.commonLabels" $ | nindent 4 }}
+automountServiceAccountToken: false
+{{- if $m.callerAccount.enabled }}
+---
+# the identity of a gateway outside the cluster; its only right is the call
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: chatwoot-mcp-caller
+  labels:
+    app: chatwoot-mcp
+    app.kubernetes.io/name: chatwoot-mcp
+    app.kubernetes.io/component: rbac
+    {{- include "chatwoot.commonLabels" $ | nindent 4 }}
+automountServiceAccountToken: false
+---
+# long-lived token of chatwoot-mcp-caller. Rotate: delete this Secret, sync, hand the new
+# token to the gateway
+apiVersion: v1
+kind: Secret
+type: kubernetes.io/service-account-token
+metadata:
+  name: chatwoot-mcp-caller-token
+  labels:
+    app: chatwoot-mcp
+    app.kubernetes.io/name: chatwoot-mcp
+    app.kubernetes.io/component: rbac
+    {{- include "chatwoot.commonLabels" $ | nindent 4 }}
+  annotations:
+    kubernetes.io/service-account.name: chatwoot-mcp-caller
+{{- end }}
+---
+# what a caller must be allowed: services/proxy on Service chatwoot-mcp
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: chatwoot-mcp-rbac
+  labels:
+    app: chatwoot-mcp
+    app.kubernetes.io/name: chatwoot-mcp
+    app.kubernetes.io/component: rbac
+    {{- include "chatwoot.commonLabels" $ | nindent 4 }}
+data:
+  config.yaml: |
+    authorization:
+      resourceAttributes:
+        namespace: {{ .Release.Namespace }}
+        apiVersion: v1
+        resource: services
+        subresource: proxy
+        name: chatwoot-mcp
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: chatwoot-mcp-caller
+  labels:
+    app: chatwoot-mcp
+    app.kubernetes.io/name: chatwoot-mcp
+    app.kubernetes.io/component: rbac
+    {{- include "chatwoot.commonLabels" $ | nindent 4 }}
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - services/proxy
+  resourceNames:
+  - chatwoot-mcp
+  verbs:
+  - get
+  - create
+  - delete
+{{- with $callers }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: chatwoot-mcp-caller
+  labels:
+    app: chatwoot-mcp
+    app.kubernetes.io/name: chatwoot-mcp
+    app.kubernetes.io/component: rbac
+    {{- include "chatwoot.commonLabels" $ | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: chatwoot-mcp-caller
+subjects:
+{{- toYaml . | nindent 0 }}
+{{- end }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chatwoot-mcp
+  labels:
+    app: chatwoot-mcp
+    app.kubernetes.io/name: chatwoot-mcp
+    app.kubernetes.io/component: mcp
+    {{- include "chatwoot.commonLabels" $ | nindent 4 }}
+    app.openshift.io/runtime: python
+  annotations:
+    app.openshift.io/connects-to: '[{"apiVersion":"apps/v1","kind":"Deployment","name":"chatwoot-web"}]'
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: chatwoot-mcp
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: chatwoot-mcp
+    spec:
+      serviceAccountName: chatwoot-mcp
+      # the proxy needs the token for its reviews; the server has no Kubernetes client and
+      # its Role grants nothing
+      automountServiceAccountToken: true
+      securityContext:
+        {{- include "wrapper.podSecurity" . | nindent 8 }}
+      containers:
+      - name: server
+        image: {{ required "mcp.image.repository is required with mcp.enabled" $m.image.repository }}:{{ required "mcp.image.tag is required with mcp.enabled" $m.image.tag }}
+        imagePullPolicy: {{ $m.image.pullPolicy }}
+        env:
+        - name: HOME
+          value: /tmp
+        # loopback only: every call must pass the proxy. A pod port stays open to the
+        # namespace and the tenant whatever a NetworkPolicy of this chart says
+        - name: MCP_HOST
+          value: 127.0.0.1
+        # Host headers the server answers (DNS-rebinding protection on loopback); the
+        # proxy passes the caller's Host on
+        - name: MCP_ALLOWED_HOSTS
+          value: {{ include "wrapper.mcpAllowedHosts" . | quote }}
+        {{- with $m.organization }}
+        # the name the server's instructions give the support desk
+        - name: MCP_ORGANIZATION
+          value: {{ . | quote }}
+        {{- end }}
+        - name: CHATWOOT_URL
+          value: http://chatwoot-web:3000
+        - name: CHATWOOT_ACCOUNT_ID
+          value: {{ $m.accountId | toString | quote }}
+        - name: CHATWOOT_NOTE_INBOX_IDS
+          value: {{ $m.noteInboxIds | join "," | quote }}
+        - name: CHATWOOT_API_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: chatwoot-mcp
+              key: mcp-token
+        # the server's own port on loopback, which the proxy's probe cannot see
+        readinessProbe:
+          exec:
+            command:
+            - python3
+            - -c
+            - import socket; socket.create_connection(("127.0.0.1", 8000), 2).close()
+          periodSeconds: 10
+          timeoutSeconds: 5
+        resources:
+          {{- toYaml $m.resources | nindent 10 }}
+        securityContext:
+          {{- include "wrapper.restricted" . | nindent 10 }}
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+      - name: kube-rbac-proxy
+        image: {{ $m.rbacProxy.image }}
+        args:
+        - --secure-listen-address=0.0.0.0:8443
+        - --upstream=http://127.0.0.1:8000/
+        - --config-file=/etc/kube-rbac-proxy/config.yaml
+        - --tls-cert-file=/etc/tls/private/tls.crt
+        - --tls-private-key-file=/etc/tls/private/tls.key
+        ports:
+        - name: mcp
+          containerPort: 8443
+          protocol: TCP
+        readinessProbe:
+          tcpSocket:
+            port: mcp
+          periodSeconds: 10
+        resources:
+          {{- toYaml $m.rbacProxy.resources | nindent 10 }}
+        securityContext:
+          {{- include "wrapper.restricted" . | nindent 10 }}
+        volumeMounts:
+        - name: rbac
+          mountPath: /etc/kube-rbac-proxy
+          readOnly: true
+        - name: tls
+          mountPath: /etc/tls/private
+          readOnly: true
+      volumes:
+      - name: tmp
+        emptyDir: {}
+      - name: rbac
+        configMap:
+          name: chatwoot-mcp-rbac
+      - name: tls
+        secret:
+          secretName: chatwoot-mcp-tls
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: chatwoot-mcp
+  labels:
+    app: chatwoot-mcp
+    app.kubernetes.io/name: chatwoot-mcp
+    app.kubernetes.io/component: mcp
+    {{- include "chatwoot.commonLabels" $ | nindent 4 }}
+  annotations:
+    # the proxy's certificate, from the OpenShift service CA
+    service.beta.openshift.io/serving-cert-secret-name: chatwoot-mcp-tls
+    agentgateway.dev/mcp-path: /mcp
+    agentgateway.dev/mcp-target-name: {{ $m.targetName | quote }}
+spec:
+  selector:
+    app.kubernetes.io/name: chatwoot-mcp
+  ports:
+  - name: mcp
+    port: 8443
+    targetPort: mcp
+    protocol: TCP
+    # a gateway that discovers this port speaks TLS to it and sends a token of a caller
+    appProtocol: agentgateway.dev/mcp
+{{- if $m.route.enabled }}
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: chatwoot-mcp
+  labels:
+    app: chatwoot-mcp
+    app.kubernetes.io/name: chatwoot-mcp
+    app.kubernetes.io/component: route
+    {{- include "chatwoot.commonLabels" $ | nindent 4 }}
+  # a tool call may take minutes; mcp.route.annotations may set another timeout
+  annotations:
+    {{- toYaml (merge (deepCopy $m.route.annotations) (dict "haproxy.router.openshift.io/timeout" "330s")) | nindent 4 }}
+spec:
+  {{- with $m.route.hostname }}
+  host: {{ . }}
+  {{- end }}
+  port:
+    targetPort: mcp
+  tls:
+    termination: reencrypt
+    insecureEdgeTerminationPolicy: Redirect
+  to:
+    kind: Service
+    name: chatwoot-mcp
+    weight: 100
+  wildcardPolicy: None
+{{- end }}
+{{- end }}
