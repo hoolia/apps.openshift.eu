@@ -55,6 +55,11 @@
    "type": "app",
    "vendor": "Mailu"
   },
+  "matomo": {
+   "category": "marketing",
+   "type": "app",
+   "vendor": "InnoCraft Ltd"
+  },
   "mcp-all": {
    "bundle": "all",
    "category": "productivity",
@@ -119,6 +124,20 @@
    "type": "mcp-server",
    "vendor": "Google"
   },
+  "mcp-gsc": {
+   "bundle": "gsc",
+   "category": "marketing",
+   "server": "gsc",
+   "type": "mcp-server",
+   "vendor": "Amin Foroutan"
+  },
+  "mcp-higgsfield": {
+   "bundle": "higgsfield",
+   "category": "marketing",
+   "server": "higgsfield",
+   "type": "mcp-server",
+   "vendor": "Storyvord"
+  },
   "mcp-hosted": {
    "category": "ai",
    "type": "mcp-server",
@@ -181,6 +200,11 @@
    "type": "mcp-server",
    "vendor": "SonarSource"
   },
+  "metabase": {
+   "category": "data",
+   "type": "app",
+   "vendor": "Metabase Inc"
+  },
   "mkdocs": {
    "category": "documentation",
    "type": "app",
@@ -240,6 +264,11 @@
    "category": "database",
    "type": "app",
    "vendor": "Qdrant"
+  },
+  "searxng": {
+   "category": "search",
+   "type": "app",
+   "vendor": "SearXNG"
   },
   "vaultwarden": {
    "category": "security",
