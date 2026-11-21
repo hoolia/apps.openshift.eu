@@ -57,6 +57,8 @@ claim `matomo-config` by hand when you remove Matomo for good.
   automatically once the name resolves. A tracker on a public website needs the public
   router: ask the platform team for its Route label.
 - The chart needs the MariaDB operator on the cluster.
+- Plugins installed from the Marketplace live on volume `matomo-plugins` and survive a
+  restart; the plugins of the image are copied over them at every start.
 - With `secrets.type=externalSecret`, create the items named in
   `secrets.externalSecret.items` in your vault collection with the value in the password
   field, and set `secrets.externalSecret.storeName` to your store.

@@ -21,6 +21,29 @@ spec:
     requests:
       storage: {{ .Values.persistence.size }}
 ---
+# plugins/ of Matomo: the image's plugins are copied over it at start, Marketplace
+# plugins stay. Kept on uninstall, as the database still lists them
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: matomo-plugins
+  labels:
+    app: matomo
+    app.kubernetes.io/name: matomo
+    app.kubernetes.io/component: storage
+    {{- include "matomo.commonLabels" $ | nindent 4 }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  accessModes:
+  - ReadWriteOnce
+  {{- with .Values.persistence.storageClassName }}
+  storageClassName: {{ . }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.pluginsSize }}
+---
 # nginx in front of php-fpm, after github.com/matomo-org/matomo-nginx
 apiVersion: v1
 kind: ConfigMap
@@ -119,6 +142,8 @@ spec:
           mountPath: /var/www/html
         - name: config
           mountPath: /var/www/html/config
+        - name: plugins
+          mountPath: /var/www/html/plugins
       - name: nginx
         image: {{ .Values.nginx.repository }}:{{ .Values.nginx.tag }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
@@ -143,6 +168,9 @@ spec:
         - name: html
           mountPath: /var/www/html
           readOnly: true
+        - name: plugins
+          mountPath: /var/www/html/plugins
+          readOnly: true
         - name: nginx
           mountPath: /etc/nginx/conf.d
           readOnly: true
@@ -152,6 +180,9 @@ spec:
       - name: config
         persistentVolumeClaim:
           claimName: matomo-config
+      - name: plugins
+        persistentVolumeClaim:
+          claimName: matomo-plugins
       - name: nginx
         configMap:
           name: matomo-nginx

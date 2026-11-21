@@ -55,7 +55,9 @@ extraEnv: []
 persistence:
   # size of the volume with config/config.ini.php; the code is copied from the image
   size: 2Gi
-  # storage class of that volume; empty: the cluster default
+  # size of the volume with plugins/, which keeps the plugins installed from the Marketplace
+  pluginsSize: 1Gi
+  # storage class of both volumes; empty: the cluster default
   storageClassName: ""
 
 database:

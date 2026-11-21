@@ -62,6 +62,12 @@ check backup "obj('Backup')['metadata']['annotations']['argocd.argoproj.io/ignor
 check route "obj('Route')['spec']['host'] == 'a.example.org' and obj('Route')['metadata']['labels']['shard'] == 'public'"
 check podLabels "obj('Deployment')['spec']['template']['metadata']['labels'] == {'app.kubernetes.io/name': 'matomo', 'mesh': 'false'}"
 
+# Marketplace plugins survive a restart: plugins/ is a volume in both containers
+OUT=$(render)
+check plugins "obj('PersistentVolumeClaim', 'matomo-plugins')['spec']['resources']['requests']['storage'] == '1Gi'"
+check plugins "all({'name': 'plugins', 'mountPath': '/var/www/html/plugins'}.items() <= m.items() for c in obj('Deployment')['spec']['template']['spec']['containers'] for m in c['volumeMounts'] if m['name'] == 'plugins')"
+check plugins "sum(m['name'] == 'plugins' for c in obj('Deployment')['spec']['template']['spec']['containers'] for m in c['volumeMounts']) == 2"
+
 # a change of the nginx configuration restarts the pod
 A=$(render | grep 'checksum/nginx:')
 B=$(render --set 'nginx.realIpFrom={192.0.2.0/24}' | grep 'checksum/nginx:')

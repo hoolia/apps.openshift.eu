@@ -17,6 +17,7 @@
       "type": "object",
       "properties": {
         "size": {"type": "string", "title": "Configuration volume size"},
+        "pluginsSize": {"type": "string", "title": "Plugins volume size"},
         "storageClassName": {"type": "string", "title": "Storage class"}
       }
     },
