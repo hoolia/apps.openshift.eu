@@ -162,6 +162,11 @@ spec:
         # proxy passes the caller's Host on
         - name: MCP_ALLOWED_HOSTS
           value: {{ include "wrapper.mcpAllowedHosts" . | quote }}
+        {{- with $m.organization }}
+        # the name the server's instructions give the support desk
+        - name: MCP_ORGANIZATION
+          value: {{ . | quote }}
+        {{- end }}
         - name: CHATWOOT_URL
           value: http://chatwoot-web:3000
         - name: CHATWOOT_ACCOUNT_ID

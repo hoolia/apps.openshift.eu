@@ -563,6 +563,9 @@ mcp:
   # inbox ids post_private_note may write to; empty: every inbox of the MCP user. The user
   # reads only the inboxes it is a member of
   noteInboxIds: []
+  # the organisation the server's instructions name the support desk after; empty: the
+  # image's default
+  organization: ""
   # tool prefix an MCP gateway that discovers the Service gives the tools (<name>_<tool>)
   targetName: chatwoot
   # ServiceAccounts allowed to call: [{kind: ServiceAccount, name, namespace}]
@@ -580,7 +583,7 @@ mcp:
     # with a hostname outside that domain, the cert-manager annotations of route.annotations
     annotations: {}
   # further Host headers the server answers (MCP_ALLOWED_HOSTS) besides mcp.route.hostname
-  # and the Service names; with mcp.route.enabled and no hostname, the host OpenShift
+  # and, with mcp.callers, the Service names; with mcp.route.enabled and no hostname, the host OpenShift
   # assigns (<route>-<namespace>.<application domain>) is required here
   allowedHosts: []
   # further peers (NetworkPolicyPeer) that may reach the proxy port 8443; the routers may

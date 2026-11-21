@@ -633,9 +633,10 @@ one Chatwoot agent user; that user reads only the inboxes it is a member of.
 | `mcp.image.repository`, `mcp.image.tag` | empty | Image of the chatwoot-mcp server; required. |
 | `mcp.accountId` | `1` | Chatwoot account the tools work in. |
 | `mcp.noteInboxIds` | empty | Inbox ids `post_private_note` may write to. Empty: every inbox of the user. |
+| `mcp.organization` | empty | Organisation the server's instructions name the support desk after. Empty: the image's default. |
 | `mcp.targetName` | `chatwoot` | Tool prefix an MCP gateway that discovers the Service gives the tools. |
 | `mcp.route.hostname` | empty | Host of the Route. Empty: OpenShift assigns one under the default application domain. |
-| `mcp.allowedHosts` | empty | Further Host headers the server answers, besides `mcp.route.hostname` and the Service names. With a Route but no hostname, the host OpenShift assigns is required here. |
+| `mcp.allowedHosts` | empty | Further Host headers the server answers, besides `mcp.route.hostname` and, with `mcp.callers`, the Service names. With a Route but no hostname, the host OpenShift assigns is required here. |
 | `mcp.ingressFrom` | empty | Further NetworkPolicy peers that may reach port 8443. |
 
 The proxy reaches the Kubernetes API through `networkPolicy.apiServerEgress`. A caller

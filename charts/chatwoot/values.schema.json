@@ -697,6 +697,7 @@
         },
         "accountId": {"type": "integer", "minimum": 1},
         "noteInboxIds": {"type": "array", "items": {"type": "integer", "minimum": 1}, "description": "Inboxes post_private_note may write to; empty: every inbox of the MCP user"},
+        "organization": {"type": "string", "description": "Organisation the server's instructions name the support desk after"},
         "targetName": {"type": "string", "pattern": "^[a-z0-9_-]{1,64}$"},
         "callers": {
           "type": "array",
