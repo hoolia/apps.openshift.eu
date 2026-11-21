@@ -1022,6 +1022,37 @@ entries:
       charts.openshift.io/provider: GRN.CLOUD B.V.
     apiVersion: v2
     appVersion: 0.1.111
+    created: '2026-11-21T21:35:56.652503+00:00'
+    description: Self-hosted Cloudroom core, which runs coding agents (Claude Code,
+      OpenCode, Codex) behind one HTTP API for the Cloudroom desktop app
+    digest: 8b4308ae15b6428fabe9c76f208520d7267fc09e6b466363ca7244e8d3df7da4
+    home: https://apps.openshift.eu
+    icon: https://www.cloudroom.dev/favicon.ico
+    keywords:
+    - ai
+    - agent
+    - coding-agent
+    - cloudroom
+    - claude-code
+    - opencode
+    maintainers:
+    - name: GRN.CLOUD B.V.
+      url: https://apps.openshift.eu
+    name: cloudroom
+    sources:
+    - https://github.com/davidondrej/cloudroom
+    - https://github.com/hoolia/apps.openshift.eu
+    type: application
+    urls:
+    - https://github.com/hoolia/apps.openshift.eu/releases/download/cloudroom-0.1.1/cloudroom-0.1.1.tgz
+    version: 0.1.1
+  - annotations:
+      apps.openshift.eu/category: ai-agent
+      apps.openshift.eu/vendor: Cloudroom
+      charts.openshift.io/name: Cloudroom
+      charts.openshift.io/provider: GRN.CLOUD B.V.
+    apiVersion: v2
+    appVersion: 0.1.111
     created: '2026-11-21T20:47:52.892268559Z'
     description: Self-hosted Cloudroom core, which runs coding agents (Claude Code,
       OpenCode, Codex) behind one HTTP API for the Cloudroom desktop app
@@ -1217,6 +1248,38 @@ entries:
     urls:
     - https://github.com/hoolia/apps.openshift.eu/releases/download/gitlab-0.1.0/gitlab-0.1.0.tgz
     version: 0.1.0
+  goose:
+  - annotations:
+      apps.openshift.eu/category: ai-agent
+      apps.openshift.eu/vendor: AAIF
+      charts.openshift.io/name: goose
+      charts.openshift.io/provider: GRN.CLOUD B.V.
+    apiVersion: v2
+    appVersion: 1.59.2
+    created: '2026-11-21T21:35:56.652503+00:00'
+    description: Personal goose agent with a browser terminal behind a login, a goose
+      Desktop endpoint and A2A for other agents, with models from an OpenAI-compatible
+      gateway
+    digest: a2d1f7070a7b313a1f143b207ad026f32598a10a249bd98d930abea8a908b821
+    home: https://apps.openshift.eu
+    icon: https://raw.githubusercontent.com/aaif-goose/goose/v1.59.2/documentation/static/img/logo_dark.png
+    keywords:
+    - ai
+    - agent
+    - goose
+    - acp
+    - a2a
+    maintainers:
+    - name: GRN.CLOUD B.V.
+      url: https://apps.openshift.eu
+    name: goose
+    sources:
+    - https://github.com/aaif-goose/goose
+    - https://github.com/hoolia/apps.openshift.eu
+    type: application
+    urls:
+    - https://github.com/hoolia/apps.openshift.eu/releases/download/goose-0.1.1/goose-0.1.1.tgz
+    version: 0.1.1
   guacamole:
   - annotations:
       apps.openshift.eu/category: remote-access
@@ -10333,4 +10396,4 @@ entries:
     urls:
     - https://github.com/hoolia/apps.openshift.eu/releases/download/vaultwarden-0.1.0/vaultwarden-0.1.0.tgz
     version: 0.1.0
-generated: '2026-11-21T20:52:24.577608372Z'
+generated: '2026-11-21T21:35:56.652503+00:00'
