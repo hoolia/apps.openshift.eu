@@ -218,14 +218,19 @@ def quote_request(reply, marker):
     when no JSON object can be read there; None for an answer without it."""
     if not marker:
         return None
-    found = re.search(r"(?<!\w)" + re.escape(marker) + r"\s*:?\s*(?=\{)", reply or "")
-    if not found:
-        return None
-    try:
-        obj, _ = json.JSONDecoder().raw_decode(reply[found.end():])
-    except ValueError:
-        return False
-    return obj if isinstance(obj, dict) else False
+    # any case, an optional colon and code fence; the first one that reads as an object wins
+    pattern = r"(?<!\w)" + re.escape(marker) + r"\s*:?\s*(?:```(?:json)?\s*)?(?=\{)"
+    request = None
+    for found in re.finditer(pattern, reply or "", re.IGNORECASE):
+        try:
+            obj, _ = json.JSONDecoder().raw_decode(reply[found.end():])
+        except ValueError:
+            request = False
+            continue
+        if isinstance(obj, dict):
+            return obj
+        request = False
+    return request
 
 
 # a category is a label the bridge sets; LABEL is any label of Chatwoot (letters, digits, - and _)

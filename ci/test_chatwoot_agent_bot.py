@@ -622,6 +622,17 @@ class QuoteTest(Base):
                 self.assertEqual(len(odoo.calls), 1, prefix + sep)
                 self.assertNotIn("product_id", "".join(self.answers()))
 
+    def test_fenced_or_lower_case_or_after_an_example_is_caught(self):
+        for text in ("QUOTE\n```json\n" + json.dumps(QUOTE) + "\n```",
+                     "Quote: " + json.dumps(QUOTE),
+                     "Format: QUOTE {order}. Now: QUOTE " + json.dumps(QUOTE)):
+            odoo = FakeQuoteOdoo()
+            self.state["chatwoot"].clear()
+            self.state["agent"] = lambda b, t=text: message(t)
+            self.bot(odoo).handle(event())
+            self.assertEqual([c[2]["quote"] for c in odoo.calls], [QUOTE], text)
+            self.assertNotIn("product_id", "".join(self.answers()))
+
     def test_json_over_several_lines_is_read(self):
         odoo = FakeQuoteOdoo()
         self.state["agent"] = lambda b: message("QUOTE " + json.dumps(QUOTE, indent=2) + "\nThanks!")

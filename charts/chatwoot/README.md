@@ -260,8 +260,9 @@ window.$chatwoot.setUser(email, { email: email, name: name, identifier_hash: has
 #### Quotations
 
 With `agentBot.quotations.enabled` (needs `odoo.website.identity.records`) the agent can
-make a quotation. Odoo needs module `grncloud_chat_order`, and the bridge's Odoo user needs
-its group "Website chat quotations".
+make a quotation. The bridge calls Odoo method `sale.order` `grncloud_chat_quote`, part of
+this chart's contract: Odoo needs a module that provides it (`grncloud_chat_order` of
+GRN.CLOUD does), and the bridge's Odoo user needs the right to call it.
 
 ```mermaid
 sequenceDiagram
