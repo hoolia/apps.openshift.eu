@@ -59,6 +59,9 @@ a super admin.
 | `agent.auth.type` | `none` | `serviceAccountToken`: a token of ServiceAccount `chatwoot-agent-bridge` for `agent.auth.audience`. `clientAssertion`: that token as client assertion at `agent.auth.tokenUrl` for `agent.auth.clientId`. `clientSecret`: the client secret `secrets.agentClientSecret` at `agent.auth.tokenUrl` for `agent.auth.clientId`. |
 | `agentBot.enabled` | `false` | An Agent Bot answers customers through the agent until a person takes over. |
 | `agentBot.inboxes` | empty | Inbox names the bot answers in; `*` is every inbox. |
+| `agentBot.agentUrl` | empty | A2A address of the bot's own agent, with `agent.auth`. Empty: `agent.url`. |
+| `odoo.website.identity.enabled` | `false` | Identity validation on the Website inbox: only a contact the site signed with `secrets.websiteIdentityKey` counts as a logged-in customer. |
+| `odoo.website.identity.records` | `true` | The bot's agent gets a logged-in customer's own Odoo records, read by the bridge. |
 | `agentBot.handoff.keywords` | `human`, `person`, `agent`, `staff` | A customer message that is exactly one of these hands the conversation to a person. |
 | `copilotPanel.enabled` | `false` | A panel in the conversation sidebar where staff ask the agent; needs `sso.enabled`. |
 | `draftAgent.enabled` | `false` | The agent drafts a reply to each customer message as a private note for staff. |
@@ -170,7 +173,33 @@ flowchart LR
 - Chatwoot refuses webhooks to private addresses. The chart initializer of web and worker
   allows a private address for the bridge Service alone.
 - Once a conversation is open the bot stays silent in it, until staff set it back to
-  pending.
+  pending. While the bot holds a conversation, it gets no AI draft and no triage.
+- `agentBot.agentUrl` gives the bot an agent of its own; the drafts, the triage and the
+  panel keep `agent.url`.
+
+#### Logged-in customers
+
+Every message the bot passes on starts with a note of the bridge on who writes. With
+`odoo.website.identity.enabled` the Website inbox requires Chatwoot identity validation,
+and a visitor counts as a logged-in customer only when Chatwoot verified the contact of that
+conversation (`hmac_verified`): the site signed the contact's identifier, the customer's
+email, with `HMAC-SHA256(secrets.websiteIdentityKey, email)` and passed it to the widget:
+
+```js
+window.$chatwoot.setUser(email, { email: email, name: name, identifier_hash: hash });
+```
+
+- Any other visitor is not logged in, whatever address they type in the pre-chat form or
+  the chat: the agent gets no name, no email and no record of them.
+- With `odoo.website.identity.records` the note of a logged-in customer holds that
+  customer's own partner (the one company whose contact has exactly that email), sale
+  orders, subscriptions and helpdesk tickets, read by the bridge with `secrets.odooApiKey`
+  from its own Secret `chatwoot-agent-odoo`. An address of several companies shows no
+  record. The agent reads nothing from Odoo itself, so a customer cannot steer it to
+  another customer's records. Add Odoo's address to `networkPolicy.agentEgress`.
+- The key reaches only the prepare Job (Secret `chatwoot-website-identity`), which sets it as
+  the inbox's identity validation key. Compute the hash on the site's server, never in the
+  browser.
 
 ### Agent panel
 

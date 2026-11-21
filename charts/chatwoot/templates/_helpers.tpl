@@ -172,6 +172,11 @@ identity provider can deliver to or verify, so no login of a person can match it
 {{- end }}
 {{- end -}}
 
+{{/* Non-empty when the bot gives the agent a verified customer's own Odoo records. */}}
+{{- define "wrapper.botRecords" -}}
+{{- if and .Values.agentBot.enabled .Values.odoo.enabled .Values.odoo.website.enabled .Values.odoo.website.identity.enabled .Values.odoo.website.identity.records }}true{{ end }}
+{{- end -}}
+
 {{/* Non-empty when the bot, the panel or the drafts are on. */}}
 {{- define "wrapper.agentBridge" -}}
 {{- if or .Values.agentBot.enabled .Values.copilotPanel.enabled .Values.draftAgent.enabled }}true{{ end }}

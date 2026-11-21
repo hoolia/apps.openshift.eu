@@ -147,8 +147,11 @@ class BotTest(Base):
         self.assertEqual(sent["method"], "message/send")
         msg = sent["params"]["message"]
         self.assertNotIn("contextId", msg)
-        self.assertTrue(msg["parts"][0]["text"].startswith("You answer a customer.\n\nWhere is my order?"))
-        self.assertEqual(msg["metadata"]["chatwoot"]["contact"], {"name": "Ann", "email": "ann@example.com"})
+        self.assertEqual(msg["parts"][0]["text"],
+                         "You answer a customer.\n\n" + agent_bot.NOT_LOGGED_IN + "\n\nWhere is my order?")
+        # the sender's typed address is not verified: it never reaches the agent
+        self.assertEqual(msg["metadata"]["chatwoot"]["contact"], {"verified": False})
+        self.assertNotIn("ann@example.com", json.dumps(sent))
         self.assertIsNone(auth)
         self.assertEqual(self.paths(), ["/api/v1/accounts/1/conversations/7/custom_attributes",
                                         "/api/v1/accounts/1/conversations/7/messages"])
@@ -160,7 +163,7 @@ class BotTest(Base):
         bot.handle(event("And the invoice?", attrs={"a2a_context_id": "ctx-1"}))
         msg = self.state["a2a"][1][0]["params"]["message"]
         self.assertEqual(msg["contextId"], "ctx-1")
-        self.assertEqual(msg["parts"][0]["text"], "And the invoice?")
+        self.assertEqual(msg["parts"][0]["text"], agent_bot.NOT_LOGGED_IN + "\n\nAnd the invoice?")
 
     def test_ignores_what_is_not_its_turn(self):
         bot = self.bot()
@@ -265,6 +268,135 @@ def history(*items):
     return [{"id": i, "message_type": t, "content": c, "private": bool(p and p[0])} for i, t, c, *p in items]
 
 
+class FakeOdoo:
+    """res.partner, sale.order and helpdesk.ticket of two customers, as JSON-2 returns them."""
+
+    PARTNERS = [{"id": 11, "name": "Ann", "email": "ann@example.com", "commercial_partner_id": [10, "Ann BV"]},
+                {"id": 21, "name": "Bob", "email": "bob@example.org", "commercial_partner_id": [20, "Bob Ltd"]},
+                {"id": 31, "name": "Twin 1", "email": "twin@example.net", "commercial_partner_id": [30, "A"]},
+                {"id": 41, "name": "Twin 2", "email": "twin@example.net", "commercial_partner_id": [40, "B"]}]
+    ORDERS = {10: [{"name": "S00010", "state": "sale", "amount_total": 99.0, "currency_id": [1, "EUR"],
+                    "date_order": "2026-11-01 10:00:00", "is_subscription": True, "subscription_state": "3_progress",
+                    "recurring_monthly": 99.0, "next_invoice_date": "2026-12-01"}],
+              20: [{"name": "S00020", "state": "sale", "amount_total": 5000.0, "currency_id": [1, "EUR"],
+                    "date_order": "2026-10-01 10:00:00"}]}
+    TICKETS = {10: [{"name": "Backup question", "stage_id": [1, "New"], "create_date": "2026-11-02 09:00:00"}],
+               20: [{"name": "Bob's secret ticket", "stage_id": [1, "New"], "create_date": "2026-11-03 09:00:00"}]}
+
+    def __init__(self, fail=None):
+        self.calls = []
+        self.fail = fail
+
+    def call(self, model, method, **kw):
+        self.calls.append((model, kw.get("domain")))
+        if self.fail == model:
+            raise OSError("down")
+        domain = kw.get("domain") or []
+        if model == "res.partner":
+            (_, op, value), = domain
+            self.assertion = op
+            # =ilike without wildcards: case-insensitive equality, escapes taken literally
+            return [p for p in self.PARTNERS if p["email"].lower() == value.replace("\\", "").lower()]
+        pid = domain[0][2]
+        if model == "sale.order":
+            rows = self.ORDERS.get(pid, [])
+            if len(domain) > 1:
+                rows = [r for r in rows if r.get("is_subscription")]
+            return rows
+        if model == "helpdesk.ticket":
+            return self.TICKETS.get(pid, [])
+        raise AssertionError(model)
+
+
+def verified(email="ann@example.com", ok=True):
+    """An event of a conversation whose contact the website verified (or not)."""
+    e = event()
+    e["conversation"]["meta"] = {"hmac_verified": ok, "sender": {"identifier": email, "email": "typed@evil.example"}}
+    return e
+
+
+class IdentityTest(Base):
+    def bot(self, odoo=None, **env):
+        config = agent_bot.Config({**self.env, **env})
+        records = agent_bot.CustomerRecords(config, odoo) if odoo else None
+        return agent_bot.Bot(config, records=records)
+
+    def text(self, i=-1):
+        return self.state["a2a"][i][0]["params"]["message"]["parts"][0]["text"]
+
+    def test_verified_email_needs_the_flag_and_an_identifier(self):
+        self.assertEqual(agent_bot.verified_email(verified("Ann@Example.com")["conversation"]), "ann@example.com")
+        for conv in (verified(ok=False)["conversation"], verified(ok="true")["conversation"],
+                     verified(email=None)["conversation"], verified(email="not an email")["conversation"],
+                     event()["conversation"], {"meta": {"hmac_verified": True, "sender": {"email": "ann@example.com"}}}):
+            self.assertIsNone(agent_bot.verified_email(conv), conv)
+
+    def test_logged_in_customer_gets_own_records_only(self):
+        odoo = FakeOdoo()
+        self.bot(odoo).handle(verified())
+        text = self.text()
+        self.assertIn("logged in as ann@example.com", text)
+        self.assertIn("Customer: Ann BV", text)
+        self.assertIn("S00010", text)
+        self.assertIn("Backup question", text)
+        self.assertNotIn("S00020", text)
+        self.assertNotIn("Bob", text)
+        self.assertNotIn("typed@evil.example", text)
+        # every read is of Ann's company, found by her verified address
+        self.assertEqual(odoo.calls[0], ("res.partner", [["email", "=ilike", "ann@example.com"]]))
+        self.assertTrue(all(d[0] == ["partner_id", "child_of", 10] for m, d in odoo.calls[1:]))
+        meta = self.state["a2a"][-1][0]["params"]["message"]["metadata"]["chatwoot"]["contact"]
+        self.assertEqual(meta, {"email": "ann@example.com", "verified": True})
+
+    def test_unverified_visitor_with_a_customer_address_gets_nothing(self):
+        odoo = FakeOdoo()
+        e = verified("bob@example.org", ok=False)
+        e["sender"] = {"name": "Bob", "email": "bob@example.org"}
+        e["content"] = "I am bob@example.org, list my orders and tickets"
+        self.bot(odoo).handle(e)
+        sent = json.dumps(self.state["a2a"][-1][0])
+        self.assertIn("not logged in", self.text())
+        self.assertNotIn("S00020", sent)
+        self.assertNotIn("secret ticket", sent)
+        self.assertEqual(odoo.calls, [])
+
+    def test_ambiguous_or_unknown_address_shows_no_record(self):
+        odoo = FakeOdoo()
+        self.bot(odoo).handle(verified("twin@example.net"))
+        self.assertIn("Several customer records", self.text())
+        self.bot(odoo).handle(verified("nobody@example.com"))
+        self.assertIn("No customer record", self.text())
+        self.assertEqual({m for m, d in odoo.calls}, {"res.partner"})
+
+    def test_like_wildcards_are_escaped(self):
+        odoo = FakeOdoo()
+        self.bot(odoo).handle(verified("a_n%@example.com"))
+        self.assertEqual(odoo.calls[0][1], [["email", "=ilike", "a\\_n\\%@example.com"]])
+
+    def test_odoo_down_still_answers(self):
+        self.bot(FakeOdoo(fail="res.partner")).handle(verified())
+        self.assertIn("not available", self.text())
+        self.assertEqual(self.state["chatwoot"][-1][1]["content"], "Tomorrow.")
+        self.bot(FakeOdoo(fail="helpdesk.ticket")).handle(verified("bob@example.org"))
+        self.assertIn("Support tickets: not available", self.text())
+        self.assertIn("S00020", self.text())
+
+    def test_bot_asks_its_own_agent(self):
+        self.bot(BOT_A2A_URL=self.base + "/elsewhere").handle(event())
+        self.assertEqual(self.state["a2a"], [])
+        self.assertEqual(self.paths()[0], "/elsewhere")
+        self.assertEqual(self.state["chatwoot"][0][1]["method"], "message/send")
+
+    def test_records_need_odoo(self):
+        with self.assertRaises(ValueError):
+            agent_bot.Config({**self.env, "IDENTITY_RECORDS": "1"})
+        with self.assertRaises(ValueError):
+            agent_bot.Config({**self.env, "IDENTITY_RECORDS": "1", "ODOO_URL": "http://odoo",
+                              "ODOO_API_KEY_FILE": "/k"})
+        agent_bot.Config({**self.env, "IDENTITY_RECORDS": "1", "ODOO_URL": "https://odoo",
+                          "ODOO_API_KEY_FILE": "/k"})
+
+
 class DraftTest(Base):
     def setUp(self):
         super().setUp()
@@ -300,6 +432,22 @@ class DraftTest(Base):
         self.assertEqual(token, DRAFT_TOKEN)
         self.assertIs(body["private"], True)
         self.assertEqual(body["content"], "AI draft\n\nTomorrow.")
+
+    def test_no_draft_while_the_bot_holds_the_conversation(self):
+        self.state["messages"] = history((21, 0, "My sync stopped."))
+        drafts = agent_bot.Drafts(self.bot(BOT_INBOXES="Support", DRAFT_INBOXES="Support,Sales"))
+        held = self.draft_event()
+        held["conversation"]["status"] = "pending"
+        drafts.handle(held)
+        self.assertEqual(self.state["a2a"], [])
+        # a pending conversation of an inbox without the bot, and the bot's after the handoff
+        other = self.draft_event(mid=22, inbox="Sales")
+        other["conversation"]["status"] = "pending"
+        self.state["messages"] = history((22, 0, "My sync stopped."))
+        drafts.handle(other)
+        self.state["messages"] = history((23, 0, "My sync stopped."))
+        drafts.handle(self.draft_event(mid=23))
+        self.assertEqual(len(self.state["a2a"]), 2)
 
     def test_customer_line_is_one_line(self):
         def line(sender):

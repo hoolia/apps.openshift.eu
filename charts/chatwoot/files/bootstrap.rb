@@ -15,7 +15,8 @@
 #   with CHATWOOT_ODOO_INBOX_SECRET, and the conversation attributes odoo_ref and odoo_url;
 #   with CHATWOOT_ODOO_WEBSITE_INBOX also that Website inbox, its pre-chat form asking for a
 #   required email address, the account webhook to the bridge's website path and the
-#   label CHATWOOT_ODOO_SALES_LABEL
+#   label CHATWOOT_ODOO_SALES_LABEL; with CHATWOOT_WEBSITE_IDENTITY_KEY the inbox's identity
+#   validation key is that value and a contact identifier needs its signature
 # - with CHATWOOT_DRAFT_TOKEN: keeps the author of AI drafts (an agent with that access
 #   token, member of the inboxes in CHATWOOT_DRAFT_INBOXES) and the account webhook of new
 #   messages to the bridge, signed with CHATWOOT_DRAFT_WEBHOOK_SECRET
@@ -174,7 +175,16 @@ else
     widget.pre_chat_form_enabled = true
     # Chatwoot has no mail of its own here: Odoo writes to customers
     widget.continuity_via_email = false
+    # identity validation: the site signs a logged-in customer's identifier with this key,
+    # and a contact identifier without a valid signature is refused
+    identity_key = ENV.fetch('CHATWOOT_WEBSITE_IDENTITY_KEY', '')
+    unless identity_key.empty?
+      abort 'website identity key shorter than 32 characters' if identity_key.length < 32
+      widget.hmac_token = identity_key unless ActiveSupport::SecurityUtils.secure_compare(widget.hmac_token.to_s, identity_key)
+      widget.hmac_mandatory = true
+    end
     widget.save! if widget.changed?
+    puts "odoo website inbox #{website}: identity validation #{widget.hmac_mandatory ? 'required' : 'optional'}"
     InboxMember.find_or_create_by!(inbox: inbox, user: user)
     hook = Webhook.find_or_initialize_by(account_id: account.id, url: hook_url)
     hook.name = 'Odoo bridge: website chat (set by the chart)'

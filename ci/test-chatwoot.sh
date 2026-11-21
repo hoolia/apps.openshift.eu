@@ -352,4 +352,16 @@ fails "panel issues without token" "issue-tracker-token of Secret chatwoot-odoo-
 fails "panel issues over http" "/odoo/panel/issues/url" "${PANEL[@]}" --set odoo.panel.issues.url=http://example.atlassian.net
 fails "panel title like the agent panel's" "must differ" "${PANEL[@]}" "${AGENT[@]}" --set copilotPanel.enabled=true --set odoo.panel.title=Agent
 
+# --- logged-in customers on the website: identity validation, the bot's own agent and records
+IDENT=("${WEBSITE[@]}" --set odoo.website.identity.enabled=true --set agentBot.enabled=true
+  --set agent.url=https://a.example.com/ --set agentBot.agentUrl=https://a.example.com/www/ --set 'agentBot.inboxes={Website}')
+OUT=$(render "${IDENT[@]}" --set secrets.websiteIdentityKey=wk)
+check "identity: key to the job only" 'secret("chatwoot-website-identity", "website-identity-key") == "wk" and "chatwoot-website-identity" in refs(pod("chatwoot-prepare-1")) and not any("chatwoot-website-identity" in refs(pod(n)) for n in ("chatwoot-web", "chatwoot-worker", "chatwoot-agent-bridge", "chatwoot-odoo-bridge"))'
+check "identity: the bot asks its own agent" 'env("chatwoot-agent-bridge", "agent-bot")["BOT_A2A_URL"] == "https://a.example.com/www/" and env("chatwoot-agent-bridge", "agent-bot")["BOT_INBOXES"] == "Website"'
+check "identity: records with the bridge key" 'env("chatwoot-agent-bridge", "agent-bot")["IDENTITY_RECORDS"] == "1" and env("chatwoot-agent-bridge", "agent-bot")["ODOO_URL"] == "https://odoo.example.org" and secret("chatwoot-agent-odoo", "odoo-api-key") == "k" and "chatwoot-agent-odoo" in refs(pod("chatwoot-agent-bridge"))'
+OUT=$(render "${IDENT[@]}" --set odoo.website.identity.records=false)
+check "identity: records off" '"IDENTITY_RECORDS" not in env("chatwoot-agent-bridge", "agent-bot") and not obj("Secret", "chatwoot-agent-odoo")'
+OUT=$(render "${WEBSITE[@]}")
+check "identity: off by default" 'not obj("Secret", "chatwoot-website-identity") and "CHATWOOT_WEBSITE_IDENTITY_KEY" not in env("chatwoot-prepare-1", "prepare")'
+
 [ $fail = 0 ] && echo "PASS charts/chatwoot render" || exit 1
