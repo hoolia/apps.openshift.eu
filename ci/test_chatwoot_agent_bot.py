@@ -76,6 +76,12 @@ def message(text):
                        "parts": [{"kind": "text", "text": text}]}}
 
 
+def signed_context(cid, context_id, account=1):
+    """The attribute value the bot writes: the context and its HMAC for this conversation."""
+    mac = hmac.new(SECRET.encode(), f"a2a-context:{account}:{cid}:{context_id}".encode(), hashlib.sha256).hexdigest()
+    return f"{context_id}.{mac}"
+
+
 def event(content="Where is my order?", status="pending", message_type="incoming", private=False, attrs=None, mid=None):
     event.counter = getattr(event, "counter", 0) + 1
     return {"event": "message_created", "id": mid or event.counter, "content": content,
@@ -156,14 +162,33 @@ class BotTest(Base):
         self.assertEqual(self.paths(), ["/api/v1/accounts/1/conversations/7/custom_attributes",
                                         "/api/v1/accounts/1/conversations/7/messages"])
         attrs = self.state["chatwoot"][0][1]["custom_attributes"]
-        self.assertEqual(attrs, {"tier": "gold", "a2a_context_id": "ctx-1"})
+        self.assertEqual(attrs, {"tier": "gold", "a2a_context_id": signed_context(7, "ctx-1")})
         self.assertEqual(self.state["chatwoot"][1][1], {"content": "Tomorrow.", "message_type": "outgoing"})
         self.assertTrue(all(c[2] == BOT_TOKEN for c in self.state["chatwoot"]))
         # the next message continues the context, without the instructions
-        bot.handle(event("And the invoice?", attrs={"a2a_context_id": "ctx-1"}))
+        bot.handle(event("And the invoice?", attrs={"a2a_context_id": signed_context(7, "ctx-1")}))
         msg = self.state["a2a"][1][0]["params"]["message"]
         self.assertEqual(msg["contextId"], "ctx-1")
         self.assertEqual(msg["parts"][0]["text"], agent_bot.NOT_LOGGED_IN + "\n\nAnd the invoice?")
+
+    def test_signed_context_survives_a_restart(self):
+        self.bot().handle(event("And the invoice?", attrs={"a2a_context_id": signed_context(7, "ctx-old")}))
+        self.assertEqual(self.state["a2a"][0][0]["params"]["message"]["contextId"], "ctx-old")
+
+    def test_context_set_by_the_visitor_is_ignored(self):
+        # the widget API lets a visitor write any custom attribute of its conversation
+        for forged in ("2215", "ctx-other", signed_context(8, "ctx-other"), "ctx-other." + "0" * 64,
+                       signed_context(7, "ctx-other")[:-1] + "x", 42, ""):
+            self.state["a2a"].clear()
+            self.bot().handle(event("Continue", attrs={"a2a_context_id": forged}))
+            (sent, _), = self.state["a2a"]
+            self.assertNotIn("contextId", sent["params"]["message"], forged)
+
+    def test_bot_context_wins_over_a_changed_attribute(self):
+        bot = self.bot()
+        bot.handle(event())
+        bot.handle(event("Next", attrs={"a2a_context_id": signed_context(8, "ctx-other")}))
+        self.assertEqual(self.state["a2a"][1][0]["params"]["message"]["contextId"], "ctx-1")
 
     def test_ignores_what_is_not_its_turn(self):
         bot = self.bot()

@@ -175,6 +175,9 @@ flowchart LR
   text.
 - The first message of a conversation carries `agentBot.instructions`; the A2A context id is
   kept in the conversation's custom attribute `a2a_context_id`, so later messages continue it.
+  The bot signs that value for the conversation with its webhook secret: the widget API
+  lets a visitor write any custom attribute, and a value the bot did not sign for this
+  conversation starts a new context instead of continuing someone else's.
 - Chatwoot refuses webhooks to private addresses. The chart initializer of web and worker
   allows a private address for the bridge Service alone.
 - Once a conversation is open the bot stays silent in it, until staff set it back to
