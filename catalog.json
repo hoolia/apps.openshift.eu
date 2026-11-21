@@ -1,19 +1,49 @@
 {
  "charts": {
+  "airbyte": {
+   "category": "data",
+   "type": "app",
+   "vendor": "Airbyte, Inc."
+  },
   "bifrost": {
    "category": "ai-gateway",
    "type": "app",
    "vendor": "Maxim AI"
+  },
+  "chatwoot": {
+   "category": "customer-support",
+   "type": "app",
+   "vendor": "Chatwoot Inc."
+  },
+  "clickhouse": {
+   "category": "database",
+   "type": "app",
+   "vendor": "ClickHouse Inc."
+  },
+  "cloudroom": {
+   "category": "ai-agent",
+   "type": "app",
+   "vendor": "Cloudroom"
   },
   "gitlab": {
    "category": "devops",
    "type": "app",
    "vendor": "GitLab Inc."
   },
+  "goose": {
+   "category": "ai-agent",
+   "type": "app",
+   "vendor": "AAIF"
+  },
   "guacamole": {
    "category": "remote-access",
    "type": "app",
    "vendor": "Apache Software Foundation"
+  },
+  "hermes": {
+   "category": "ai-agent",
+   "type": "app",
+   "vendor": "Nous Research"
   },
   "kagent": {
    "category": "ai-agent",
@@ -39,6 +69,12 @@
   "mcp-bundle-google-workspace": {
    "bundle": "google-workspace",
    "category": "productivity",
+   "type": "mcp-bundle",
+   "vendor": "GRN.CLOUD B.V."
+  },
+  "mcp-bundle-market-research": {
+   "bundle": "market-research",
+   "category": "marketing",
    "type": "mcp-bundle",
    "vendor": "GRN.CLOUD B.V."
   },
@@ -83,6 +119,11 @@
    "type": "mcp-server",
    "vendor": "Google"
   },
+  "mcp-hosted": {
+   "category": "ai",
+   "type": "mcp-server",
+   "vendor": "GRN.CLOUD B.V."
+  },
   "mcp-microsoft-365": {
    "bundle": "microsoft-365",
    "category": "productivity",
@@ -96,6 +137,12 @@
    "server": "nextcloud",
    "type": "mcp-server",
    "vendor": "cbcoutinho"
+  },
+  "mcp-odoo": {
+   "category": "crm",
+   "server": "odoo",
+   "type": "mcp-server",
+   "vendor": "ivnvxd"
   },
   "mcp-officeagent": {
    "bundle": "officeagent",
@@ -128,6 +175,12 @@
    "type": "mcp-server",
    "vendor": "korotovsky"
   },
+  "mcp-sonarqube": {
+   "category": "code-quality",
+   "server": "sonarqube",
+   "type": "mcp-server",
+   "vendor": "SonarSource"
+  },
   "mkdocs": {
    "category": "documentation",
    "type": "app",
@@ -153,6 +206,11 @@
    "type": "app",
    "vendor": "Odoo S.A."
   },
+  "oh-my-openagent": {
+   "category": "ai-agent",
+   "type": "app",
+   "vendor": "Sisyphus Labs"
+  },
   "omniroute": {
    "category": "ai-gateway",
    "type": "app",
@@ -172,6 +230,11 @@
    "category": "ai-chat",
    "type": "app",
    "vendor": "Open WebUI"
+  },
+  "postiz": {
+   "category": "marketing",
+   "type": "app",
+   "vendor": "Gitroom Ltd."
   },
   "qdrant": {
    "category": "database",
