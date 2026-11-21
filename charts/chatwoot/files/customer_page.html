@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>__TITLE__</title>
+<style>
+:root { --bar: 56px; --fg: #1f2933; --muted: #52606d; --bg: #ffffff; --line: #e4e7eb; --page: #f5f7fa; }
+@media (prefers-color-scheme: dark) {
+  :root { --fg: #f5f7fa; --muted: #cbd2d9; --bg: #1f2933; --line: #323f4b; --page: #11181f; }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--page); color: var(--fg); font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; }
+header { position: fixed; top: 0; left: 0; right: 0; height: var(--bar); display: flex; align-items: center; gap: 16px; padding: 0 16px; background: var(--bg); border-bottom: 1px solid var(--line); }
+header h1 { font-size: 16px; font-weight: 600; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1 1 auto; }
+header nav { display: flex; align-items: center; gap: 12px; flex: 0 1 auto; min-width: 0; }
+header a, header button { color: var(--fg); font: inherit; white-space: nowrap; }
+header button { cursor: pointer; border: 1px solid var(--line); background: transparent; border-radius: 16px; padding: 4px 12px; }
+header .who { color: var(--muted); overflow: hidden; text-overflow: ellipsis; max-width: 24ch; }
+header .staff { color: var(--muted); font-size: 12px; }
+#cw-empty { position: fixed; top: var(--bar); left: 0; right: 0; padding: 24px 16px; text-align: center; color: var(--muted); }
+/* the widget of the SDK, held open over the whole page below the bar */
+#cw-widget-holder.woot-widget-holder { position: fixed !important; top: var(--bar) !important; left: 0 !important; right: 0 !important; bottom: 0 !important; width: auto !important; height: auto !important; max-height: none !important; border-radius: 0 !important; box-shadow: none !important; opacity: 1 !important; transform: none !important; }
+#cw-widget-holder.woot-widget-holder iframe { min-height: 0 !important; }
+.woot--bubble-holder { display: none !important; }
+@media (max-width: 600px) { header { gap: 8px; padding: 0 8px; } header nav { gap: 8px; } header .who { max-width: 14ch; } }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="cw-title"></h1>
+  <nav>
+    <span id="cw-login"></span>
+    <a id="cw-portal" target="_blank" rel="noopener" hidden></a>
+    <a id="cw-staff" class="staff">Staff sign-in</a>
+  </nav>
+</header>
+<div id="cw-empty">Loading the chat...</div>
+<script type="application/json" id="cw-settings">__SETTINGS__</script>
+<script nonce="__NONCE__">
+(function (d) {
+  var S = JSON.parse(d.getElementById("cw-settings").textContent);
+  var L = S.login;
+  var KEY = "cwCustomerIdentity", LOGIN_STATE = "cwCustomerLogin", SILENT = "cwCustomerSilent";
+  // the only callback the provider accepts: this page
+  var CALLBACK = S.baseUrl + "/";
+  function store(k, v) { try { v === null ? sessionStorage.removeItem(k) : sessionStorage.setItem(k, v); } catch (e) {} }
+  function load(k) { try { return sessionStorage.getItem(k); } catch (e) { return null; } }
+  function b64url(bytes) { return btoa(String.fromCharCode.apply(null, new Uint8Array(bytes))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); }
+  function random() { var a = new Uint8Array(32); crypto.getRandomValues(a); return b64url(a); }
+  function identity() { try { return JSON.parse(load(KEY) || "null"); } catch (e) { return null; } }
+  function crawler() { return navigator.webdriver === true || /bot|crawl|spider|slurp|yandex|facebookexternalhit|semrush|ahrefs/i.test(navigator.userAgent || ""); }
+
+  // "Full window" of another site: #cw=<conversation token> continues that conversation here.
+  // The token becomes this page's own conversation cookie and leaves the address bar at once
+  var m = /^#cw=([A-Za-z0-9._-]{16,4096})$/.exec(location.hash);
+  if (m) { d.cookie = "cw_conversation=" + m[1] + "; path=/; max-age=31536000; secure; samesite=lax"; }
+  if (location.hash) { history.replaceState(null, "", location.pathname + location.search); }
+
+  d.getElementById("cw-title").textContent = S.title || d.title;
+  d.title = S.title || d.title;
+  var staff = d.getElementById("cw-staff");
+  staff.href = S.staffUrl;
+  if (S.portalUrl) {
+    var portal = d.getElementById("cw-portal");
+    portal.href = S.portalUrl;
+    portal.textContent = S.portalText || S.portalUrl;
+    portal.hidden = false;
+  }
+
+  // silent: prompt=none, the provider answers at once with a code or error=login_required
+  function login(silent) {
+    var state = random(), verifier = random();
+    crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)).then(function (h) {
+      store(LOGIN_STATE, JSON.stringify({ state: state, verifier: verifier }));
+      var url = L.authorize + (L.authorize.indexOf("?") < 0 ? "?" : "&") + "client_id=" + encodeURIComponent(L.clientId) +
+        "&response_type=code&scope=openid%20email%20profile&redirect_uri=" + encodeURIComponent(CALLBACK) +
+        "&state=" + state + "&code_challenge=" + b64url(h) + "&code_challenge_method=S256";
+      if (silent) { location.replace(url + "&prompt=none"); } else { location.href = url; }
+    });
+  }
+  function show() {
+    var box = d.getElementById("cw-login");
+    box.textContent = "";
+    if (!L) { return; }
+    var who = identity();
+    if (who) {
+      var span = d.createElement("span");
+      span.className = "who";
+      span.title = who.email;
+      span.textContent = "Logged in as " + who.email;
+      box.appendChild(span);
+    } else {
+      var b = d.createElement("button");
+      b.type = "button";
+      b.textContent = "Log in";
+      b.onclick = function () { login(false); };
+      box.appendChild(b);
+    }
+  }
+  function identify() {
+    var who = identity();
+    if (who && window.$chatwoot) {
+      window.$chatwoot.setUser(who.identifier, { email: who.email, name: who.name, identifier_hash: who.identifier_hash });
+    }
+  }
+  function start() {
+    show();
+    window.chatwootSettings = { hideMessageBubble: true, showPopoutButton: false, position: "right", type: "standard" };
+    window.addEventListener("chatwoot:ready", function () {
+      identify();
+      d.getElementById("cw-empty").hidden = true;
+      window.$chatwoot.toggle("open");
+    });
+    // the phone layout has a close button: the chat is the whole page, so it stays open
+    window.addEventListener("chatwoot:closed", function () { window.$chatwoot.toggle("open"); });
+    var g = d.createElement("script");
+    g.src = S.baseUrl + "/packs/js/sdk.js";
+    g.async = true;
+    g.onload = function () { window.chatwootSDK.run({ websiteToken: S.websiteToken, baseUrl: S.baseUrl }); };
+    d.body.appendChild(g);
+  }
+
+  var q = new URLSearchParams(location.search), pending = null;
+  try { pending = JSON.parse(load(LOGIN_STATE) || "null"); } catch (e) {}
+  var callback = !!(q.get("code") || q.get("error"));
+  var crypto_ok = !!(window.crypto && crypto.subtle);
+  if (L && callback && pending && q.get("state") === pending.state) {
+    // back from the provider: exchange the code once, never keep the token
+    store(LOGIN_STATE, null);
+    history.replaceState(null, "", "/");
+    if (!q.get("code")) { start(); return; }
+    fetch(L.token, { method: "POST", credentials: "omit",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ grant_type: "authorization_code", client_id: L.clientId, code: q.get("code"),
+        redirect_uri: CALLBACK, code_verifier: pending.verifier }) })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (t) {
+        return t && t.access_token ? fetch(L.identity, { method: "POST", credentials: "omit", headers: { "Authorization": "Bearer " + t.access_token } }) : null;
+      })
+      .then(function (r) { return r && r.ok ? r.json() : null; })
+      .then(function (who) { if (who && who.identifier_hash) { store(KEY, JSON.stringify(who)); } start(); })
+      .catch(start);
+    return;
+  }
+  if (callback) { history.replaceState(null, "", "/"); }
+  if (L && crypto_ok && !identity()) {
+    // a "Log in" link that points here (?chat-login=1) starts the login at once
+    if (q.get("chat-login") === "1") { history.replaceState(null, "", "/"); login(false); return; }
+    // once per tab session: a visitor with a session at the provider comes back logged in
+    if (!callback && !crawler() && load(SILENT) === null) {
+      store(SILENT, "1");
+      if (load(SILENT) === "1") { login(true); return; }
+    }
+  }
+  start();
+})(document);
+</script>
+</body>
+</html>

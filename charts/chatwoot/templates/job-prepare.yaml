@@ -160,6 +160,11 @@ spec:
           value: {{ .Values.odoo.website.inbox | quote }}
         - name: CHATWOOT_ODOO_WEBSITE_URL
           value: {{ .Values.odoo.website.url | trimSuffix "/" | quote }}
+        {{- with .Values.odoo.website.preChatMessage }}
+        # the message above the pre-chat form
+        - name: CHATWOOT_ODOO_WEBSITE_PRE_CHAT_MESSAGE
+          value: {{ . | quote }}
+        {{- end }}
         {{- if .Values.odoo.website.identity.enabled }}
         # identity validation of the Website inbox: the key the site signs customers with
         - name: CHATWOOT_WEBSITE_IDENTITY_KEY

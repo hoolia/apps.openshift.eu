@@ -50,6 +50,8 @@ a super admin.
 | `sso.session.chatwootHours` | `36` | A Chatwoot dashboard session ends after this many hours; 25 to 720. The dashboard keeps its session cookie for whole days rounded down, so a shorter value would end every session at once; the chart refuses it. |
 | `sso.public.widget` | `true` | The live chat widget is reachable without a login. |
 | `sso.public.inboxApi`, `.surveys`, `.helpCenter` | `false` | Further paths without a login. |
+| `sso.public.customerPage.enabled` | `false` | `/` of the host is a page for customers: a full-window chat of the Website inbox `sso.public.customerPage.inbox`, a link to `portalUrl` and a staff sign-in link to `/app/login`. Off: `/` is the staff login. |
+| `sso.public.customerPage.login.issuerUrl`, `.clientId` | empty | The customer login on that page, an OIDC public client with PKCE. Empty: no login. |
 | `networkPolicy.webIngressFrom` | empty | Further peers that may reach Chatwoot web on port 3000. |
 | `networkPolicy.agentEgress.to` | empty | Peers the agent bridge may reach besides Chatwoot and DNS: the agent and its token endpoint. Empty: any public address on `networkPolicy.agentEgress.ports` (`443`), plus the namespace of an `agent.url` that names a Service of this cluster. |
 | `networkPolicy.dnsPeers` | namespace `openshift-dns` | Peers of the cluster DNS that the agent bridge asks. |
@@ -61,7 +63,8 @@ a super admin.
 | `agentBot.inboxes` | empty | Inbox names the bot answers in; `*` is every inbox. |
 | `agentBot.agentUrl` | empty | A2A address of the bot's own agent, with `agent.auth`. Empty: `agent.url`. |
 | `odoo.website.identity.enabled` | `false` | Identity validation on the Website inbox: only a contact the site signed with `secrets.websiteIdentityKey` counts as a logged-in customer. |
-| `odoo.website.identity.records` | `true` | The bot's agent gets a logged-in customer's own Odoo records, read by the bridge. |
+| `odoo.website.identity.records` | `true` | The bot's agent gets a logged-in customer's own Odoo records and profile, read by the bridge. |
+| `odoo.website.preChatMessage` | empty | Markdown message above the pre-chat form, set by the prepare Job. Empty: the message set in Chatwoot stays. |
 | `agentBot.handoff.keywords` | `human`, `person`, `agent`, `staff` | A customer message that is exactly one of these hands the conversation to a person. |
 | `copilotPanel.enabled` | `false` | A panel in the conversation sidebar where staff ask the agent; needs `sso.enabled`. |
 | `draftAgent.enabled` | `false` | The agent drafts a reply to each customer message as a private note for staff. |
@@ -103,6 +106,46 @@ The OIDC client needs the redirect URI `https://<hostname>/oauth2/callback` and 
 equal to key `client-secret` of Secret `chatwoot-oauth`. Its client id is the hostname
 unless `sso.clientId` is set. The bridge never logs in an address under `.invalid` or a
 super admin: Chatwoot's Platform API refuses those in this chart.
+
+### Customer page
+
+With `sso.public.customerPage.enabled`, `GET /` of the host is a page for customers instead
+of the staff login. Chatwoot web serves it (`customer_page.rb`); staff sign in at
+`/app/login`, linked from the page.
+
+```mermaid
+sequenceDiagram
+    participant C as customer
+    participant P as https://hostname/
+    participant O as OIDC provider (customerPage.login)
+    participant W as widget of the inbox
+    C->>P: GET /, or /#cw=<token> from "Full window" of a site
+    P->>P: #cw becomes the cw_conversation cookie, the fragment leaves the address bar
+    P->>O: once per tab: prompt=none (code + PKCE)
+    O-->>P: code, or login_required
+    P->>P: POST /customer/identity with the access token
+    P->>W: setUser(email, identifier_hash), widget open over the whole page
+```
+
+- The page is the widget of the Website inbox `sso.public.customerPage.inbox`, open over the
+  whole page below a bar with the title, the login, a link to `portalUrl` (`portalText`)
+  and "Staff sign-in". While the inbox does not exist, `/` stays the staff login.
+- `https://<hostname>/#cw=<token>` continues the conversation of that token: a site that
+  embeds the widget opens it with the value of its `cw_conversation` cookie for a bigger
+  window. The token travels in the fragment, which no server log records; whoever holds
+  the link continues that conversation, as with Chatwoot's own popout.
+- With `login.issuerUrl` and `login.clientId` a customer logs in on the page: the browser
+  signs in at the provider with authorization code and PKCE, and posts the access token
+  once to `POST /customer/identity`. Chatwoot web checks the token at the provider's
+  userinfo endpoint, requires that client and a verified email, and answers with
+  `HMAC-SHA256` of the email under the inbox's identity validation key, which never leaves
+  the server. A visitor with a session at the provider is logged in without a click, once
+  per browser tab; `/?chat-login=1` starts the login at once. The client is public, with
+  redirect URI `https://<hostname>/` and web origin `https://<hostname>`.
+- Paths without a login besides the widget's: `GET /` and `POST /customer/identity`.
+- A site that draws its own controls over the widget header checks them on every Chatwoot
+  upgrade: a screenshot of the open widget at desktop and phone width, on the pre-chat form
+  and in a conversation.
 
 ### When a user leaves the allowed group
 
@@ -203,7 +246,12 @@ window.$chatwoot.setUser(email, { email: email, name: name, identifier_hash: has
   customer's own partner (the one company whose contact has exactly that email), sale
   orders, subscriptions and helpdesk tickets, read by the bridge with `secrets.odooApiKey`
   from its own Secret `chatwoot-agent-odoo`. An address of several companies shows no
-  record. The agent reads nothing from Odoo itself, so a customer cannot steer it to
+  record.
+- The note also holds the profile a quotation needs: the contact's name and phone, the
+  company's name and VAT, and the invoice address (the company's invoice contact, else the
+  company's own address), then `missing: <fields>` for what Odoo lacks. A phone or company
+  the site passed to `setUser` fills a gap only, marked as from the login profile; Odoo's
+  values win. The agent reads nothing from Odoo itself, so a customer cannot steer it to
   another customer's records. Add Odoo's address to `networkPolicy.agentEgress`.
 - The key reaches only the prepare Job (Secret `chatwoot-website-identity`), which sets it as
   the inbox's identity validation key. Compute the hash on the site's server, never in the
@@ -529,7 +577,8 @@ bucket.
 
 ## How to login
 
-- **Single sign-on**: with `sso.enabled`, staff open `https://<hostname>/` and log in at
+- **Single sign-on**: with `sso.enabled`, staff open `https://<hostname>/` (with
+  `sso.public.customerPage.enabled`, `https://<hostname>/app/login`) and log in at
   the OIDC provider `sso.issuerUrl`. A member of `sso.allowedGroups` becomes a Chatwoot
   user of the account on the first login; a member of `sso.adminGroups` becomes an
   administrator, everyone else an agent. With `sso.adminGroups` empty, new users are agents
@@ -553,6 +602,9 @@ bucket.
   platform team. Chatwoot serves the files itself, so the bucket needs no public address.
 - For single sign-on, ask the platform team for the OIDC issuer and a client as described
   above, or register one at your own provider.
+- For the customer page login, register a public OIDC client with PKCE, redirect URI
+  `https://<hostname>/` and web origin `https://<hostname>`, and set
+  `sso.public.customerPage.login`.
 - For the Agent Bot or the panel, give `agent.url` the A2A address of the agent and agree
   with its owner how it authenticates the bridge (`agent.auth`).
 - For the Odoo bridge, Odoo 19 (Enterprise, for `helpdesk`) needs the module

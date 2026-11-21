@@ -1,5 +1,5 @@
-# Tests of charts/chatwoot/files/chart_initializer.rb: the dashboard session lifetime and
-# the agent bot webhook to a private address.
+# Tests of charts/chatwoot/files/chart_initializer.rb: the dashboard session lifetime, the
+# agent bot webhook to a private address and the customer page in front of the routes.
 #
 # ruby ci/test_chatwoot_initializer.rb
 require 'minitest/autorun'
@@ -18,7 +18,13 @@ module DeviseTokenAuth
 end
 
 module Rails
-  Config = Struct.new(:prepared) do
+  # the middleware stack, as far as the initializer adds to it
+  Middleware = Struct.new(:used) do
+    def use(klass, *args)
+      (self.used ||= []) << [klass, *args]
+    end
+  end
+  Config = Struct.new(:prepared, :middleware) do
     # kept, so a test can run a block; Chatwoot's own classes are not loaded here
     def to_prepare(&block)
       self.prepared ||= []
@@ -28,7 +34,7 @@ module Rails
   Application = Struct.new(:config)
 
   def self.application
-    @application ||= Application.new(Config.new)
+    @application ||= Application.new(Config.new(nil, Middleware.new))
   end
 end
 
@@ -134,5 +140,21 @@ class SessionHoursTest < Minitest::Test
       assert_match(/CHATWOOT_SESSION_HOURS must be a whole number from 25 to 720/, error.message)
       assert_equal CHATWOOT_DEFAULT, DeviseTokenAuth.token_lifespan, "#{hours.inspect} changed the lifespan"
     end
+  end
+end
+
+class CustomerPageMiddlewareTest < Minitest::Test
+  def test_customer_page_only_when_configured
+    env = ENV.to_h
+    ENV['SMTP_ADDRESS'] = 'smtp.example.com'
+    ENV.delete('CHART_CUSTOMER_PAGE')
+    Rails.application.config.middleware.used = []
+    load INITIALIZER
+    assert_empty Rails.application.config.middleware.used
+    ENV['CHART_CUSTOMER_PAGE'] = File.expand_path('../charts/chatwoot/files/customer_page.html', __dir__)
+    load INITIALIZER
+    assert_equal [[ChartCustomerPage]], Rails.application.config.middleware.used
+  ensure
+    ENV.replace(env)
   end
 end

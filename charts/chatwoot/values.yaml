@@ -180,6 +180,29 @@ sso:
     surveys: false
     # help center portals
     helpCenter: false
+    # GET / of the host becomes a page for customers instead of the staff login: a
+    # full-window chat of one Website inbox, a link to the customer portal and a staff
+    # sign-in link to /app/login. https://<host>/#cw=<token>, with the cw_conversation
+    # cookie of a site that embeds the widget, continues that conversation on the page.
+    # Off: / is the staff login
+    customerPage:
+      enabled: false
+      # name of the Website inbox the page chats in; while it does not exist, / stays the
+      # staff login
+      inbox: Website
+      # title of the page
+      title: Support
+      # https address where customers find their orders, quotations and invoices, for
+      # example a customer portal; empty: no link
+      portalUrl: ""
+      portalText: Orders, quotations and invoices
+      # the customer login on the page, signed for the inbox's identity validation: an OIDC
+      # public client with authorization code and PKCE whose redirect URI is
+      # https://<host>/ and whose web origin is https://<host>. A visitor with a session at
+      # the provider is logged in without a click, once per browser tab. Empty: no login
+      login:
+        issuerUrl: ""
+        clientId: ""
 
 # the login bridge next to oauth2-proxy, with sso.enabled
 loginBridge:
@@ -261,6 +284,9 @@ odoo:
     # Empty: chats stay tickets
     salesLabel: sales
     cancelledStage: Cancelled
+    # the message above the pre-chat form, Markdown (a link opens in a new tab), set by the
+    # prepare Job; empty: the message set in Chatwoot stays
+    preChatMessage: ""
     # Chatwoot identity validation on the Website inbox: the site signs the identifier of a
     # logged-in customer (their email) with the key secrets.websiteIdentityKey and passes it
     # to the widget (setUser with identifier_hash); a contact identifier without a valid

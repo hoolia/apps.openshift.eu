@@ -156,6 +156,23 @@ identity provider can deliver to or verify, so no login of a person can match it
 {{- if and (eq .Values.attachments.storage "objectBucketClaim") (not .Values.attachments.objectBucketClaim.storageClassName) }}
 {{- fail "attachments.objectBucketClaim.storageClassName is required with attachments.storage objectBucketClaim" }}
 {{- end }}
+{{- $cp := .Values.sso.public.customerPage }}
+{{- if $cp.enabled }}
+{{- if not .Values.sso.public.widget }}
+{{- fail "sso.public.customerPage.enabled needs sso.public.widget: the page is the widget of the inbox" }}
+{{- end }}
+{{- if not $cp.inbox }}
+{{- fail "sso.public.customerPage.inbox, the name of a Website inbox, is required with sso.public.customerPage.enabled" }}
+{{- end }}
+{{- if and $cp.portalUrl (not (hasPrefix "https://" $cp.portalUrl)) }}
+{{- fail "sso.public.customerPage.portalUrl must be an https address" }}
+{{- end }}
+{{- if or $cp.login.issuerUrl $cp.login.clientId }}
+{{- if not (and (hasPrefix "https://" $cp.login.issuerUrl) $cp.login.clientId) }}
+{{- fail "sso.public.customerPage.login needs both issuerUrl, an https address, and clientId" }}
+{{- end }}
+{{- end }}
+{{- end }}
 {{- if and .Values.sso.enabled (not .Values.sso.issuerUrl) }}
 {{- fail "sso.issuerUrl is required with sso.enabled" }}
 {{- end }}
@@ -170,6 +187,11 @@ identity provider can deliver to or verify, so no login of a person can match it
 {{- if and .Values.sso.enabled (or (lt $hours 25) (gt $hours 720)) }}
 {{- fail "sso.session.chatwootHours must be a whole number of hours from 25 to 720: below 25 the dashboard session cookie expires at once and every login loops" }}
 {{- end }}
+{{- end -}}
+
+{{/* Non-empty when GET / of the host is the customer page (sso.public.customerPage). */}}
+{{- define "wrapper.customerPage" -}}
+{{- if and (not .Values.agentBridge.standalone.enabled) .Values.sso.public.customerPage.enabled }}true{{ end }}
 {{- end -}}
 
 {{/* Non-empty when the bot gives the agent a verified customer's own Odoo records. */}}
@@ -541,6 +563,10 @@ skip-auth-route rules (METHOD=regex). Everything else needs a login.
 {{- end -}}
 {{- if $p.helpCenter -}}
 {{- $r = append $r "GET=^/hc/" -}}
+{{- end -}}
+{{- if include "wrapper.customerPage" . -}}
+{{- /* the customer page and its login; the page loads the widget paths above */ -}}
+{{- $r = concat $r (list "GET=^/$" "POST=^/customer/identity$") -}}
 {{- end -}}
 {{- if and .Values.agentBot.enabled .Values.agentBridge.remoteUrl -}}
 {{- /* a remote bridge posts the bot's answers with the bot's access token */ -}}

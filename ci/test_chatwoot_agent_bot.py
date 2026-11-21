@@ -313,8 +313,10 @@ def history(*items):
 class FakeOdoo:
     """res.partner, sale.order and helpdesk.ticket of two customers, as JSON-2 returns them."""
 
-    PARTNERS = [{"id": 11, "name": "Ann", "email": "ann@example.com", "commercial_partner_id": [10, "Ann BV"]},
-                {"id": 21, "name": "Bob", "email": "bob@example.org", "commercial_partner_id": [20, "Bob Ltd"]},
+    PARTNERS = [{"id": 11, "name": "Ann", "email": "ann@example.com", "commercial_partner_id": [10, "Ann BV"],
+                 "phone": "+31 6 1234 5678"},
+                {"id": 21, "name": "Bob", "email": "bob@example.org", "commercial_partner_id": [20, "Bob Ltd"],
+                 "phone": False},
                 {"id": 31, "name": "Twin 1", "email": "twin@example.net", "commercial_partner_id": [30, "A"]},
                 {"id": 41, "name": "Twin 2", "email": "twin@example.net", "commercial_partner_id": [40, "B"]}]
     ORDERS = {10: [{"name": "S00010", "state": "sale", "amount_total": 99.0, "currency_id": [1, "EUR"],
@@ -325,15 +327,29 @@ class FakeOdoo:
     TICKETS = {10: [{"name": "Backup question", "stage_id": [1, "New"], "create_date": "2026-11-02 09:00:00"}],
                20: [{"name": "Bob's secret ticket", "stage_id": [1, "New"], "create_date": "2026-11-03 09:00:00"}]}
 
+    # the companies (commercial partners) and their invoice contacts
+    COMPANIES = {10: {"id": 10, "name": "Ann BV", "is_company": True, "vat": "NL001234567B01", "phone": "+31 20 000 0000",
+                      "street": "Main Street 1", "street2": False, "zip": "1011 AA", "city": "Amsterdam",
+                      "country_id": [165, "Netherlands"]},
+                 20: {"id": 20, "name": "Bob Ltd", "is_company": True, "vat": False, "phone": False,
+                      "street": "High Street 2", "street2": "Unit 3", "zip": "AB1 2CD", "city": "Leeds",
+                      "country_id": [233, "United Kingdom"]}}
+    INVOICE = {10: [{"street": "Billing Road 9", "street2": False, "zip": "3011 BB", "city": "Rotterdam",
+                     "country_id": [165, "Netherlands"]}]}
+
     def __init__(self, fail=None):
         self.calls = []
         self.fail = fail
 
     def call(self, model, method, **kw):
         self.calls.append((model, kw.get("domain")))
-        if self.fail == model:
+        if self.fail in (model, (model, method)):
             raise OSError("down")
         domain = kw.get("domain") or []
+        if model == "res.partner" and method == "read":
+            return [self.COMPANIES[i] for i in kw["ids"] if i in self.COMPANIES]
+        if model == "res.partner" and domain and domain[0][0] == "parent_id":
+            return self.INVOICE.get(domain[0][2], [])
         if model == "res.partner":
             (_, op, value), = domain
             self.assertion = op
@@ -386,7 +402,8 @@ class IdentityTest(Base):
         self.assertNotIn("typed@evil.example", text)
         # every read is of Ann's company, found by her verified address
         self.assertEqual(odoo.calls[0], ("res.partner", [["email", "=ilike", "ann@example.com"]]))
-        self.assertTrue(all(d[0] == ["partner_id", "child_of", 10] for m, d in odoo.calls[1:]))
+        self.assertTrue(all(d[0] == ["partner_id", "child_of", 10] for m, d in odoo.calls if m != "res.partner"))
+        self.assertEqual(odoo.calls[2], ("res.partner", [["parent_id", "=", 10], ["type", "=", "invoice"]]))
         meta = self.state["a2a"][-1][0]["params"]["message"]["metadata"]["chatwoot"]["contact"]
         self.assertEqual(meta, {"email": "ann@example.com", "verified": True})
 
@@ -428,6 +445,52 @@ class IdentityTest(Base):
         self.assertEqual(self.state["a2a"], [])
         self.assertEqual(self.paths()[0], "/elsewhere")
         self.assertEqual(self.state["chatwoot"][0][1]["method"], "message/send")
+
+    def test_complete_profile_leaves_nothing_to_ask(self):
+        self.bot(FakeOdoo()).handle(verified())
+        text = self.text()
+        self.assertIn("- name: Ann", text)
+        self.assertIn("- company: Ann BV", text)
+        self.assertIn("- VAT: NL001234567B01", text)
+        self.assertIn("- phone: +31 6 1234 5678", text)
+        # the invoice contact of the company wins over the company's own address
+        self.assertIn("- invoice address: Billing Road 9, 3011 BB Rotterdam, Netherlands", text)
+        self.assertIn("missing: none", text)
+        self.assertNotIn("Main Street", text)
+
+    def test_missing_fields_are_named(self):
+        self.bot(FakeOdoo()).handle(verified("bob@example.org"))
+        text = self.text()
+        self.assertIn("- company: Bob Ltd", text)
+        self.assertIn("- invoice address: High Street 2, Unit 3, AB1 2CD Leeds, United Kingdom", text)
+        self.assertIn("missing: VAT, phone", text)
+        self.assertNotIn("- phone:", text)
+
+    def test_login_profile_fills_only_what_odoo_lacks(self):
+        e = verified("bob@example.org")
+        e["conversation"]["meta"]["sender"].update(
+            {"phone_number": "+44 113 496 0000", "additional_attributes": {"company_name": "Other Name Ltd"}})
+        self.bot(FakeOdoo()).handle(e)
+        text = self.text()
+        self.assertIn("- phone: +44 113 496 0000 (from their login profile)", text)
+        # Odoo's company name stays; the login's is never shown over it
+        self.assertIn("- company: Bob Ltd", text)
+        self.assertNotIn("Other Name", text)
+        self.assertIn("missing: VAT", text)
+
+    def test_unverified_contact_fields_are_never_used(self):
+        e = verified("bob@example.org", ok=False)
+        e["conversation"]["meta"]["sender"].update({"phone_number": "+44 113 496 0000"})
+        odoo = FakeOdoo()
+        self.bot(odoo).handle(e)
+        self.assertNotIn("+44", json.dumps(self.state["a2a"][-1][0]))
+        self.assertEqual(odoo.calls, [])
+
+    def test_profile_not_readable_keeps_the_records(self):
+        self.bot(FakeOdoo(fail=("res.partner", "read"))).handle(verified())
+        text = self.text()
+        self.assertIn("S00010", text)
+        self.assertIn("missing: name, company, VAT, phone, invoice address", text)
 
     def test_records_need_odoo(self):
         with self.assertRaises(ValueError):

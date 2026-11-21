@@ -257,6 +257,25 @@
             },
             "helpCenter": {
               "type": "boolean"
+            },
+            "customerPage": {
+              "type": "object",
+              "title": "Customer page at / of the host",
+              "properties": {
+                "enabled": {"type": "boolean"},
+                "inbox": {"type": "string", "title": "Website inbox of the page"},
+                "title": {"type": "string"},
+                "portalUrl": {"type": "string", "title": "https address of the customer portal", "pattern": "^(https://.+)?$"},
+                "portalText": {"type": "string"},
+                "login": {
+                  "type": "object",
+                  "title": "Customer login (OIDC public client with PKCE)",
+                  "properties": {
+                    "issuerUrl": {"type": "string", "pattern": "^(https://.+)?$"},
+                    "clientId": {"type": "string"}
+                  }
+                }
+              }
             }
           }
         }
@@ -385,6 +404,7 @@
             "conversationsPerMinute": {"type": "integer", "minimum": 1},
             "salesLabel": {"type": "string", "title": "Label that moves a chat to a lead", "pattern": "^([A-Za-z0-9_-]{1,64})?$"},
             "cancelledStage": {"type": "string", "title": "Stage of a ticket whose chat moved to a lead"},
+            "preChatMessage": {"type": "string", "title": "Message above the pre-chat form (Markdown)"},
             "identity": {
               "type": "object",
               "title": "Identity validation of logged-in customers",

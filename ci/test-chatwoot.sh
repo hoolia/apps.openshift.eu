@@ -365,4 +365,21 @@ check "identity: records off" '"IDENTITY_RECORDS" not in env("chatwoot-agent-bri
 OUT=$(render "${WEBSITE[@]}")
 check "identity: off by default" 'not obj("Secret", "chatwoot-website-identity") and "CHATWOOT_WEBSITE_IDENTITY_KEY" not in env("chatwoot-prepare-1", "prepare")'
 
+# --- the customer page at / of the host, its login and the pre-chat message
+OUT=$(render "${SSO[@]}")
+check "customer page: off by default" 'not public("GET", "/") and not public("POST", "/customer/identity") and "CHART_CUSTOMER_PAGE" not in env("chatwoot-web", "web") and "customer_page.rb" not in obj("ConfigMap", "chatwoot-scripts")["data"]'
+CP=("${SSO[@]}" --set sso.public.customerPage.enabled=true --set sso.public.customerPage.portalUrl=https://portal.example.com/my
+  --set sso.public.customerPage.login.issuerUrl=https://login.example.com/realms/customers --set sso.public.customerPage.login.clientId=site)
+OUT=$(render "${CP[@]}")
+check "customer page: / and its login are public, nothing else" 'public("GET", "/") and public("POST", "/customer/identity") and not any(public(m, p) for m, p in [("POST", "/"), ("GET", "/app"), ("GET", "/app/login"), ("GET", "/customer/identity"), ("POST", "/customer/identity/x"), ("POST", "/customer"), ("GET", "/index.html"), ("GET", "/super_admin"), ("POST", "/auth/sign_in")])'
+check "customer page: web serves it" 'env("chatwoot-web", "web")["CHART_CUSTOMER_PAGE"] == "/scripts/customer_page.html" and json.loads(env("chatwoot-web", "web")["CHART_CUSTOMER_PAGE_CONFIG"]) == {"accountId": 1, "inbox": "Website", "title": "Support", "portalUrl": "https://portal.example.com/my", "portalText": "Orders, quotations and invoices", "staffUrl": "/app/login", "issuerUrl": "https://login.example.com/realms/customers", "clientId": "site"} and {"customer_page.rb", "customer_page.html"} <= set(obj("ConfigMap", "chatwoot-scripts")["data"]) and "CHART_CUSTOMER_PAGE" not in env("chatwoot-worker", "worker")'
+check "customer page: no key outside the job" 'not any("chatwoot-website-identity" in refs(pod(n)) for n in ("chatwoot-web", "chatwoot-gate", "chatwoot-worker"))'
+fails "customer page: login needs both" "needs both issuerUrl" "${SSO[@]}" --set sso.public.customerPage.enabled=true --set sso.public.customerPage.login.clientId=site
+fails "customer page: https portal" "portalUrl" "${SSO[@]}" --set sso.public.customerPage.enabled=true --set sso.public.customerPage.portalUrl=http://portal.example.com
+fails "customer page: needs the widget" "needs sso.public.widget" "${SSO[@]}" --set sso.public.customerPage.enabled=true --set sso.public.widget=false
+OUT=$(render "${WEBSITE[@]}" --set 'odoo.website.preChatMessage=Customer? [Log in](https://example.org/?chat-login=1)')
+check "pre-chat message to the job" 'env("chatwoot-prepare-1", "prepare")["CHATWOOT_ODOO_WEBSITE_PRE_CHAT_MESSAGE"] == "Customer? [Log in](https://example.org/?chat-login=1)"'
+OUT=$(render "${WEBSITE[@]}")
+check "pre-chat message: unset keeps Chatwoot's" '"CHATWOOT_ODOO_WEBSITE_PRE_CHAT_MESSAGE" not in env("chatwoot-prepare-1", "prepare")'
+
 [ $fail = 0 ] && echo "PASS charts/chatwoot render" || exit 1

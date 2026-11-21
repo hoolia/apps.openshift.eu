@@ -14,7 +14,8 @@
 #   the API inboxes named in CHATWOOT_ODOO_INBOXES with their webhooks to the bridge, signed
 #   with CHATWOOT_ODOO_INBOX_SECRET, and the conversation attributes odoo_ref and odoo_url;
 #   with CHATWOOT_ODOO_WEBSITE_INBOX also that Website inbox, its pre-chat form asking for a
-#   required email address, the account webhook to the bridge's website path and the
+#   required email address (and the message CHATWOOT_ODOO_WEBSITE_PRE_CHAT_MESSAGE above
+#   it), the account webhook to the bridge's website path and the
 #   label CHATWOOT_ODOO_SALES_LABEL; with CHATWOOT_WEBSITE_IDENTITY_KEY the inbox's identity
 #   validation key is that value and a contact identifier needs its signature
 # - with CHATWOOT_DRAFT_TOKEN: keeps the author of AI drafts (an agent with that access
@@ -171,7 +172,10 @@ else
     end
     email['enabled'] = true
     email['required'] = true
-    widget.pre_chat_form_options = options.merge('pre_chat_fields' => fields)
+    options = options.merge('pre_chat_fields' => fields)
+    message = ENV.fetch('CHATWOOT_ODOO_WEBSITE_PRE_CHAT_MESSAGE', '').strip
+    options['pre_chat_message'] = message unless message.empty?
+    widget.pre_chat_form_options = options
     widget.pre_chat_form_enabled = true
     # Chatwoot has no mail of its own here: Odoo writes to customers
     widget.continuity_via_email = false

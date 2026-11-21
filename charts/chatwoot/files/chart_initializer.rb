@@ -55,6 +55,13 @@ unless bridges.empty?
   end
 end
 
+unless ENV['CHART_CUSTOMER_PAGE'].to_s.empty?
+  # GET / of the host is the customer page, POST /customer/identity its login
+  # (customer_page.rb, next to the page template); every other path is Chatwoot's own
+  load File.join(File.dirname(ENV['CHART_CUSTOMER_PAGE']), 'customer_page.rb')
+  Rails.application.config.middleware.use ChartCustomerPage
+end
+
 # The Platform API never hands out a super admin: no login link, no API token, no change
 # and no adoption of an existing super admin by a Platform App. The login bridge uses this
 # API; a super admin logs in with its password at /super_admin only.

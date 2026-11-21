@@ -23,6 +23,12 @@ data:
     {{- .Files.Get "files/bootstrap.rb" | nindent 4 }}
   chart_initializer.rb: |
     {{- .Files.Get "files/chart_initializer.rb" | nindent 4 }}
+  {{- if include "wrapper.customerPage" . }}
+  customer_page.rb: |
+    {{- .Files.Get "files/customer_page.rb" | nindent 4 }}
+  customer_page.html: |
+    {{- .Files.Get "files/customer_page.html" | nindent 4 }}
+  {{- end }}
   {{- if .Values.sso.enabled }}
   login_bridge.py: |
     {{- .Files.Get "files/login_bridge.py" | nindent 4 }}
