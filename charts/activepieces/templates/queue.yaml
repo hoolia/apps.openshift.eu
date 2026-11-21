@@ -1,0 +1,122 @@
+{{- $q := .Values.queue }}
+# Job queue of the flow runs (BullMQ on Valkey)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: activepieces-queue
+  labels:
+    app: activepieces-queue
+    app.kubernetes.io/name: valkey
+    app.kubernetes.io/component: queue
+    {{- include "activepieces.commonLabels" $ | nindent 4 }}
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ $q.size }}
+  {{- with $q.storageClassName }}
+  storageClassName: {{ . }}
+  {{- end }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: activepieces-queue
+  labels:
+    app: activepieces-queue
+    app.kubernetes.io/name: valkey
+    app.kubernetes.io/component: queue
+    {{- include "activepieces.commonLabels" $ | nindent 4 }}
+    app.openshift.io/runtime: redis
+spec:
+  replicas: 1
+  # one volume, written by one server
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: activepieces-queue
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: activepieces-queue
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - name: valkey
+        image: {{ $q.image }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command: ["/bin/sh", "-c"]
+        # the password from the environment, so it is not in the pod spec
+        args:
+        - exec valkey-server --requirepass "$REDIS_PASSWORD" --dir /data --appendonly yes --save "" --protected-mode no
+        env:
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "activepieces.secretName" . }}
+              key: queue-password
+        ports:
+        - name: redis
+          containerPort: 6379
+          protocol: TCP
+        readinessProbe:
+          exec:
+            # REDISCLI_AUTH keeps the password out of the process list
+            command: ["/bin/sh", "-c", "REDISCLI_AUTH=\"$REDIS_PASSWORD\" valkey-cli ping | grep -q PONG"]
+          periodSeconds: 10
+        resources:
+          {{- toYaml $q.resources | nindent 10 }}
+        securityContext:
+          {{- include "activepieces.restricted" . | nindent 10 }}
+        volumeMounts:
+        - name: data
+          mountPath: /data
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: activepieces-queue
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: activepieces-queue
+  labels:
+    app: activepieces-queue
+    app.kubernetes.io/name: valkey
+    app.kubernetes.io/component: queue
+    {{- include "activepieces.commonLabels" $ | nindent 4 }}
+spec:
+  selector:
+    app.kubernetes.io/name: activepieces-queue
+  ports:
+  - name: redis
+    port: 6379
+    targetPort: redis
+    protocol: TCP
+---
+# Only Activepieces reaches the queue
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: activepieces-queue
+  labels:
+    app: activepieces-queue
+    app.kubernetes.io/name: valkey
+    app.kubernetes.io/component: queue
+    {{- include "activepieces.commonLabels" $ | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: activepieces-queue
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: activepieces
+    ports:
+    - protocol: TCP
+      port: 6379

@@ -1,0 +1,60 @@
+{{- $db := .Values.database }}
+# Database of Activepieces: users, flows, connections, run history
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: activepieces-db
+  labels:
+    app: activepieces-db
+    app.kubernetes.io/name: postgresql
+    app.kubernetes.io/component: database
+    {{- include "activepieces.commonLabels" $ | nindent 4 }}
+    app.openshift.io/runtime: postgresql
+spec:
+  instances: {{ $db.instances }}
+  # a disruption budget on a single instance would block every node drain
+  enablePDB: {{ gt (int $db.instances) 1 }}
+  imageName: {{ $db.imageName }}
+  bootstrap:
+    initdb:
+      database: activepieces
+      owner: activepieces
+  enableSuperuserAccess: false
+  {{- if $db.backup.enabled }}
+  plugins:
+  - name: barman-cloud.cloudnative-pg.io
+    isWALArchiver: true
+    parameters:
+      barmanObjectName: {{ required "database.backup.objectStoreName is required" $db.backup.objectStoreName }}
+  {{- end }}
+  storage:
+    size: {{ $db.size }}
+    {{- with $db.storageClassName }}
+    storageClass: {{ . }}
+    {{- end }}
+    resizeInUseVolumes: true
+  resources:
+    {{- toYaml $db.resources | nindent 4 }}
+{{- if $db.backup.enabled }}
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: activepieces-db-scheduled
+  labels:
+    app: activepieces-db
+    app.kubernetes.io/name: postgresql
+    app.kubernetes.io/component: backup
+    {{- include "activepieces.commonLabels" $ | nindent 4 }}
+  annotations:
+    # a scheduled backup counts as in progress for ever
+    argocd.argoproj.io/ignore-healthcheck: "true"
+spec:
+  schedule: {{ $db.backup.schedule | quote }}
+  backupOwnerReference: self
+  cluster:
+    name: activepieces-db
+  method: plugin
+  pluginConfiguration:
+    name: barman-cloud.cloudnative-pg.io
+{{- end }}

@@ -1,0 +1,73 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "route": {
+      "type": "object",
+      "properties": {
+        "hostname": {"type": "string", "title": "Hostname", "description": "Public hostname; webhooks and OAuth callbacks use it"},
+        "labels": {"type": "object"},
+        "annotations": {"type": "object"}
+      }
+    },
+    "image": {
+      "type": "object",
+      "properties": {
+        "repository": {"type": "string"},
+        "tag": {"type": "string"},
+        "pullPolicy": {"type": "string", "enum": ["Always", "IfNotPresent", "Never"]}
+      }
+    },
+    "executionMode": {"type": "string", "enum": ["SANDBOX_CODE_ONLY", "UNSANDBOXED"], "title": "Execution mode of code steps"},
+    "workerConcurrency": {"type": "integer", "minimum": 1, "title": "Concurrent flow runs"},
+    "executionDataRetentionDays": {"type": "integer", "minimum": 1, "title": "Days run data is kept"},
+    "resources": {"type": "object"},
+    "cache": {
+      "type": "object",
+      "properties": {
+        "sizeLimit": {"type": "string", "title": "Piece cache size limit"}
+      }
+    },
+    "podLabels": {"type": "object"},
+    "connectsTo": {"type": "array"},
+    "extraEnv": {"type": "array"},
+    "database": {
+      "type": "object",
+      "properties": {
+        "imageName": {"type": "string"},
+        "instances": {"type": "integer", "minimum": 1, "title": "Database instances", "description": "2 or more adds a standby"},
+        "size": {"type": "string", "title": "Database volume size"},
+        "storageClassName": {"type": "string", "title": "Database storage class"},
+        "resources": {"type": "object"},
+        "backup": {
+          "type": "object",
+          "properties": {
+            "enabled": {"type": "boolean", "title": "Scheduled database backup"},
+            "objectStoreName": {"type": "string", "title": "barman-cloud ObjectStore"},
+            "schedule": {"type": "string", "title": "Backup schedule (cron with seconds)"}
+          }
+        }
+      }
+    },
+    "queue": {
+      "type": "object",
+      "properties": {
+        "image": {"type": "string"},
+        "size": {"type": "string", "title": "Queue volume size"},
+        "storageClassName": {"type": "string", "title": "Queue storage class"},
+        "resources": {"type": "object"}
+      }
+    },
+    "secrets": {
+      "type": "object",
+      "properties": {
+        "type": {"type": "string", "enum": ["kubernetes", "externalSecret"]},
+        "existingSecret": {"type": "string", "title": "Existing Secret with keys encryption-key, jwt-secret and queue-password"},
+        "encryptionKey": {"type": "string"},
+        "jwtSecret": {"type": "string"},
+        "queuePassword": {"type": "string"},
+        "externalSecret": {"type": "object"}
+      }
+    }
+  }
+}
