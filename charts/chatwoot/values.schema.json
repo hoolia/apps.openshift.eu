@@ -724,6 +724,7 @@
             "annotations": {"type": "object", "additionalProperties": {"type": "string"}}
           }
         },
+        "allowedHosts": {"type": "array", "items": {"type": "string", "pattern": "^[a-z0-9.-]+(:[0-9*]+)?$"}, "description": "Further Host headers the server answers; required for a Route without hostname"},
         "ingressFrom": {"type": "array", "items": {"type": "object"}},
         "rbacProxy": {
           "type": "object",

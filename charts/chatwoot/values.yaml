@@ -579,6 +579,10 @@ mcp:
     hostname: ""
     # with a hostname outside that domain, the cert-manager annotations of route.annotations
     annotations: {}
+  # further Host headers the server answers (MCP_ALLOWED_HOSTS) besides mcp.route.hostname
+  # and the Service names; with mcp.route.enabled and no hostname, the host OpenShift
+  # assigns (<route>-<namespace>.<application domain>) is required here
+  allowedHosts: []
   # further peers (NetworkPolicyPeer) that may reach the proxy port 8443; the routers may
   # with mcp.route.enabled
   ingressFrom: []

@@ -635,6 +635,7 @@ one Chatwoot agent user; that user reads only the inboxes it is a member of.
 | `mcp.noteInboxIds` | empty | Inbox ids `post_private_note` may write to. Empty: every inbox of the user. |
 | `mcp.targetName` | `chatwoot` | Tool prefix an MCP gateway that discovers the Service gives the tools. |
 | `mcp.route.hostname` | empty | Host of the Route. Empty: OpenShift assigns one under the default application domain. |
+| `mcp.allowedHosts` | empty | Further Host headers the server answers, besides `mcp.route.hostname` and the Service names. With a Route but no hostname, the host OpenShift assigns is required here. |
 | `mcp.ingressFrom` | empty | Further NetworkPolicy peers that may reach port 8443. |
 
 The proxy reaches the Kubernetes API through `networkPolicy.apiServerEgress`. A caller

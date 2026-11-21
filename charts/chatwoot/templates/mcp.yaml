@@ -5,6 +5,9 @@
 {{- if and $m.enabled (not $m.callers) (not $m.callerAccount.enabled) }}
 {{- fail "mcp.enabled needs mcp.callers or mcp.callerAccount.enabled: no one could call the server" }}
 {{- end }}
+{{- if and $m.enabled $m.route.enabled (not $m.route.hostname) (not $m.allowedHosts) }}
+{{- fail "mcp.route.enabled without mcp.route.hostname needs the host OpenShift assigns in mcp.allowedHosts: the server refuses any other Host header" }}
+{{- end }}
 {{- if $m.enabled }}
 {{- /*
 The MCP server: tools over Chatwoot's API as one agent user (Secret chatwoot-mcp), behind
@@ -155,6 +158,10 @@ spec:
         # namespace and the tenant whatever a NetworkPolicy of this chart says
         - name: MCP_HOST
           value: 127.0.0.1
+        # Host headers the server answers (DNS-rebinding protection on loopback); the
+        # proxy passes the caller's Host on
+        - name: MCP_ALLOWED_HOSTS
+          value: {{ include "wrapper.mcpAllowedHosts" . | quote }}
         - name: CHATWOOT_URL
           value: http://chatwoot-web:3000
         - name: CHATWOOT_ACCOUNT_ID

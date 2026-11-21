@@ -209,6 +209,17 @@ identity provider can deliver to or verify, so no login of a person can match it
 {{- if has .Values.agent.auth.type (list "serviceAccountToken" "clientAssertion") }}true{{ end }}
 {{- end -}}
 
+{{/* Host names the MCP server answers: the Route host, mcp.allowedHosts and the Service. */}}
+{{- define "wrapper.mcpAllowedHosts" -}}
+{{- $ns := .Release.Namespace }}
+{{- $hosts := list }}
+{{- if and .Values.mcp.route.enabled .Values.mcp.route.hostname }}
+{{- $hosts = append $hosts .Values.mcp.route.hostname }}
+{{- end }}
+{{- $hosts = concat $hosts .Values.mcp.allowedHosts (list "chatwoot-mcp" (printf "chatwoot-mcp.%s" $ns) (printf "chatwoot-mcp.%s.svc" $ns) (printf "chatwoot-mcp.%s.svc.cluster.local" $ns)) }}
+{{- $hosts | uniq | join "," }}
+{{- end -}}
+
 {{/* Non-empty for a release of the bridge alone. */}}
 {{- define "wrapper.standalone" -}}
 {{- if .Values.agentBridge.standalone.enabled }}true{{ end }}
