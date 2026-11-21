@@ -451,6 +451,9 @@
         },
         "callersAnnotation": {
           "type": "string"
+        },
+        "callerNamespaceSelector": {
+          "type": "object"
         }
       }
     }
