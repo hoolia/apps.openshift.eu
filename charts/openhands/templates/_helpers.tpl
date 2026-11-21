@@ -111,9 +111,10 @@ https://open-vsx.org/api/{{ $ns }}/{{ $ext }}/{{ .version }}/file/{{ .id }}-{{ .
 {{- end -}}
 {{- end -}}
 
-{{/* Upstream image: by digest when one is given (tag plus digest is refused by some pullers) */}}
+{{/* Upstream image: by digest when one is given (tag plus digest is refused by some pullers).
+The digest is that of the upstream repository: another repository is pulled by its tag. */}}
 {{- define "openhands.upstreamImage" -}}
-{{- if .Values.image.digest -}}
+{{- if and .Values.image.digest (eq .Values.image.repository "ghcr.io/openhands/agent-canvas") -}}
 {{- printf "%s@%s" .Values.image.repository .Values.image.digest -}}
 {{- else -}}
 {{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}
