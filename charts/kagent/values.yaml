@@ -136,6 +136,11 @@ a2a:
   # Service annotation the gateway reads the callers outside the cluster from. Empty:
   # agents[].a2a.callers is not written
   callersAnnotation: ""
+  # LabelSelector of namespaces whose pods reach a published agent's A2A port directly,
+  # without the gateway and its caller check: the tenant's own namespaces, by a label
+  # tenants cannot set themselves. Empty: the gateway namespace only. A present selector
+  # needs at least one label or expression (an empty one would select every namespace)
+  callerNamespaceSelector: {}
 
 networkPolicy:
   enabled: true

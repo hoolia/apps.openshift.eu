@@ -67,7 +67,8 @@ spec:
 ---
 # Bearer the gateway sends upstream. A Declarative agent checks no bearer, so this is
 # a fixed placeholder, not a secret: the gateway's caller check and the NetworkPolicy
-# below are the boundary
+# below are the boundary; for the namespaces of a2a.callerNamespaceSelector the
+# NetworkPolicy alone
 apiVersion: v1
 kind: Secret
 metadata:
@@ -81,7 +82,8 @@ data:
   token: {{ printf "%s/%s" $.Release.Namespace $a.name | sha256sum | b64enc | quote }}
 {{- if $.Values.networkPolicy.enabled }}
 ---
-# The gateway reaches the agent's A2A port; everything else stays at the namespace policies
+# The gateway, and the namespaces of a2a.callerNamespaceSelector, reach the agent's A2A
+# port; everything else stays at the namespace policies
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -104,6 +106,11 @@ spec:
     - namespaceSelector:
         matchLabels:
           kubernetes.io/metadata.name: {{ $gw }}
+    {{- with $.Values.a2a.callerNamespaceSelector }}
+    # the tenant is the trust domain: its own namespaces call the agent directly
+    - namespaceSelector:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
 {{- end }}
 {{- end }}
 {{- end }}
