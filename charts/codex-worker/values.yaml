@@ -1,9 +1,9 @@
 # Worker image, supplied by the operator.
 image:
-  # Repository without a tag or digest; required.
+  # Repository without a tag; required.
   repository: ""
-  # Immutable sha256 digest, including sha256:; required.
-  digest: ""
+  # Version tag of the worker image; required, never latest.
+  tag: ""
   # Container image pull policy.
   pullPolicy: IfNotPresent
   # Existing registry Secrets, each with a name field.

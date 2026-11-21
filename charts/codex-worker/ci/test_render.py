@@ -103,7 +103,7 @@ class RenderTests(unittest.TestCase):
         for name, secret in (("CODEX_WORKER_TOKEN", "request-token"), ("CODEX_AUTH_STORE_TOKEN", "auth-store-token")):
             self.assertEqual(env[name]["valueFrom"]["secretKeyRef"], {"name": secret, "key": "token"})
         self.assertEqual(pod["imagePullSecrets"], [{"name": "registry-access"}])
-        self.assertEqual(container["image"], "registry.example.invalid/review/worker@sha256:" + "a" * 64)
+        self.assertEqual(container["image"], "registry.example.invalid/review/worker:0.0.0-test")
 
     def test_https_service_and_monitoring_survive_ca_data_replacement(self) -> None:
         docs = render(*MONITORING)
@@ -206,7 +206,8 @@ class RenderTests(unittest.TestCase):
 
     def test_render_fails_closed_on_missing_and_invalid_configuration(self) -> None:
         invalid = (
-            "image.repository=", "image.digest=", "image.digest=latest", "image.digest=sha256:bad",
+            "image.repository=", "image.tag=", "image.tag=latest", "image.tag=bad:tag",
+            "image.digest=sha256:" + "a" * 64,
             "gitlab.apiV4Url=http://gitlab.example.invalid/api/v4", "gitlab.projectId=", "authStore.projectId=",
             "gitlab.apiV4Url=https://gitlab.example.invalid/api/v4/",
             "authStore.endpoint=https://store.example.invalid", "secrets.workerTokenSecret=", "secrets.authStoreTokenSecret=",
