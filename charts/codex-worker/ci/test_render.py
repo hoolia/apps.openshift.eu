@@ -38,7 +38,7 @@ class RenderTests(unittest.TestCase):
         container = pod["containers"][0]
         self.assertEqual(deployment["spec"]["replicas"], 1)
         self.assertEqual(deployment["spec"]["strategy"], {"type": "Recreate"})
-        self.assertEqual(len(pod["containers"]), 1)
+        self.assertEqual([c["name"] for c in pod["containers"]], ["worker", "codex"])
         self.assertFalse(pod["automountServiceAccountToken"])
         self.assertFalse(by_kind(docs, "ServiceAccount")["automountServiceAccountToken"])
         self.assertEqual(pod["serviceAccountName"], "worker")
@@ -76,14 +76,38 @@ class RenderTests(unittest.TestCase):
                          {"Prune=false", "Delete=false"})
         pod = by_kind(docs, "Deployment")["spec"]["template"]["spec"]
         mounts = pod["containers"][0]["volumeMounts"]
-        self.assertEqual([m["mountPath"] for m in mounts if not m.get("readOnly")],
-                         ["/tmp", "/var/lib/codex"])
-        self.assertEqual(next(v for v in pod["volumes"] if v["name"] == "state-parent"),
-                         {"name": "state-parent", "persistentVolumeClaim": {"claimName": "worker-state"}})
+        self.assertEqual([(m["mountPath"], m.get("subPath")) for m in mounts if not m.get("readOnly")],
+                         [("/tmp", None), ("/var/lib/codex/state", "state"),
+                          ("/var/lib/codex/exchange", "exchange")])
+        self.assertEqual(next(v for v in pod["volumes"] if v["name"] == "state"),
+                         {"name": "state", "persistentVolumeClaim": {"claimName": "worker-state"}})
+        init = pod["initContainers"][0]
+        self.assertEqual(init["command"][-1], "umask 077 && mkdir -p /volume/state /volume/exchange")
+        self.assertEqual(init["volumeMounts"], [{"name": "state", "mountPath": "/volume"}])
         docs = render("--set", "storage.existingClaim=restored,storage.storageClass=,storage.accessMode=ReadWriteOnce")
         self.assertNotIn("PersistentVolumeClaim", [d["kind"] for d in docs])
         volumes = by_kind(docs, "Deployment")["spec"]["template"]["spec"]["volumes"]
-        self.assertEqual(volumes[1]["persistentVolumeClaim"]["claimName"], "restored")
+        self.assertEqual(next(v for v in volumes if v["name"] == "state")["persistentVolumeClaim"]["claimName"], "restored")
+
+    def test_cli_container_shares_only_the_exchange_with_the_worker(self) -> None:
+        pod = by_kind(render(), "Deployment")["spec"]["template"]["spec"]
+        worker, codex = pod["containers"]
+        self.assertEqual(codex["command"], ["node", "scripts/codex-exec-agent.mjs"])
+        self.assertEqual(codex["image"], worker["image"])
+        self.assertEqual({e["name"]: e.get("value") for e in codex["env"]}, {
+            "HOME": "/tmp", "TMPDIR": "/tmp",
+            "CODEX_EXCHANGE_DIR": "/var/lib/codex/exchange", "CODEX_AGENT_PORT": "3444",
+        })
+        self.assertNotIn("envFrom", codex)
+        self.assertNotIn("ports", codex)
+        self.assertEqual(codex["volumeMounts"], [
+            {"name": "codex-tmp", "mountPath": "/tmp"},
+            {"name": "state", "mountPath": "/var/lib/codex/exchange", "subPath": "exchange"},
+        ])
+        self.assertEqual(codex["securityContext"], worker["securityContext"])
+        self.assertFalse(pod["enableServiceLinks"])
+        self.assertNotIn("shareProcessNamespace", pod)
+        self.assertNotIn("hostPID", pod)
 
     def test_runtime_environment_and_separate_secret_wiring(self) -> None:
         pod = by_kind(render("--set", "image.pullSecrets[0].name=registry-access"), "Deployment")["spec"]["template"]["spec"]
@@ -93,6 +117,8 @@ class RenderTests(unittest.TestCase):
         expected = {
             "CODEX_WORKER_HOST": "0.0.0.0", "CODEX_WORKER_PORT": "3443",
             "CODEX_AUTH_STATE_DIR": "/var/lib/codex/state",
+            "CODEX_EXCHANGE_DIR": "/var/lib/codex/exchange",
+            "CODEX_AGENT_URL": "http://127.0.0.1:3444",
             "CODEX_WORKER_TLS_CERT_FILE": "/etc/codex-worker/tls/tls.crt",
             "CODEX_WORKER_TLS_KEY_FILE": "/etc/codex-worker/tls/tls.key",
             "CI_API_V4_URL": "https://gitlab.example.invalid/api/v4",
@@ -127,7 +153,7 @@ class RenderTests(unittest.TestCase):
         pod = by_kind(docs, "Deployment")["spec"]["template"]["spec"]
         self.assertFalse(any("configMap" in v for v in pod["volumes"]))
         self.assertNotIn("envFrom", pod["containers"][0])
-        self.assertEqual(pod["volumes"][2]["secret"]["secretName"], "worker-tls")
+        self.assertEqual(pod["volumes"][3]["secret"]["secretName"], "worker-tls")
 
     def test_portable_tls_uses_existing_secret_and_release_local_ca(self) -> None:
         docs = render(*MONITORING, "--set", "tls.openshift.enabled=false,tls.openshift.injectServiceCa=false",
@@ -137,8 +163,8 @@ class RenderTests(unittest.TestCase):
         endpoint = by_kind(docs, "ServiceMonitor")["spec"]["endpoints"][0]
         self.assertEqual(endpoint["tlsConfig"]["ca"]["configMap"], {"name": "custom-ca", "key": "bundle.pem"})
         pod = by_kind(docs, "Deployment")["spec"]["template"]["spec"]
-        self.assertEqual(pod["volumes"][2]["secret"]["secretName"], "custom-tls")
-        self.assertTrue(pod["containers"][0]["volumeMounts"][2]["readOnly"])
+        self.assertEqual(pod["volumes"][3]["secret"]["secretName"], "custom-tls")
+        self.assertTrue(pod["containers"][0]["volumeMounts"][3]["readOnly"])
 
     def test_network_policy_selects_callers_and_dns_protocols_per_port(self) -> None:
         docs = render(*MONITORING, "--set", "networkPolicy.egress.dnsPorts={53,5353}")
