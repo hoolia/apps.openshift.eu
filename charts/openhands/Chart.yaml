@@ -2,7 +2,7 @@ apiVersion: v2
 name: openhands
 description: Shared OpenHands Agent Canvas coding agent with a browser UI behind an OpenShift login
 type: application
-version: 0.25.2
+version: 0.26.0
 appVersion: 1.42.0
 home: https://apps.openshift.eu
 icon: https://raw.githubusercontent.com/OpenHands/OpenHands/main/docs/static/img/logo.png
@@ -22,3 +22,8 @@ annotations:
   charts.openshift.io/provider: GRN.CLOUD B.V.
   apps.openshift.eu/category: ai-agent
   apps.openshift.eu/vendor: All Hands AI
+dependencies:
+- name: mcp-playwright
+  version: 0.2.3
+  repository: file://../mcp-playwright
+  condition: mcp-playwright.enabled

@@ -15,7 +15,8 @@
 #   with CHATWOOT_ODOO_INBOX_SECRET, and the conversation attributes odoo_ref and odoo_url;
 #   with CHATWOOT_ODOO_WEBSITE_INBOX also that Website inbox, its pre-chat form asking for a
 #   required email address, the account webhook to the bridge's website path and the
-#   label CHATWOOT_ODOO_SALES_LABEL
+#   label CHATWOOT_ODOO_SALES_LABEL; with CHATWOOT_WEBSITE_IDENTITY_KEY the inbox's identity
+#   validation key is that value and a contact identifier needs its signature
 # - with CHATWOOT_DRAFT_TOKEN: keeps the author of AI drafts (an agent with that access
 #   token, member of the inboxes in CHATWOOT_DRAFT_INBOXES) and the account webhook of new
 #   messages to the bridge, signed with CHATWOOT_DRAFT_WEBHOOK_SECRET
@@ -174,7 +175,16 @@ else
     widget.pre_chat_form_enabled = true
     # Chatwoot has no mail of its own here: Odoo writes to customers
     widget.continuity_via_email = false
+    # identity validation: the site signs a logged-in customer's identifier with this key,
+    # and a contact identifier without a valid signature is refused
+    identity_key = ENV.fetch('CHATWOOT_WEBSITE_IDENTITY_KEY', '')
+    unless identity_key.empty?
+      abort 'website identity key shorter than 32 characters' if identity_key.length < 32
+      widget.hmac_token = identity_key unless ActiveSupport::SecurityUtils.secure_compare(widget.hmac_token.to_s, identity_key)
+      widget.hmac_mandatory = true
+    end
     widget.save! if widget.changed?
+    puts "odoo website inbox #{website}: identity validation #{widget.hmac_mandatory ? 'required' : 'optional'}"
     InboxMember.find_or_create_by!(inbox: inbox, user: user)
     hook = Webhook.find_or_initialize_by(account_id: account.id, url: hook_url)
     hook.name = 'Odoo bridge: website chat (set by the chart)'
@@ -183,17 +193,17 @@ else
     hook.secret = secret unless hook.persisted? && ActiveSupport::SecurityUtils.secure_compare(hook.secret.to_s, secret)
     hook.save! if hook.changed?
     puts "odoo website inbox #{website} (#{inbox.id}): webhook #{hook.id} to the bridge"
-    # staff can pick only a label the account has; a label changed in Chatwoot stays
-    sales = ENV.fetch('CHATWOOT_ODOO_SALES_LABEL', '').strip.downcase
-    unless sales.empty?
-      label = Label.find_or_initialize_by(account: account, title: sales)
-      unless label.persisted?
-        label.description = 'Moves a website chat to an Odoo lead (set by the chart)'
-        label.color = '#44ce4b'
-        label.show_on_sidebar = true
-        label.save!
-        puts "odoo website chat: label #{sales} created"
-      end
+  end
+  # staff can pick only a label the account has; a label changed in Chatwoot stays
+  sales = ENV.fetch('CHATWOOT_ODOO_SALES_LABEL', '').strip.downcase
+  unless sales.empty?
+    label = Label.find_or_initialize_by(account: account, title: sales)
+    unless label.persisted?
+      label.description = 'Moves a conversation to an Odoo lead (set by the chart)'
+      label.color = '#44ce4b'
+      label.show_on_sidebar = true
+      label.save!
+      puts "odoo sales label #{sales} created"
     end
   end
   # shown in the conversation sidebar; the bridge keys every conversation on odoo_ref
@@ -289,12 +299,56 @@ else
   end
 end
 
-panel_path = ENV.fetch('CHATWOOT_AGENT_PANEL_PATH', '')
-if panel_path.empty?
-  puts 'no agent panel path: agent panel not set up'
+# Message signatures: CHATWOOT_SIGNATURE (Markdown, {name} becomes the staff member's name)
+# for every staff user without one; the reply editor adds it in the channel types of
+# CHATWOOT_SIGNATURE_CHANNELS unless the user switched it off there. A signature a user wrote
+# stays; the service users of the chart get none
+signature = ENV.fetch('CHATWOOT_SIGNATURE', '')
+if signature.strip.empty?
+  puts 'no signature: staff signatures not set'
 else
+  # the key the dashboard uses (useUISettings.js slugifyChannel): first match of each only
+  flags = ENV.fetch('CHATWOOT_SIGNATURE_CHANNELS', '').split(',').map(&:strip).reject(&:empty?)
+             .map { |type| "#{type.downcase.sub(' ', '_').sub('-', '_').sub('::', '_')}_signature_enabled" }
+  services = %w[CHATWOOT_ADMIN_EMAIL CHATWOOT_ODOO_BRIDGE_EMAIL CHATWOOT_DRAFT_EMAIL]
+             .map { |name| ENV.fetch(name, '').strip.downcase }.reject(&:empty?)
+  # a user the login bridge made is named by its address: s.terburg@example.org is S. Terburg
+  staff_name = lambda do |user|
+    name = user.display_name.presence || user.name.to_s
+    next name unless name.include?('@')
+
+    name.split('@').first.split(/[._-]+/).reject(&:empty?)
+        .map { |part| part.length == 1 ? "#{part.upcase}." : part.capitalize }.join(' ')
+  end
+  signed = enabled = 0
+  account.users.where.not(email: services).find_each do |user|
+    next if user.email.to_s.end_with?('.invalid')
+
+    # nil: never set; an empty signature is one the user cleared
+    if user.message_signature.nil?
+      user.message_signature = signature.gsub('{name}', staff_name.call(user))
+      signed += 1
+    end
+    settings = user.ui_settings || {}
+    missing = flags.reject { |flag| settings.key?(flag) }
+    if missing.any?
+      user.ui_settings = settings.merge(missing.to_h { |flag| [flag, true] })
+      enabled += 1
+    end
+    user.save!(validate: false) if user.changed?
+  end
+  puts "signature: set for #{signed} user(s), switched on for #{enabled} user(s) in #{flags.join(', ')}"
+end
+
+# Dashboard Apps: a tab next to every conversation, kept by its title
+{ 'agent' => 'CHATWOOT_AGENT_PANEL', 'odoo' => 'CHATWOOT_ODOO_PANEL' }.each do |kind, prefix|
+  panel_path = ENV.fetch("#{prefix}_PATH", '')
+  if panel_path.empty?
+    puts "no #{kind} panel path: #{kind} panel not set up"
+    next
+  end
   panel_url = ENV.fetch('FRONTEND_URL').chomp('/') + panel_path
-  title = ENV.fetch('CHATWOOT_AGENT_PANEL_TITLE')
+  title = ENV.fetch("#{prefix}_TITLE")
   app = DashboardApp.find_or_initialize_by(account_id: account.id, title: title)
   app.user ||= account.administrators.order(:id).first
   app.content = [{ 'type' => 'frame', 'url' => panel_url }]

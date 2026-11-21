@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- noupdate: an upgrade keeps a rule that staff switched off; the logic is Python -->
+<odoo noupdate="1">
+    <!-- Delivery is off until chatwoot_bridge.url is set -->
+    <record id="rule_ticket_created" model="base.automation">
+        <field name="name">Chatwoot bridge: ticket created</field>
+        <field name="model_id" ref="helpdesk.model_helpdesk_ticket"/>
+        <field name="trigger">on_create</field>
+    </record>
+    <record id="action_ticket_created" model="ir.actions.server">
+        <field name="name">Chatwoot bridge: ticket created</field>
+        <field name="model_id" ref="helpdesk.model_helpdesk_ticket"/>
+        <field name="base_automation_id" ref="rule_ticket_created"/>
+        <field name="usage">base_automation</field>
+        <field name="state">code</field>
+        <field name="code">records._chatwoot_bridge_notify()</field>
+    </record>
+
+    <record id="rule_lead_created" model="base.automation">
+        <field name="name">Chatwoot bridge: lead created</field>
+        <field name="model_id" ref="crm.model_crm_lead"/>
+        <field name="trigger">on_create</field>
+    </record>
+    <record id="action_lead_created" model="ir.actions.server">
+        <field name="name">Chatwoot bridge: lead created</field>
+        <field name="model_id" ref="crm.model_crm_lead"/>
+        <field name="base_automation_id" ref="rule_lead_created"/>
+        <field name="usage">base_automation</field>
+        <field name="state">code</field>
+        <field name="code">records._chatwoot_bridge_notify()</field>
+    </record>
+
+    <!-- The domain is a cheap pre-filter; _chatwoot_is_customer_mail decides -->
+    <record id="rule_customer_mail" model="base.automation">
+        <field name="name">Chatwoot bridge: customer mail on ticket or lead</field>
+        <field name="model_id" ref="mail.model_mail_message"/>
+        <field name="trigger">on_create</field>
+        <field name="filter_domain">[('model', 'in', ['helpdesk.ticket', 'crm.lead']), ('message_type', '=', 'email')]</field>
+    </record>
+    <record id="action_customer_mail" model="ir.actions.server">
+        <field name="name">Chatwoot bridge: customer mail on ticket or lead</field>
+        <field name="model_id" ref="mail.model_mail_message"/>
+        <field name="base_automation_id" ref="rule_customer_mail"/>
+        <field name="usage">base_automation</field>
+        <field name="state">code</field>
+        <field name="code">records._chatwoot_bridge_notify_customer_mail()</field>
+    </record>
+
+    <!-- A folded stage is Solved or Cancelled: the bridge resolves the conversation -->
+    <record id="rule_ticket_closed" model="base.automation">
+        <field name="name">Chatwoot bridge: ticket closed</field>
+        <field name="model_id" ref="helpdesk.model_helpdesk_ticket"/>
+        <field name="trigger">on_create_or_write</field>
+        <field name="trigger_field_ids" eval="[(6, 0, [ref('helpdesk.field_helpdesk_ticket__stage_id')])]"/>
+        <field name="filter_domain">[('stage_id.fold', '=', True)]</field>
+    </record>
+    <record id="action_ticket_closed" model="ir.actions.server">
+        <field name="name">Chatwoot bridge: ticket closed</field>
+        <field name="model_id" ref="helpdesk.model_helpdesk_ticket"/>
+        <field name="base_automation_id" ref="rule_ticket_closed"/>
+        <field name="usage">base_automation</field>
+        <field name="state">code</field>
+        <field name="code">records._chatwoot_bridge_notify("ticket.closed")</field>
+    </record>
+</odoo>

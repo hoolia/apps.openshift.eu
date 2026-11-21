@@ -2,8 +2,9 @@
 
 Odoo owns every ticket, lead and mail; Chatwoot is the screen staff answer in.
 
-Odoo to Chatwoot: Odoo (module grncloud_helpdesk) posts an event with record ids only to
-EVENT_PORT, signed with HMAC-SHA256 over "<timestamp>.<body>" (X-Grncloud-Signature). The
+Odoo to Chatwoot: Odoo (module chatwoot_bridge, in odoo/ next to this chart) posts an event
+with record ids only to EVENT_PORT, signed with HMAC-SHA256 over "<timestamp>.<body>"
+(X-Chatwoot-Bridge-Signature; the older X-Grncloud-Signature is accepted too). The
 bridge reads the record over the Odoo JSON-2 API and, in the inbox of its model, finds or
 creates the contact and the conversation (custom attribute odoo_ref), adds a customer mail
 as an incoming message (source_id odoo:mail.message:<id>) and resolves the conversation when
@@ -23,6 +24,12 @@ all; over a limit staff get a private note instead. Every public chat message, t
 visitor's and staff's, is copied to the record as an internal note, so Odoo mails nobody:
 the widget already showed it. The label SALES_LABEL moves the chat to a new crm.lead with
 the transcript and cancels the ticket.
+
+Support to sales, with SALES_FROM_SUPPORT: the same label, added by staff on a conversation
+of TICKET_INBOX, makes a crm.lead from its ticket (team SALES_TEAM), cancels the ticket,
+opens a conversation in LEAD_INBOX for the lead with the transcript as a private note, and
+resolves the old conversation with a private note that points to the new one. The old
+conversation then names the lead in odoo_sales_ref instead of the ticket in odoo_ref.
 
 An Odoo event is answered 200 only once it is done, 503 while it still runs and 502 on an
 error: Odoo's outbox retries it. Chatwoot never retries a webhook and marks a message failed
@@ -54,6 +61,9 @@ from concurrent.futures import TimeoutError as FutureTimeout
 from html.parser import HTMLParser
 
 LOG = logging.getLogger("odoo-bridge")
+# signature headers of an Odoo event: module chatwoot_bridge, then the names of the Odoo
+# module it replaces, so an Odoo not yet upgraded keeps working
+EVENT_HEADER_PREFIXES = ("X-Chatwoot-Bridge-", "X-Grncloud-")
 MAX_BODY = 1 << 20
 SIGNATURE_AGE = 300
 MAX_CONTENT = 150000
@@ -79,6 +89,15 @@ AUTOMATION_ACTORS = ("Automation System",)
 # Odoo context of the records the bridge creates and moves for a website chat: no stage
 # template mails the address the visitor typed
 NO_MAIL = {"mail_notrack": True}
+# a lead the bridge creates from a support conversation: the bridge links it itself, so
+# module chatwoot_bridge queues no lead.created for it
+NO_EVENT = {**NO_MAIL, "chatwoot_bridge_no_event": True}
+# custom attribute of a support conversation that moved to sales: crm.lead:<id>
+SALES_REF = "odoo_sales_ref"
+# private notes of a support conversation that moved to sales, in the old and the new one
+MOVED_NOTE = "This conversation moved to sales:"
+FROM_NOTE = "Moved from the support conversation"
+TICKET_FIELDS = ["name", "partner_id", "partner_email", "partner_name", "team_id"]
 LIMIT_NOTE = "No Odoo ticket for this chat"
 CONVERSATION_PATH = re.compile(r"/conversations/(\d+)/?$")
 MODELS = {
@@ -131,6 +150,10 @@ class Config:
         self.sales_label = env.get("SALES_LABEL", "sales").strip().lower()
         self.not_staff = {e.strip().lower() for e in env.get("NOT_STAFF_EMAILS", "").split(",") if e.strip()}
         self.cancelled_stage = env.get("CANCELLED_STAGE", "Cancelled")
+        # the sales label also moves a conversation of TICKET_INBOX to a lead in LEAD_INBOX
+        self.sales_from_support = env.get("SALES_FROM_SUPPORT", "").strip().lower() in ("1", "true", "yes")
+        # crm team of the leads the sales label makes; empty: Odoo's default team
+        self.sales_team = env.get("SALES_TEAM", "").strip()
         if not self.public_url.startswith("https://"):
             raise ValueError("PUBLIC_URL must be an https address")
         if not self.odoo_url.startswith("https://") and not env.get("ODOO_ALLOW_HTTP"):
@@ -219,10 +242,51 @@ def html_to_text(body):
     return re.sub(r"\n{3,}", "\n\n", text).strip()
 
 
-def text_to_html(text):
-    """A staff reply as Odoo mail HTML: escaped, one paragraph per block, line breaks kept."""
-    blocks = [b for b in re.split(r"\n\s*\n", (text or "").strip()) if b.strip()]
-    return "".join("<p>%s</p>" % html.escape(b.strip()).replace("\n", "<br>") for b in blocks)
+# the Markdown of a staff reply or signature; anything else stays text. Each part needs a
+# word character inside its marks, and none starts after a word, a slash or a backslash, so
+# file names, URLs and escaped marks stay text
+_MARKDOWN = re.compile(
+    r"!\[(?P<alt>[^\[\]\n]*)\]\((?P<src>https://[^\s()]+)\)"
+    r"|\[(?P<label>[^\[\]\n]+)\]\((?P<href>(?:https://|mailto:)[^\s()]+)\)"
+    r"|(?<![\\])\*\*(?=\S)(?P<strong>[^*\n]*?\S)\*\*"
+    r"|(?<![\w*/\\])\*(?=\w)(?P<em>[^*\n]*?\w)\*(?![\w*])"
+    r"|(?<![\w_/\\])_(?=\w)(?P<em2>[^_\n]*?\w)_(?![\w_])")
+# Chatwoot's Markdown escapes these marks with a backslash
+_ESCAPED = re.compile(r"\\([\\`*_\[\]()!#|.+\->~{}])")
+
+
+def _plain(text):
+    return html.escape(_ESCAPED.sub(r"\1", text))
+
+
+def _inline(text):
+    out, pos = [], 0
+    for m in _MARKDOWN.finditer(text):
+        out.append(_plain(text[pos:m.start()]))
+        pos = m.end()
+        if m["src"]:
+            out.append('<img src="%s" alt="%s" height="64">' % (html.escape(m["src"]), _plain(m["alt"])))
+        elif m["href"]:
+            out.append('<a href="%s">%s</a>' % (html.escape(m["href"]), _plain(m["label"])))
+        elif m["strong"]:
+            out.append("<strong>%s</strong>" % _inline(m["strong"]))
+        else:
+            out.append("<em>%s</em>" % _inline(m["em"] or m["em2"]))
+    out.append(_plain(text[pos:]))
+    return "".join(out)
+
+
+def text_to_html(text, markdown=False):
+    """Text as Odoo mail HTML: one paragraph per block, line breaks kept, escaped. With
+    markdown (a staff reply from Chatwoot): also the hard break (a backslash at the end of a
+    line), bold, italic, https and mailto links and https images. Text of a contact never
+    gets markdown: a visitor could put a tracking image or a disguised link in Odoo."""
+    text = (text or "").strip()
+    if markdown:
+        text = re.sub(r"\\\n", "\n", text)
+    render = _inline if markdown else html.escape
+    blocks = [b for b in re.split(r"\n\s*\n", text) if b.strip()]
+    return "".join("<p>%s</p>" % render(b.strip()).replace("\n", "<br>") for b in blocks)
 
 
 def bare_email(value):
@@ -451,6 +515,10 @@ class Bridge:
         self._chat_starts = collections.deque()
         self._chat_lock = threading.Lock()
         self._team = None
+        self._sales_team = None
+        # one lock for every move from support to sales: the move takes the lead's striped
+        # lock, and two nested stripes can deadlock. Moves are rare
+        self._sales_lock = threading.Lock()
         # seconds until the second look for the activity of a sales label, and the chats waiting
         self.sales_recheck = 10
         self._sales_waiting = set()
@@ -621,6 +689,8 @@ class Bridge:
             return self.reply(payload)
         if event == "conversation_status_changed":
             return self.solve(payload)
+        if event == "conversation_updated":
+            return self.support_to_sales(payload)
         return "ignored"
 
     def _bridged(self, conv):
@@ -706,7 +776,7 @@ class Bridge:
                 return "ignored"
             kwargs = {
                 "ids": [rid],
-                "body": text_to_html(msg.get("content") or ""),
+                "body": text_to_html(msg.get("content") or "", markdown=True),
                 # escaped by text_to_html; JSON carries no Markup, so Odoo would escape it again
                 "body_is_html": True,
                 "message_type": "comment",
@@ -977,9 +1047,12 @@ class Bridge:
         self.metrics.inc("messages_mirrored", direction="chat_to_odoo")
         return "done"
 
+    def _sales_labelled(self, conv):
+        return bool(self.cfg.sales_label) and self.cfg.sales_label in [str(x).lower() for x in conv.get("labels") or []]
+
     def move_to_sales(self, conv, recheck=False):
         """The label SALES_LABEL: a crm.lead with the transcript takes over the chat from its ticket."""
-        if not self.cfg.sales_label or self.cfg.sales_label not in [str(x).lower() for x in conv.get("labels") or []]:
+        if not self._sales_labelled(conv):
             return "ignored"
         cid = conv["id"]
         url = self.conversation_url(cid)
@@ -1025,6 +1098,9 @@ class Bridge:
                         "x_chatwoot_url": url, "description": self._transcript(cid)}
                 if ticket.get("partner_id"):
                     vals["partner_id"] = ticket["partner_id"][0]
+                team = self._sales_team_id()
+                if team:
+                    vals["team_id"] = team
                 lid = self.odoo.call("crm.lead", "create", vals_list=[vals], context=NO_MAIL)[0]
                 self.metrics.inc("chats", result="lead")
                 LOG.info("website conversation %s moved to crm.lead %s", cid, lid)
@@ -1083,9 +1159,11 @@ class Bridge:
             self._sales_waiting.discard(cid)
         try:
             conv = self.chatwoot.conversation(cid)
-            if not self._website_conv(conv):
-                return "ignored"
-            return self.move_to_sales(conv, recheck=True)
+            if self._website_conv(conv):
+                return self.move_to_sales(conv, recheck=True)
+            if self.cfg.sales_from_support and self._in_inbox(conv, self.cfg.inboxes["helpdesk.ticket"]):
+                return self.mail_to_sales(conv, recheck=True)
+            return "ignored"
         except Exception:
             # the first webhook answered already: without a note staff would not know
             try:
@@ -1103,19 +1181,136 @@ class Bridge:
             "label the visitor sets moves nothing. Remove the label and add it again, or create the lead in Odoo.",
             "outgoing", private=True)
 
-    def _transcript(self, cid):
+    def _transcript_text(self, cid, title="Website chat", customer="Visitor"):
         lines = []
         for m in reversed(list(self.chatwoot.messages(cid))):
             kind, sender = m.get("message_type"), (m.get("sender") or {}).get("type")
             if m.get("private") or not (m.get("content") or "").strip():
                 continue
             if kind in (0, "incoming") and sender == "contact":
-                lines.append("Visitor: " + m["content"].strip())
+                lines.append(f"{customer}: " + m["content"].strip())
             elif kind in (1, "outgoing") and sender == "user":
                 lines.append("Staff: " + m["content"].strip())
-        return text_to_html("Website chat\n\n" + "\n\n".join(lines))
+        return title + "\n\n" + "\n\n".join(lines)
 
-    def _cancel(self, ticket, lid):
+    def _transcript(self, cid):
+        return text_to_html(self._transcript_text(cid))
+
+    def _sales_team_id(self):
+        if self._sales_team is None and self.cfg.sales_team:
+            teams = self.odoo.search_read("crm.team", [["name", "=", self.cfg.sales_team]], ["id"])
+            if not teams:
+                LOG.warning("no sales team named %r; leads get Odoo's default", self.cfg.sales_team)
+            self._sales_team = teams[0]["id"] if teams else 0
+        return self._sales_team or None
+
+    # ------------------------------------------------------------ support to sales
+
+    def support_to_sales(self, payload):
+        """An inbox webhook of a conversation change: acts on the sales label in TICKET_INBOX."""
+        cid = payload.get("id")
+        if not self.cfg.sales_from_support or not self.cfg.inboxes.get("crm.lead") \
+                or not isinstance(cid, int) or isinstance(cid, bool):
+            return "ignored"
+        conv = self.chatwoot.conversation(cid)
+        if not self._in_inbox(conv, self.cfg.inboxes["helpdesk.ticket"]):
+            return "ignored"
+        return self.mail_to_sales(conv)
+
+    def mail_to_sales(self, conv, recheck=False):
+        """The sales label on a support conversation: its ticket becomes a lead in the sales inbox.
+
+        Every step can run again: the lead is found by the old conversation's odoo_sales_ref,
+        or by its x_chatwoot_url until it has a conversation of its own; that conversation by
+        odoo_ref (ensure_conversation); the notes by their first line.
+        """
+        if not self._sales_labelled(conv):
+            return "ignored"
+        cid = conv["id"]
+        url = self.conversation_url(cid)
+        with self._sales_lock:
+            conv = self.chatwoot.conversation(cid) or conv
+            found = self.odoo.search_read("helpdesk.ticket", [["x_chatwoot_url", "=", url]], TICKET_FIELDS)
+            ticket = found[0] if found else None
+            lid = self._moved_lead(conv)
+            if not lid:
+                leads = self.odoo.search_read("crm.lead", [["x_chatwoot_url", "=", url]], ["id"])
+                lid = leads[0]["id"] if leads else None
+            if not lid:
+                if not ticket:
+                    return "ignored"
+                if not self._labelled_by_staff(cid):
+                    if not recheck:
+                        self._sales_later(cid)
+                        return "ignored"
+                    LOG.warning("conversation %s: label %s without an activity of staff; not moved to sales",
+                                cid, self.cfg.sales_label)
+                    self._tell_not_moved(cid)
+                    return "ignored"
+                lid = self._lead_of_ticket(cid, url, ticket)
+            # the old conversation names the lead from now on, not the ticket: a reply or a
+            # resolve there, and Odoo's close event of the ticket, act on nothing
+            self._name_moved(cid, conv, lid)
+            new = self.ensure_conversation("crm.lead", lid)
+            first = f"{FROM_NOTE} {url}"
+            self._note_once(new, first, f"{first}\n\n{self._transcript_text(cid, 'Transcript', 'Customer')}")
+            if ticket:
+                self._cancel(ticket, lid, "The conversation moved to sales")
+            moved = f"{MOVED_NOTE} {self.conversation_url(new)}"
+            # the note comes last: once it is there the move is done, and staff may open the
+            # old conversation again without the next change resolving it
+            if not self._has_note(cid, moved):
+                if (self.chatwoot.conversation(cid) or {}).get("status") != "resolved":
+                    self.chatwoot.resolve(cid)
+                self._note_once(cid, moved, f"{moved} (Odoo lead {self.odoo.url('crm.lead', lid)}). Reply there.")
+            LOG.info("support conversation %s moved to crm.lead %s, conversation %s", cid, lid, new)
+        return "done"
+
+    def _moved_lead(self, conv):
+        """The lead the conversation's odoo_sales_ref names, when it still exists; staff can edit it."""
+        model, _, rid = str((conv.get("custom_attributes") or {}).get(SALES_REF) or "").partition(":")
+        if model != "crm.lead" or not rid.isdigit():
+            return None
+        try:
+            self.odoo.read("crm.lead", int(rid), ["id"])
+        except Gone:
+            return None
+        return int(rid)
+
+    def _lead_of_ticket(self, cid, url, ticket):
+        name = ticket.get("name") or "Support conversation"
+        vals = {"name": name, "email_from": ticket.get("partner_email") or False,
+                "contact_name": ticket.get("partner_name") or False,
+                # names the old conversation until the lead has its own: a retry finds it
+                "x_chatwoot_url": url,
+                "description": text_to_html(self._transcript_text(cid, "Support conversation", "Customer"))}
+        if ticket.get("partner_id"):
+            vals["partner_id"] = ticket["partner_id"][0]
+        team = self._sales_team_id()
+        if team:
+            vals["team_id"] = team
+        lid = self.odoo.call("crm.lead", "create", vals_list=[vals], context=NO_EVENT)[0]
+        self.metrics.inc("conversations_to_sales", result="lead")
+        LOG.info("support conversation %s: helpdesk.ticket %s became crm.lead %s", cid, ticket["id"], lid)
+        return lid
+
+    def _name_moved(self, cid, conv, lid):
+        custom = dict(conv.get("custom_attributes") or {})
+        want = {SALES_REF: f"crm.lead:{lid}", "odoo_url": self.odoo.url("crm.lead", lid)}
+        if "odoo_ref" not in custom and all(custom.get(k) == v for k, v in want.items()):
+            return
+        custom.pop("odoo_ref", None)
+        custom.update(want)
+        self.chatwoot.api("POST", f"/conversations/{cid}/custom_attributes", {"custom_attributes": custom})
+
+    def _has_note(self, cid, first):
+        return any(m.get("private") and (m.get("content") or "").startswith(first) for m in self.chatwoot.messages(cid))
+
+    def _note_once(self, cid, first, content):
+        if not self._has_note(cid, first):
+            self.chatwoot.create_message(cid, clip(content), "outgoing", private=True)
+
+    def _cancel(self, ticket, lid, why="The chat moved to sales"):
         """The ticket of a chat that became a lead: unlinked, cancelled, with a note to the lead."""
         rid = ticket["id"]
         vals = {"x_chatwoot_url": False}
@@ -1128,7 +1323,7 @@ class Bridge:
         self.odoo.call("helpdesk.ticket", "write", ids=[rid], vals=vals, context=NO_MAIL)
         self.odoo.call("helpdesk.ticket", "message_post", ids=[rid], body_is_html=True, message_type="comment",
                        subtype_xmlid="mail.mt_note",
-                       body=text_to_html(f"The chat moved to sales: {self.odoo.url('crm.lead', lid)}"))
+                       body=text_to_html(f"{why}: {self.odoo.url('crm.lead', lid)}"))
 
     # ------------------------------------------------------------ run with a deadline
 
@@ -1342,7 +1537,8 @@ def make_handler(bridge, port_kind):
                 return self._send(400, "bad request")
             if port_kind == "event":
                 secret = read_file(cfg.event_secret_file)
-                ok = verify(secret, self.headers.get("X-Grncloud-Timestamp"), body, self.headers.get("X-Grncloud-Signature"))
+                ok = any(verify(secret, self.headers.get(prefix + "Timestamp"), body, self.headers.get(prefix + "Signature"))
+                         for prefix in EVENT_HEADER_PREFIXES if self.headers.get(prefix + "Signature"))
             else:
                 secret = read_file(cfg.inbox_secret_file)
                 ok = verify(secret, self.headers.get("X-Chatwoot-Timestamp"), body, self.headers.get("X-Chatwoot-Signature"))

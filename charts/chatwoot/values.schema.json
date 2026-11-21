@@ -43,6 +43,24 @@
         }
       }
     },
+    "signature": {
+      "type": "object",
+      "title": "Message signature",
+      "properties": {
+        "text": {
+          "type": "string",
+          "title": "Signature",
+          "description": "Markdown; {name} becomes the staff member's name. Empty: none"
+        },
+        "channels": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^Channel::[A-Za-z]+$"
+          }
+        }
+      }
+    },
     "web": {
       "type": "object",
       "properties": {
@@ -365,7 +383,40 @@
             "ticketsPerHour": {"type": "integer", "minimum": 1},
             "conversationsPerMinute": {"type": "integer", "minimum": 1},
             "salesLabel": {"type": "string", "title": "Label that moves a chat to a lead", "pattern": "^([A-Za-z0-9_-]{1,64})?$"},
-            "cancelledStage": {"type": "string", "title": "Stage of a ticket whose chat moved to a lead"}
+            "cancelledStage": {"type": "string", "title": "Stage of a ticket whose chat moved to a lead"},
+            "identity": {
+              "type": "object",
+              "title": "Identity validation of logged-in customers",
+              "properties": {
+                "enabled": {"type": "boolean"},
+                "records": {"type": "boolean", "title": "The bot's agent gets the customer's own Odoo records"}
+              }
+            }
+          }
+        },
+        "sales": {
+          "type": "object",
+          "title": "Leads from the sales label",
+          "properties": {
+            "fromSupport": {"type": "boolean", "title": "The sales label also moves a support conversation"},
+            "team": {"type": "string", "title": "CRM team of the leads"}
+          },
+          "additionalProperties": false
+        },
+        "panel": {
+          "type": "object",
+          "title": "Odoo side panel",
+          "properties": {
+            "enabled": {"type": "boolean", "title": "Show the Odoo panel", "description": "Partner, orders, subscriptions, tickets, opportunities and linked issues next to a conversation; needs sso.enabled"},
+            "title": {"type": "string", "title": "Tab name", "minLength": 1},
+            "issues": {
+              "type": "object",
+              "title": "Linked issues",
+              "properties": {
+                "url": {"type": "string", "title": "Jira address", "pattern": "^(https://[^/?#]+(/[^?#]*)?)?$"},
+                "user": {"type": "string", "title": "Jira account email (Cloud)"}
+              }
+            }
           }
         },
         "bridge": {
@@ -579,6 +630,10 @@
         },
         "failureMessage": {
           "type": "string"
+        },
+        "agentUrl": {
+          "type": "string",
+          "description": "A2A address of the bot's own agent; empty: agent.url"
         }
       }
     },
@@ -653,6 +708,14 @@
           "type": "string",
           "description": "Leave empty to generate one; at least 32 characters",
           "pattern": "^(.{32,})?$"
+        },
+        "issueTrackerToken": {
+          "type": "string",
+          "description": "API token of the Jira site, with odoo.panel.issues.url"
+        },
+        "websiteIdentityKey": {
+          "type": "string",
+          "description": "Identity validation key of the Website inbox, with odoo.website.identity.enabled"
         },
         "draftToken": {
           "type": "string"

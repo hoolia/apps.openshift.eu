@@ -76,6 +76,12 @@ identity provider can deliver to or verify, so no login of a person can match it
 {{- if not .Values.odoo.ticketInbox }}
 {{- fail "odoo.ticketInbox is required with odoo.enabled" }}
 {{- end }}
+{{- if and .Values.odoo.panel.enabled (not .Values.sso.enabled) }}
+{{- fail "odoo.panel.enabled needs sso.enabled: the panel is served behind the staff login" }}
+{{- end }}
+{{- if and .Values.odoo.panel.enabled .Values.copilotPanel.enabled (eq .Values.odoo.panel.title .Values.copilotPanel.title) }}
+{{- fail "odoo.panel.title and copilotPanel.title must differ: the Job keeps each Dashboard App by its title" }}
+{{- end }}
 {{- if eq .Values.odoo.ticketInbox .Values.odoo.leadInbox }}
 {{- fail "odoo.ticketInbox and odoo.leadInbox must differ" }}
 {{- end }}
@@ -90,13 +96,21 @@ identity provider can deliver to or verify, so no login of a person can match it
 {{- if or (lt (int $w.ticketsPerEmail) 1) (lt (int $w.ticketsPerHour) 1) }}
 {{- fail "odoo.website.ticketsPerEmail and odoo.website.ticketsPerHour must be at least 1" }}
 {{- end }}
-{{- /* the AI triage labels conversations: it must never move a chat to sales */}}
-{{- if and $w.salesLabel .Values.triage.enabled }}
+{{- end }}
+{{- if .Values.odoo.sales.fromSupport }}
+{{- if not .Values.odoo.leadInbox }}
+{{- fail "odoo.sales.fromSupport needs odoo.leadInbox: the lead gets a conversation there" }}
+{{- end }}
+{{- if not $w.salesLabel }}
+{{- fail "odoo.sales.fromSupport needs odoo.website.salesLabel, the label staff add" }}
+{{- end }}
+{{- end }}
+{{- /* the AI triage labels conversations: it must never move one to sales */}}
+{{- if and $w.salesLabel .Values.triage.enabled (or $w.enabled .Values.odoo.sales.fromSupport) }}
 {{- $triage := list .Values.triage.label }}
 {{- range .Values.triage.categories }}{{- $triage = append $triage .name }}{{- end }}
 {{- if has (lower $w.salesLabel) (without $triage "" | toStrings | join "," | lower | splitList ",") }}
 {{- fail "odoo.website.salesLabel must differ from triage.label and every triage.categories name: the AI triage would move chats to sales" }}
-{{- end }}
 {{- end }}
 {{- end }}
 {{- end }}
@@ -156,6 +170,11 @@ identity provider can deliver to or verify, so no login of a person can match it
 {{- if and .Values.sso.enabled (or (lt $hours 25) (gt $hours 720)) }}
 {{- fail "sso.session.chatwootHours must be a whole number of hours from 25 to 720: below 25 the dashboard session cookie expires at once and every login loops" }}
 {{- end }}
+{{- end -}}
+
+{{/* Non-empty when the bot gives the agent a verified customer's own Odoo records. */}}
+{{- define "wrapper.botRecords" -}}
+{{- if and .Values.agentBot.enabled .Values.odoo.enabled .Values.odoo.website.enabled .Values.odoo.website.identity.enabled .Values.odoo.website.identity.records }}true{{ end }}
 {{- end -}}
 
 {{/* Non-empty when the bot, the panel or the drafts are on. */}}

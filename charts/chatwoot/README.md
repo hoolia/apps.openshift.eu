@@ -59,6 +59,9 @@ a super admin.
 | `agent.auth.type` | `none` | `serviceAccountToken`: a token of ServiceAccount `chatwoot-agent-bridge` for `agent.auth.audience`. `clientAssertion`: that token as client assertion at `agent.auth.tokenUrl` for `agent.auth.clientId`. `clientSecret`: the client secret `secrets.agentClientSecret` at `agent.auth.tokenUrl` for `agent.auth.clientId`. |
 | `agentBot.enabled` | `false` | An Agent Bot answers customers through the agent until a person takes over. |
 | `agentBot.inboxes` | empty | Inbox names the bot answers in; `*` is every inbox. |
+| `agentBot.agentUrl` | empty | A2A address of the bot's own agent, with `agent.auth`. Empty: `agent.url`. |
+| `odoo.website.identity.enabled` | `false` | Identity validation on the Website inbox: only a contact the site signed with `secrets.websiteIdentityKey` counts as a logged-in customer. |
+| `odoo.website.identity.records` | `true` | The bot's agent gets a logged-in customer's own Odoo records, read by the bridge. |
 | `agentBot.handoff.keywords` | `human`, `person`, `agent`, `staff` | A customer message that is exactly one of these hands the conversation to a person. |
 | `copilotPanel.enabled` | `false` | A panel in the conversation sidebar where staff ask the agent; needs `sso.enabled`. |
 | `draftAgent.enabled` | `false` | The agent drafts a reply to each customer message as a private note for staff. |
@@ -73,6 +76,10 @@ a super admin.
 | `odoo.website.ticketsPerEmail`, `odoo.website.ticketsPerHour` | `3`, `20` | New chat tickets per address in 24 hours, and in all in one hour. |
 | `odoo.website.conversationsPerMinute` | `5` | New widget conversations per client address in one minute (Chatwoot's `RATE_LIMIT_WIDGET_CONVERSATIONS`). |
 | `odoo.website.salesLabel`, `odoo.website.cancelledStage` | `sales`, `Cancelled` | The label that moves a chat to a new lead, and the stage its ticket moves to. Must not be a triage label. Empty label: chats stay tickets. |
+| `odoo.sales.fromSupport` | `false` | The sales label also moves a conversation of `odoo.ticketInbox` to a new lead with a conversation in `odoo.leadInbox`. Needs `leadInbox` and a sales label. |
+| `odoo.sales.team` | empty | CRM team of the leads the sales label makes; empty: Odoo's default team. |
+| `odoo.panel.enabled` | `false` | Odoo panel in the conversation sidebar (Dashboard App `odoo.panel.title`, `Odoo`). Needs `sso.enabled`. |
+| `odoo.panel.issues.url`, `odoo.panel.issues.user` | empty | Jira site whose issue status the panel shows for the keys in `x_jira_key`, and the account email for Jira Cloud (empty: a personal access token). The token is `secrets.issueTrackerToken`. |
 | `monitoring.enabled` | `false` | A ServiceMonitor of the Odoo bridge; `monitoring.namespaceLabels` names the namespaces that may scrape it. |
 | `monitoring.alerts` | `true` | Alert rules of the Odoo bridge next to the ServiceMonitor; false where the platform alerts centrally. |
 | `agentBridge.standalone.enabled` | `false` | A release of the bridge alone, next to the agent; needs `standalone.chatwootUrl`, and for the panel `standalone.staff.issuerUrl` and `standalone.staff.clientIds`. |
@@ -110,6 +117,21 @@ user when they leave: Settings, Agents, delete. That removes them from the accou
 when they are in no other account, deletes the user with all its sessions. Then restart
 the web pods (`oc rollout restart deployment/chatwoot-web`), which ends their open live
 update connection.
+
+### Message signature
+
+With `signature.text`, the prepare Job gives every staff user without a signature that
+Markdown text as their Chatwoot message signature, `{name}` replaced by their display name,
+else their name (a name that is an address becomes its local part: `s.terburg` is
+`S. Terburg`). It switches the signature on in the reply editor for the channel types of
+`signature.channels` (default `Channel::Api`, the Odoo inboxes), unless the user switched it
+off there. A signature a user wrote or cleared stays. A staff user appears at the first login and is
+signed at the next install or upgrade. The service users of the chart get none.
+
+The Odoo bridge renders the Markdown of a staff reply (not of a contact's message) into
+the Odoo mail: bold, italic,
+`https` and `mailto` links, `https` images (64 pixels high) and a backslash at the end of a
+line as a line break. Anything else stays escaped text.
 
 ### Network
 
@@ -151,7 +173,33 @@ flowchart LR
 - Chatwoot refuses webhooks to private addresses. The chart initializer of web and worker
   allows a private address for the bridge Service alone.
 - Once a conversation is open the bot stays silent in it, until staff set it back to
-  pending.
+  pending. While the bot holds a conversation, it gets no AI draft and no triage.
+- `agentBot.agentUrl` gives the bot an agent of its own; the drafts, the triage and the
+  panel keep `agent.url`.
+
+#### Logged-in customers
+
+Every message the bot passes on starts with a note of the bridge on who writes. With
+`odoo.website.identity.enabled` the Website inbox requires Chatwoot identity validation,
+and a visitor counts as a logged-in customer only when Chatwoot verified the contact of that
+conversation (`hmac_verified`): the site signed the contact's identifier, the customer's
+email, with `HMAC-SHA256(secrets.websiteIdentityKey, email)` and passed it to the widget:
+
+```js
+window.$chatwoot.setUser(email, { email: email, name: name, identifier_hash: hash });
+```
+
+- Any other visitor is not logged in, whatever address they type in the pre-chat form or
+  the chat: the agent gets no name, no email and no record of them.
+- With `odoo.website.identity.records` the note of a logged-in customer holds that
+  customer's own partner (the one company whose contact has exactly that email), sale
+  orders, subscriptions and helpdesk tickets, read by the bridge with `secrets.odooApiKey`
+  from its own Secret `chatwoot-agent-odoo`. An address of several companies shows no
+  record. The agent reads nothing from Odoo itself, so a customer cannot steer it to
+  another customer's records. Add Odoo's address to `networkPolicy.agentEgress`.
+- The key reaches only the prepare Job (Secret `chatwoot-website-identity`), which sets it as
+  the inbox's identity validation key. Compute the hash on the site's server, never in the
+  browser.
 
 ### Agent panel
 
@@ -306,15 +354,16 @@ staff answer in. Deployment `chatwoot-odoo-bridge` carries both directions:
 
 ```mermaid
 flowchart LR
-    O["Odoo<br/>grncloud_helpdesk"] -->|"signed event<br/>https://hostname/odoo/events"| B["chatwoot-odoo-bridge"]
+    O["Odoo<br/>chatwoot_bridge"] -->|"signed event<br/>https://hostname/odoo/events"| B["chatwoot-odoo-bridge"]
     B -->|"conversation, customer mail<br/>as incoming message"| C["Chatwoot API inbox"]
     C -->|"signed webhook<br/>staff reply, resolved"| B
     B -->|"message_post<br/>stage Solved"| O
     O -->|"mail"| K["customer"]
 ```
 
-- Odoo signs each event (`X-Grncloud-Signature`, HMAC-SHA256 over timestamp and body, 300
-  seconds tolerance) with `secrets.odooEventSecret`. The event names a record id only; the
+- Odoo module `chatwoot_bridge` signs each event (`X-Chatwoot-Bridge-Signature`,
+  HMAC-SHA256 over timestamp and body, 300 seconds tolerance) with
+  `secrets.odooEventSecret`. The bridge also accepts the older `X-Grncloud-*` headers. The event names a record id only; the
   bridge reads the record through the Odoo JSON-2 API with `secrets.odooApiKey`.
 - A ticket or lead gets one conversation, with custom attributes `odoo_ref` and `odoo_url`;
   Odoo keeps the conversation address in `x_chatwoot_url`. A customer mail appears once, as
@@ -398,6 +447,47 @@ conversations of the Website inbox.
 - Embed the widget with the script that Chatwoot shows in the inbox settings. With
   `sso.public.widget` (the default) the widget paths are reachable without a login.
 
+#### Support to sales
+
+With `odoo.sales.fromSupport`, the sales label `odoo.website.salesLabel` also works on a
+conversation of `odoo.ticketInbox`, such as a mailed-in question that turns out to be a sales
+request. The same staff check as for website chats applies. The bridge then:
+
+1. creates a `crm.lead` from the ticket (partner, address, ticket name, the transcript as
+   description) in team `odoo.sales.team`, with context `chatwoot_bridge_no_event`, so Odoo
+   sends no `lead.created` for it;
+2. moves the ticket to `odoo.website.cancelledStage`, removes its link and adds a note with
+   the lead's address;
+3. opens a conversation in `odoo.leadInbox` for the same contact, linked to the lead, with
+   the transcript as a private note;
+4. resolves the old conversation with a private note that points to the new one. The old
+   conversation then carries `odoo_sales_ref` (`crm.lead:<id>`) instead of `odoo_ref`, so a
+   reply or a resolve there acts on nothing.
+
+Staff answer in the new conversation; Odoo mails the reply from the lead, and the customer's
+answer on the lead appears there once. Each step finds its own earlier result, so a retry
+after a failure creates nothing twice.
+
+#### Odoo panel
+
+With `odoo.panel.enabled`, a tab in the conversation sidebar shows what Odoo knows about the
+customer, read only: the partner (its company), sale orders, subscriptions, open and closed
+tickets, leads and opportunities, and the issues named in `x_jira_key` with their Jira
+status when `odoo.panel.issues.url` is set. With `copilotPanel.enabled` it also shows a
+summary of three lines by the agent.
+
+- The panel runs in the `chatwoot-gate` pod on `127.0.0.1:8083`, behind the staff login,
+  and reads Odoo with `secrets.odooApiKey` from its own Secret `chatwoot-odoo-panel`. Give
+  the bridge's Odoo user read access to Sales; a part it may not read shows "no access".
+- It reads the conversation as the staff member's own Chatwoot user, whose token it gets
+  with the login bridge's Platform App token (Secret `chatwoot-platform`): a conversation
+  outside the staff member's inboxes is refused (HTTP 403) before Odoo is asked anything.
+- It finds the customer through the ticket or lead whose `x_chatwoot_url` names the
+  conversation; without one, through the partner with the contact's email address, then
+  with its phone number (six digits or more). A conversation that matches none shows no
+  customer. A website visitor types its own address or number, so a match by either is
+  the visitor's claim, not a verified identity.
+
 ### Agent credentials
 
 | `agent.auth.type` | The agent receives |
@@ -448,15 +538,24 @@ bucket.
   above, or register one at your own provider.
 - For the Agent Bot or the panel, give `agent.url` the A2A address of the agent and agree
   with its owner how it authenticates the bridge (`agent.auth`).
-- For the Odoo bridge, Odoo needs the module `grncloud_helpdesk` and an internal user for
-  the bridge with an API key (`secrets.odooApiKey`). It reads and writes helpdesk tickets
-  and CRM leads, posts messages on them, reads `mail.message`, `res.users` and
-  `helpdesk.stage`, and creates contacts (`res.partner`) for a lead without one. Set system
-  parameter `grncloud_helpdesk.bridge_url` to `https://<hostname>/odoo/events` and give
-  Odoo the event secret in
-  `GRNCLOUD_HELPDESK_BRIDGE_SECRET_FILE` (the value of `secrets.odooEventSecret`; leave that
-  empty and read it from Secret `chatwoot-odoo` after the install). Staff log in to Chatwoot
-  with the same address as their Odoo user, or replies are posted as the bridge user.
+- For the Odoo bridge, Odoo 19 (Enterprise, for `helpdesk`) needs the module
+  `chatwoot_bridge`, which ships in this chart under `odoo/chatwoot_bridge`. Copy it into an
+  addons path of Odoo (`helm pull <repo>/chatwoot --untar`, then `chatwoot/odoo/chatwoot_bridge`)
+  and install it. It holds the link fields (`x_chatwoot_url`, `x_jira_key`,
+  `x_chatwoot_message_id`), the automation rules that send events, and their outbox; it names
+  no team, alias or company. A database that has these rules under another module's name
+  keeps them: the install adopts rules and cron of the same name.
+- Odoo needs an internal user for the bridge with an API key (`secrets.odooApiKey`). It
+  reads and writes helpdesk tickets and CRM leads, posts messages on them, reads
+  `mail.message`, `res.users`, `helpdesk.stage` and `crm.team`, and creates contacts
+  (`res.partner`) for a lead without one. Set system parameter `chatwoot_bridge.url` to
+  `https://<hostname>/odoo/events` and give Odoo the event secret in a file named by
+  environment variable `CHATWOOT_BRIDGE_SECRET_FILE` (or the value in
+  `CHATWOOT_BRIDGE_SECRET`): the value of `secrets.odooEventSecret`; leave that empty and
+  read it from Secret `chatwoot-odoo` after the install. Staff log in to Chatwoot with the
+  same address as their Odoo user, or replies are posted as the bridge user.
+- Test the module on a local Odoo 19 Enterprise image with
+  `ODOO_IMAGE=<image> sh odoo/hack/rig-test.sh`.
 - With `secrets.type=externalSecret`, create the items named in
   `secrets.externalSecret.items` in your vault collection with the value in the password
   field, and set `secrets.externalSecret.storeName` to your store. The super admin

@@ -191,6 +191,14 @@ check "group flag unused" 'not arg("--openshift-group")'
 check "login role" 'obj("Role", "sam-agent-login")["rules"] == [{"apiGroups": [""], "resources": ["services/proxy"], "resourceNames": ["sam-agent-ui"], "verbs": ["login"]}]'
 check "login binding" 'obj("RoleBinding", "sam-agent-login")["roleRef"] == {"apiGroup": "rbac.authorization.k8s.io", "kind": "Role", "name": "sam-agent-login"} and obj("RoleBinding", "sam-agent-login")["subjects"] == [{"apiGroup": "rbac.authorization.k8s.io", "kind": "Group", "name": "team-admins"}, {"apiGroup": "rbac.authorization.k8s.io", "kind": "Group", "name": "ops"}]'
 
+# ownerOnly false: every group member logs in, and the owner as a user
+OUT=$(render "${BASE[@]}" --set 'oauth.allowedGroups={marketing}' --set oauth.ownerOnly=false --set oauth.ownerEmail=owner@example.org)
+check "group login no emails file" 'not arg("--authenticated-emails-file") and proxy()["emails.txt"].strip() == ""'
+check "group login sar" 'json.loads(arg("--openshift-sar")[0])[0]["verb"] == "login"'
+check "group login binding" 'obj("RoleBinding", "sam-agent-login")["subjects"] == [{"apiGroup": "rbac.authorization.k8s.io", "kind": "Group", "name": "marketing"}, {"apiGroup": "rbac.authorization.k8s.io", "kind": "User", "name": "owner@example.org"}]'
+OUT=$(render "${BASE[@]}" --set 'oauth.allowedGroups={marketing}' --set oauth.ownerEmail=owner@example.org)
+check "owner only by default" 'proxy()["emails.txt"].split() == ["owner@example.org"] and [s["kind"] for s in obj("RoleBinding", "sam-agent-login")["subjects"]] == ["Group"]'
+
 # the owner is an OpenShift user name; OpenCode sees its local part as the Basic user
 OUT=$(render "${BASE[@]}" --set oauth.ownerEmail=Owner.Name@example.org)
 check "owner override" 'proxy()["emails.txt"].split() == ["Owner.Name@example.org"] and env("opencode-a2a")["OPENCODE_AUTH_USERNAME"] == "opencode"'
@@ -347,13 +355,27 @@ OUT=$(render "${BASE[@]}" "${VS[@]}" --set 'mcp.servers[0].auth.secretRef=nope')
 has "unknown secretRef" 'auth.secretRef "nope" is not a vaultSecrets name'
 
 
-# public MCP servers: ticked in mcp.options only; an explicit mcp.servers entry of that name wins
+# public MCP servers: every catalog server always, each its own entry; an explicit mcp.servers entry of that name wins
 OUT=$(render "${BASE[@]}" --set gateway.upstream=https://api.example.com)
-check "no public server by default" 'not any("/mcp/public/" in s.get("url", "") for s in json.loads(cfg()["opencode.json"])["mcp"].values())'
-OUT=$(render "${BASE[@]}" --set gateway.upstream=https://api.example.com --set 'mcp.options={playwright}')
-check "ticked public server" 'json.loads(cfg()["opencode.json"])["mcp"]["playwright"] == {"type": "remote", "url": "http://127.0.0.1:8099/mcp/public/playwright", "enabled": True} and "firecrawl" not in json.loads(cfg()["opencode.json"])["mcp"]'
-OUT=$(render "${BASE[@]}" --set gateway.upstream=https://api.example.com --set 'mcp.options={playwright}' --set 'mcp.servers[0].name=playwright' --set 'mcp.servers[0].path=/mcp/public/playwright' --set 'mcp.servers[0].enabled=false')
+check "public servers by default" 'json.loads(cfg()["opencode.json"])["mcp"]["playwright"] == {"type": "remote", "url": "http://127.0.0.1:8099/mcp/public/playwright", "enabled": True} and json.loads(cfg()["opencode.json"])["mcp"]["firecrawl"]["url"] == "http://127.0.0.1:8099/mcp/public/firecrawl"'
+OUT=$(render "${BASE[@]}" --set gateway.upstream=https://api.example.com --set 'mcp.options={playwright,firecrawl}')
+check "old ticks change nothing" 'sorted(s for s, v in json.loads(cfg()["opencode.json"])["mcp"].items() if "/mcp/public/" in v.get("url", "")) == ["firecrawl", "playwright"]'
+OUT=$(render "${BASE[@]}" --set gateway.upstream=https://api.example.com --set 'mcp.servers[0].name=playwright' --set 'mcp.servers[0].path=/mcp/public/playwright' --set 'mcp.servers[0].enabled=false')
 check "explicit entry wins" 'json.loads(cfg()["opencode.json"])["mcp"]["playwright"]["enabled"] is False'
-render "${BASE[@]}" --set gateway.upstream=https://api.example.com --set 'mcp.options={nope}' | grep -q 'mcp.options: "nope" is not in mcp.catalog' || { echo "FAIL unknown mcp option accepted"; fail=1; }
+OUT=$(render "${BASE[@]}")
+check "no gateway, no public servers" 'not any("/mcp/public/" in s.get("url", "") for s in json.loads(cfg()["opencode.json"]).get("mcp", {}).values())'
+OUT=$(render "${BASE[@]}" --set gateway.upstream=https://api.example.com --set mcp-playwright.enabled=true)
+check "team server entry" 'json.loads(cfg()["opencode.json"])["mcp"]["t-playwright"]["url"] == "http://127.0.0.1:8099/mcp/test/t-playwright"'
+# team Playwright server: off by default, on as Deployment, Service and NetworkPolicy <release>-playwright
+render "${BASE[@]}" --set gateway.upstream=https://api.example.com | grep -q "name: t-playwright" && { echo "FAIL team server rendered by default"; fail=1; }
+[ "$(render "${BASE[@]}" --set gateway.upstream=https://api.example.com --set mcp-playwright.enabled=true | grep -c '^  name: t-playwright$')" = 3 ] || { echo "FAIL team server objects"; fail=1; }
+
+# team Playwright server with team/tenant: beside the agent in <tenant>-<team>, else the render fails
+[ "$(render "${BASE[@]}" --set gateway.upstream=https://api.example.com --set team=dev --set tenant=acme --set mcp-playwright.enabled=true --set mcp-playwright.team=dev --set mcp-playwright.tenant=acme | grep -c '^  namespace: acme-dev$')" -gt 3 ] || { echo "FAIL team server not in acme-dev"; fail=1; }
+render "${BASE[@]}" --set gateway.upstream=https://api.example.com --set team=dev --set tenant=acme --set mcp-playwright.enabled=true | grep -q 'must equal team and tenant' || { echo "FAIL team server in another namespace accepted"; fail=1; }
+render "${BASE[@]}" --set gateway.upstream=https://api.example.com --set mcp-playwright.enabled=true --set mcp-playwright.nameSuffix= | grep -q 'nameSuffix must not be empty' || { echo "FAIL empty nameSuffix accepted"; fail=1; }
+
+OUT=$(render "${BASE[@]}" --set gateway.upstream=https://api.example.com --set team=dev --set tenant=acme --set mcp-playwright.enabled=true --set mcp-playwright.team=dev --set mcp-playwright.tenant=acme)
+check "team server entry in the team namespace" 'json.loads(cfg()["opencode.json"])["mcp"]["t-playwright"]["url"] == "http://127.0.0.1:8099/mcp/acme-dev/t-playwright"'
 
 [ $fail = 0 ] && echo "RESULT PASS" || { echo "RESULT FAIL"; exit 1; }

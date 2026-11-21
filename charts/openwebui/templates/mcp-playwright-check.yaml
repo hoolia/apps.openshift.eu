@@ -1,0 +1,13 @@
+{{- /* the team Playwright server (dependency mcp-playwright) must run beside the agent, under its own names */ -}}
+{{- $pw := index .Values "mcp-playwright" | default dict -}}
+{{- if $pw.enabled -}}
+{{- if not $pw.nameSuffix -}}
+{{- fail "mcp-playwright.nameSuffix must not be empty: the server would take the names of the objects of the agent" -}}
+{{- end -}}
+{{- $ns := .Release.Namespace -}}
+{{- if $pw.team }}{{ $ns = printf "%s-%s" ($pw.tenant | default "") $pw.team }}{{ end -}}
+{{- $own := include "openwebui.namespace" . -}}
+{{- if ne $ns $own -}}
+{{- fail (printf "mcp-playwright.team and mcp-playwright.tenant must equal team and tenant: the server would run in %s, the agent runs in %s" $ns $own) -}}
+{{- end -}}
+{{- end -}}

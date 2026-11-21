@@ -64,6 +64,15 @@ spec:
           value: 600s
         - name: CHATWOOT_ACCOUNT_NAME
           value: {{ .Values.account.name | quote }}
+        {{- with .Values.signature }}
+        {{- if .text }}
+        # the message signature of staff users without one, and where the editor adds it
+        - name: CHATWOOT_SIGNATURE
+          value: {{ .text | quote }}
+        - name: CHATWOOT_SIGNATURE_CHANNELS
+          value: {{ join "," .channels | quote }}
+        {{- end }}
+        {{- end }}
         - name: CHATWOOT_ADMIN_EMAIL
           value: {{ include "wrapper.adminEmail" . | quote }}
         - name: CHATWOOT_ADMIN_PASSWORD
@@ -151,11 +160,19 @@ spec:
           value: {{ .Values.odoo.website.inbox | quote }}
         - name: CHATWOOT_ODOO_WEBSITE_URL
           value: {{ .Values.odoo.website.url | trimSuffix "/" | quote }}
-        {{- if .Values.odoo.website.salesLabel }}
-        # the label staff pick to move a chat to a lead
+        {{- if .Values.odoo.website.identity.enabled }}
+        # identity validation of the Website inbox: the key the site signs customers with
+        - name: CHATWOOT_WEBSITE_IDENTITY_KEY
+          valueFrom:
+            secretKeyRef:
+              name: chatwoot-website-identity
+              key: website-identity-key
+        {{- end }}
+        {{- end }}
+        {{- if and .Values.odoo.website.salesLabel (or .Values.odoo.website.enabled .Values.odoo.sales.fromSupport) }}
+        # the label staff pick to move a chat or a support conversation to a lead
         - name: CHATWOOT_ODOO_SALES_LABEL
           value: {{ .Values.odoo.website.salesLabel | quote }}
-        {{- end }}
         {{- end }}
         - name: CHATWOOT_ODOO_BRIDGE_TOKEN
           valueFrom:
@@ -167,6 +184,12 @@ spec:
             secretKeyRef:
               name: chatwoot-odoo-bridge
               key: odoo-inbox-secret
+        {{- end }}
+        {{- if and .Values.odoo.enabled .Values.odoo.panel.enabled }}
+        - name: CHATWOOT_ODOO_PANEL_TITLE
+          value: {{ .Values.odoo.panel.title | quote }}
+        - name: CHATWOOT_ODOO_PANEL_PATH
+          value: /odoo-panel/
         {{- end }}
         {{- if .Values.copilotPanel.enabled }}
         - name: CHATWOOT_AGENT_PANEL_TITLE

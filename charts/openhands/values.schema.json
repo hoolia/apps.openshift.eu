@@ -418,14 +418,14 @@
           "items": {
             "type": "string"
           },
-          "description": "ticked public MCP servers: names of mcp.catalog"
+          "description": "no effect; the public servers are always listed. Kept so that values which set it keep rendering"
         },
         "catalog": {
           "type": "object",
           "additionalProperties": {
             "type": "string"
           },
-          "description": "name to public server (RemoteMCPServer server label, path /mcp/public/<server>)"
+          "description": "no effect; kept so that values which set it keep rendering"
         }
       }
     },
@@ -683,6 +683,24 @@
           "agent": {
             "type": "boolean"
           }
+        }
+      }
+    },
+    "mcp-playwright": {
+      "type": "object",
+      "description": "a Playwright MCP server of the team (chart mcp-playwright); its values apply",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "nameSuffix": {
+          "type": "string"
+        },
+        "team": {
+          "type": "string"
+        },
+        "tenant": {
+          "type": "string"
         }
       }
     }

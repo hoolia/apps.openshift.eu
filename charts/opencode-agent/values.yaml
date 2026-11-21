@@ -28,7 +28,10 @@ oauth:
   # OpenShift user name (an email) of the only person admitted to the UI.
   # Empty: person.email; both empty: everyone who may edit the project
   ownerEmail: ""
-  # OpenShift groups admitted, strictly (with an owner: the owner must be in one)
+  # true: the owner only, who must also be in one of allowedGroups.
+  # false: every member of allowedGroups, and the owner
+  ownerOnly: true
+  # OpenShift groups admitted, strictly (with ownerOnly: the owner must be in one)
   allowedGroups: []
   # ClusterRole holding the verb login on services/proxy that allowedGroups are bound
   # to. Empty: the chart's own Role, which only an installer holding that verb (a
@@ -242,10 +245,10 @@ mcp:
   # (tokenProxy.agentToken), for a server that accepts tokens of that realm. auth sends the
   # agent's own credential from vaultSecrets in one header (see README)
   servers: []
-  # Public MCP servers of the platform, each used only when ticked: options names keys of
-  # catalog, whose value is the server at <gateway.upstream>/mcp/public/<server>, reached
-  # through the token proxy. Nothing ticked: none of them. A name not in catalog fails
+  # No effect: every server of catalog is always offered, each its own entry the user can
+  # switch off. Kept so that values which set options keep rendering
   options: []
+  # the platform's public servers: entry name to server, at <gateway>/mcp/public/<server>
   catalog:
     playwright: playwright
     firecrawl: firecrawl
@@ -289,3 +292,16 @@ networkPolicy:
   enabled: true
   # more namespaces that may call A2A on 8080; a2a.gatewayNamespace always may
   a2aNamespaces: []
+
+# A Playwright MCP server of the team, in this namespace: chart mcp-playwright as a
+# dependency, offered as the entry <release>-playwright at <gateway>/mcp/<namespace>/<name>.
+# Every value of the chart mcp-playwright applies here; networkPolicy.ingressNamespaces
+# must admit the MCP gateway
+mcp-playwright:
+  enabled: false
+  # objects are named <release>-playwright, apart from the agent's own
+  nameSuffix: -playwright
+  # with team set above, set the same team and tenant here: the server then runs in
+  # <tenant>-<team> beside the agent (the render fails when they differ)
+  team: ""
+  tenant: ""

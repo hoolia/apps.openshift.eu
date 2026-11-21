@@ -27,6 +27,20 @@ account:
   # Its password is the key super-admin-password of Secret chatwoot-credentials
   adminEmail: ""
 
+# The message signature of each staff member, set by the prepare Job for every staff user
+# without one (a staff user appears at the first login and is signed at the next install or
+# upgrade). A signature a user wrote or cleared in Chatwoot stays.
+signature:
+  # Markdown: **bold**, *italic*, [links](https://...), ![images](https://...), a backslash
+  # at the end of a line for a line break. {name} becomes the staff member's display name,
+  # else their name; a name that is an address becomes its local part (s.terburg: S. Terburg).
+  # Empty: no signature is set
+  text: ""
+  # channel types where the reply editor adds the signature, unless the user switched it
+  # off there: Channel::Api (the Odoo inboxes), Channel::Email, Channel::WebWidget
+  channels:
+    - Channel::Api
+
 # the web server: dashboard, widget and API
 web:
   replicas: 1
@@ -243,6 +257,42 @@ odoo:
     # Empty: chats stay tickets
     salesLabel: sales
     cancelledStage: Cancelled
+    # Chatwoot identity validation on the Website inbox: the site signs the identifier of a
+    # logged-in customer (their email) with the key secrets.websiteIdentityKey and passes it
+    # to the widget (setUser with identifier_hash); a contact identifier without a valid
+    # signature is refused. Only such a conversation counts as a logged-in customer
+    identity:
+      enabled: false
+      # with agentBot.enabled: the bot's agent gets the logged-in customer's own partner,
+      # sale orders, subscriptions and tickets, read by the bridge with secrets.odooApiKey.
+      # The bridge then needs Odoo's address in networkPolicy.agentEgress
+      records: true
+  # leads made by the sales label (odoo.website.salesLabel)
+  sales:
+    # the label, added by staff on a conversation of ticketInbox, also moves it to sales: a
+    # crm.lead from the ticket with the transcript, the ticket to cancelledStage, a new
+    # conversation in leadInbox for the lead (the transcript as a private note), and the old
+    # conversation resolved with a note that points to the new one. Needs leadInbox
+    fromSupport: false
+    # crm team of those leads and of website chat leads; empty: Odoo's default team
+    team: ""
+  # a panel in the conversation sidebar (Chatwoot Dashboard App) with what Odoo knows about
+  # the customer: partner, sale orders, subscriptions, open and closed tickets, leads and
+  # opportunities, and the issue keys staff put in x_jira_key with their status. Read only,
+  # with the bridge's API key (give that Odoo user read access to Sales). Needs sso.enabled;
+  # with copilotPanel.enabled it also shows the agent's summary in three lines
+  panel:
+    enabled: false
+    # name of the panel's tab in the conversation sidebar
+    title: Odoo
+    # a Jira site for the status of linked issues
+    issues:
+      # https address of the site, for example https://example.atlassian.net; empty: issue
+      # keys are shown without a link or status
+      url: ""
+      # Jira Cloud: the account email the API token belongs to (basic auth). Empty: the
+      # token is a personal access token (Jira Data Center, bearer)
+      user: ""
   bridge:
     image: registry.access.redhat.com/ubi9/python-312-minimal:9.8-1793637445
     resources:
@@ -375,6 +425,11 @@ agentBot:
   # names of the inboxes the bot answers in; "*" is every inbox. A listed inbox is taken
   # from any other bot; an inbox created later is connected on the next upgrade
   inboxes: []
+  # A2A address of the bot's own agent, with agent.auth; empty: agent.url. A bot that
+  # answers the public needs an agent without access to customer data: before every message
+  # the bridge tells it whether the visitor is a customer the website verified
+  # (odoo.website.identity), and with whose records
+  agentUrl: ""
   # what the agent reads before the first message of each conversation
   instructions: >-
     You answer a customer in a support chat. Reply with the message for the customer only,
@@ -479,6 +534,12 @@ secrets:
   # secret Chatwoot signs the API inboxes' webhooks with, with odoo.enabled; empty:
   # generated
   odooInboxSecret: ""
+  # API token of the Jira site, with odoo.panel.issues.url; required (read access to the
+  # linked issues is enough)
+  issueTrackerToken: ""
+  # identity validation key of the Website inbox, with odoo.website.identity.enabled; the
+  # site that signs customers needs the same value. Empty: generated once and kept
+  websiteIdentityKey: ""
   externalSecret:
     storeKind: ClusterSecretStore
     storeName: ""
@@ -500,3 +561,5 @@ secrets:
       odoo-event-secret: chatwoot-odoo-event-secret
       odoo-bridge-token: chatwoot-odoo-bridge-token
       odoo-inbox-secret: chatwoot-odoo-inbox-secret
+      issue-tracker-token: chatwoot-issue-tracker-token
+      website-identity-key: chatwoot-website-identity-key

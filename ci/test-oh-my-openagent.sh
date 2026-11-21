@@ -71,13 +71,18 @@ HOME=$T bash -euc "$keylines" && [ "$(stat -c %a "$T/.omo/agent/config-identity.
 rm -rf "$T"
 
 
-# public MCP servers: mcp.json holds the ticked ones only; start.sh keeps the user's own entries
+# public MCP servers: mcp.json holds every catalog server, with the token proxy; start.sh keeps the user's own entries
 OUT=$(render "${G[@]}")
-check "no public server by default" 'cm("mcp.json") == {"mcpServers": {}}'
+check "public servers by default" 'cm("mcp.json")["mcpServers"] == {"firecrawl": {"type": "http", "url": "http://127.0.0.1:8099/mcp/public/firecrawl", "enabled": True, "auth": False}, "playwright": {"type": "http", "url": "http://127.0.0.1:8099/mcp/public/playwright", "enabled": True, "auth": False}}'
 OUT=$(render "${G[@]}" --set 'mcp.options={firecrawl}')
-check "ticked public server" 'cm("mcp.json")["mcpServers"] == {"firecrawl": {"type": "http", "url": "http://127.0.0.1:8099/mcp/public/firecrawl", "enabled": True, "auth": False}}'
-render --set 'mcp.options={firecrawl}' | grep -q 'needs gateway.upstream' || { echo "FAIL public server without token proxy accepted"; fail=1; }
-render "${G[@]}" --set 'mcp.options={nope}' | grep -q 'mcp.options: "nope" is not in mcp.catalog' || { echo "FAIL unknown mcp option accepted"; fail=1; }
+check "old ticks change nothing" 'sorted(cm("mcp.json")["mcpServers"]) == ["firecrawl", "playwright"]'
+OUT=$(render)
+check "no token proxy, no public servers" 'cm("mcp.json") == {"mcpServers": {}}'
+OUT=$(render "${G[@]}" --set mcp-playwright.enabled=true)
+check "team server entry" 'cm("mcp.json")["mcpServers"]["t-playwright"]["url"] == "http://127.0.0.1:8099/mcp/test/t-playwright"'
+# team Playwright server: off by default, on as Deployment, Service and NetworkPolicy <release>-playwright
+render "${G[@]}" | grep -q "name: t-playwright" && { echo "FAIL team server rendered by default"; fail=1; }
+[ "$(render "${G[@]}" --set mcp-playwright.enabled=true | grep -c '^  name: t-playwright$')" = 3 ] || { echo "FAIL team server objects"; fail=1; }
 T=$(mktemp -d)
 # the real block of start.sh, with /etc/omo and HOME moved into $T, under set -euo pipefail
 { echo 'set -euo pipefail'; sed -n '/^\[ ! -f \/etc\/omo\/mcp.json \]/,/^EOF$/p' $C/files/start.sh; echo 'echo after'; } \
@@ -96,5 +101,13 @@ rm -f "$T/mcp.json"; merge2() { :; }
 printf '[]' > "$T/.chart-mcp-servers"; printf '{"mcpServers": {"firecrawl": {"url": "new"}}}' > "$T/chart.json"
 [ "$(bash "$T/block.sh" 2>/dev/null)" = after ] && pyc 'list(u["mcpServers"]) == ["firecrawl"]' "no mcp.json yet" || { echo "FAIL first start without mcp.json"; fail=1; }
 rm -rf "$T"
+
+# team Playwright server with team/tenant: beside the agent in <tenant>-<team>, else the render fails
+[ "$(render "${G[@]}" --set team=dev --set tenant=acme --set mcp-playwright.enabled=true --set mcp-playwright.team=dev --set mcp-playwright.tenant=acme | grep -c '^  namespace: acme-dev$')" -gt 3 ] || { echo "FAIL team server not in acme-dev"; fail=1; }
+render "${G[@]}" --set team=dev --set tenant=acme --set mcp-playwright.enabled=true | grep -q 'must equal team and tenant' || { echo "FAIL team server in another namespace accepted"; fail=1; }
+render "${G[@]}" --set mcp-playwright.enabled=true --set mcp-playwright.nameSuffix= | grep -q 'nameSuffix must not be empty' || { echo "FAIL empty nameSuffix accepted"; fail=1; }
+
+OUT=$(render "${G[@]}" --set team=dev --set tenant=acme --set mcp-playwright.enabled=true --set mcp-playwright.team=dev --set mcp-playwright.tenant=acme)
+check "team server entry in the team namespace" 'cm("mcp.json")["mcpServers"]["t-playwright"]["url"] == "http://127.0.0.1:8099/mcp/acme-dev/t-playwright"'
 
 [ $fail = 0 ] && echo "PASS oh-my-openagent" || exit 1
