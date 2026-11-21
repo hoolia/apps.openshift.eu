@@ -442,7 +442,8 @@ agentBot:
     - person
     - agent
     - staff
-    # an answer of the agent that is exactly this hands the conversation to a person
+    # an answer of the agent that holds this as a word of its own (case as written) hands
+    # the conversation to a person; the customer gets message below, not that answer
     marker: HANDOFF
     # posted to the customer at a handoff; empty: nothing
     message: A colleague will take over this conversation.

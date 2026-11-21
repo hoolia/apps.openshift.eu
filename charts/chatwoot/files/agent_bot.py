@@ -5,8 +5,10 @@ signed with the bot's secret (X-Chatwoot-Signature: sha256 HMAC of "<timestamp>.
 anything else is refused. For an incoming customer message in a conversation the bot still
 holds (status pending), the text goes to the agent as A2A message/send, one contextId per
 conversation, and the answer comes back as an outgoing message with the bot's access token.
-A listed keyword, an answer that is the handoff marker, or a failure sets the conversation
-to open, so staff take over. The bot never sees a conversation that is open.
+A listed keyword, an answer that holds the handoff marker as a word of its own (anywhere,
+case as configured: "HANDOFF", "I'll pass you on. HANDOFF"), or a failure sets the
+conversation to open, so staff take over; the customer then gets the handoff message, never
+the rest of that answer. The bot never sees a conversation that is open.
 
 BOT_A2A_URL names the bot's own agent; without it the bot asks A2A_URL like the other
 paths. Every message the bot passes on starts with a note of the bridge on who writes. A
@@ -168,6 +170,11 @@ class Config:
 
 def normalize(text):
     return " ".join(re.sub(r"[^\w\s]", " ", text.lower()).split())
+
+
+def hands_off(reply, marker):
+    """Whether an answer of the agent asks for a person: the marker as a word of its own."""
+    return bool(marker) and re.search(r"(?<!\w)" + re.escape(marker) + r"(?!\w)", reply or "") is not None
 
 
 # a category is a label the bridge sets; LABEL is any label of Chatwoot (letters, digits, - and _)
@@ -523,7 +530,7 @@ class Bot:
             self.hand_off(account, conv["id"], c.failure_message)
             return
         self.remember(account, conv, context_id)
-        if not reply or (c.marker and reply.strip() == c.marker):
+        if not reply or hands_off(reply, c.marker):
             LOG.info("conversation %s: handoff by the agent", conv["id"])
             self.hand_off(account, conv["id"], c.handoff_message)
             return
