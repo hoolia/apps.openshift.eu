@@ -1,0 +1,51 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "route": {
+      "type": "object",
+      "properties": {
+        "hostname": {"type": "string", "title": "Hostname", "description": "Leave empty for a generated hostname"},
+        "labels": {"type": "object"},
+        "annotations": {"type": "object"}
+      }
+    },
+    "phpMemoryLimit": {"type": "string", "title": "PHP memory limit"},
+    "podLabels": {"type": "object"},
+    "extraEnv": {"type": "array"},
+    "persistence": {
+      "type": "object",
+      "properties": {
+        "size": {"type": "string", "title": "Configuration volume size"},
+        "storageClassName": {"type": "string", "title": "Storage class"}
+      }
+    },
+    "database": {
+      "type": "object",
+      "properties": {
+        "image": {"type": "string"},
+        "size": {"type": "string", "title": "Database volume size"},
+        "storageClassName": {"type": "string", "title": "Database storage class"},
+        "backup": {
+          "type": "object",
+          "properties": {
+            "enabled": {"type": "boolean", "title": "Scheduled database backup"},
+            "schedule": {"type": "string", "title": "Backup schedule (cron)"},
+            "maxRetention": {"type": "string", "title": "Backup retention, for example 168h"},
+            "size": {"type": "string", "title": "Backup volume size"},
+            "storageClassName": {"type": "string"}
+          }
+        }
+      }
+    },
+    "secrets": {
+      "type": "object",
+      "properties": {
+        "type": {"type": "string", "enum": ["kubernetes", "externalSecret"]},
+        "existingSecret": {"type": "string", "title": "Existing Secret with keys password and root-password"},
+        "databasePassword": {"type": "string"},
+        "databaseRootPassword": {"type": "string"}
+      }
+    }
+  }
+}

@@ -1,0 +1,77 @@
+{{- $db := .Values.database }}
+apiVersion: k8s.mariadb.com/v1alpha1
+kind: MariaDB
+metadata:
+  name: matomo-db
+  labels:
+    app: matomo-db
+    app.kubernetes.io/name: mariadb
+    app.kubernetes.io/component: database
+    {{- include "matomo.commonLabels" $ | nindent 4 }}
+    app.openshift.io/runtime: mariadb
+spec:
+  image: {{ $db.image }}
+  replicas: 1
+  rootPasswordSecretKeyRef:
+    name: {{ include "matomo.secretName" . }}
+    key: root-password
+    generate: false
+  database: matomo
+  username: matomo
+  passwordSecretKeyRef:
+    name: {{ include "matomo.secretName" . }}
+    key: password
+    generate: false
+  # Matomo connects without TLS inside the namespace
+  tls:
+    enabled: false
+  myCnf: |
+    [mariadb]
+    max_allowed_packet = 64M
+  storage:
+    size: {{ $db.size }}
+    {{- with $db.storageClassName }}
+    storageClassName: {{ . }}
+    {{- end }}
+    resizeInUseVolumes: true
+  resources:
+    {{- toYaml $db.resources | nindent 4 }}
+{{- if $db.backup.enabled }}
+{{- $b := $db.backup }}
+---
+apiVersion: k8s.mariadb.com/v1alpha1
+kind: Backup
+metadata:
+  name: matomo-db-backup
+  labels:
+    app: matomo-db
+    app.kubernetes.io/name: mariadb
+    app.kubernetes.io/component: backup
+    {{- include "matomo.commonLabels" $ | nindent 4 }}
+  annotations:
+    # a scheduled backup is not a rollout in progress
+    argocd.argoproj.io/ignore-healthcheck: "true"
+spec:
+  mariaDbRef:
+    name: matomo-db
+    waitForIt: true
+  schedule:
+    cron: {{ $b.schedule | quote }}
+    suspend: false
+  maxRetention: {{ $b.maxRetention }}
+  compression: gzip
+  storage:
+    persistentVolumeClaim:
+      accessModes:
+      - ReadWriteOnce
+      {{- with $b.storageClassName }}
+      storageClassName: {{ . }}
+      {{- end }}
+      resources:
+        requests:
+          storage: {{ $b.size }}
+  backoffLimit: 5
+  restartPolicy: OnFailure
+  resources:
+    {{- toYaml $b.resources | nindent 4 }}
+{{- end }}

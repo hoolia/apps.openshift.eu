@@ -1,0 +1,24 @@
+apiVersion: v2
+name: metabase
+description: Metabase business intelligence with a PostgreSQL application database and an optional OpenShift login
+type: application
+version: 0.1.0
+appVersion: "0.64.8.2"
+home: https://apps.openshift.eu
+icon: https://avatars.githubusercontent.com/u/10520629?s=200
+keywords:
+- analytics
+- business-intelligence
+- dashboards
+- reporting
+sources:
+- https://github.com/metabase/metabase
+- https://github.com/hoolia/apps.openshift.eu
+maintainers:
+- name: GRN.CLOUD B.V.
+  url: https://apps.openshift.eu
+annotations:
+  charts.openshift.io/name: metabase
+  charts.openshift.io/provider: GRN.CLOUD B.V.
+  apps.openshift.eu/category: data
+  apps.openshift.eu/vendor: Metabase Inc

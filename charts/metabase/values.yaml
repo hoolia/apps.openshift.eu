@@ -1,0 +1,95 @@
+route:
+  # hostname of Metabase; empty: OpenShift assigns one
+  hostname: ""
+  # extra labels of the Route, such as the one that picks a router shard
+  labels: {}
+  # extra annotations of the Route
+  annotations: {}
+
+image:
+  # Metabase OSS image
+  repository: docker.io/metabase/metabase
+  # pinned Metabase version
+  tag: v0.64.8.2
+  # pull policy of every container
+  pullPolicy: IfNotPresent
+
+# CPU and memory of the Metabase container
+resources:
+  requests:
+    cpu: 200m
+    memory: 1Gi
+  limits:
+    cpu: "2"
+    memory: 2Gi
+
+# extra labels of the pod template, such as a service mesh opt-out
+podLabels: {}
+
+# components Metabase reads from, as {apiVersion, kind, name}, for the console topology
+connectsTo: []
+
+# further Metabase settings as environment variables
+extraEnv: []
+
+oauthProxy:
+  # login through the cluster OAuth server before Metabase; Metabase then listens on
+  # loopback only and asks for its own account after the login
+  enabled: false
+  # OpenShift login proxy image
+  image: image-registry.openshift-image-registry.svc:5000/openshift/oauth-proxy:v4.4
+  # groups that may pass the login; empty: everyone who may view this project's Services
+  allowedGroups: []
+  # ClusterRole that grants verb login on services/proxy, bound to allowedGroups
+  loginClusterRole: ""
+  # CPU and memory of the login proxy
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      memory: 256Mi
+
+database:
+  # PostgreSQL image of the CloudNativePG operator
+  imageName: ghcr.io/cloudnative-pg/postgresql:17.11-standard-trixie
+  # PostgreSQL instances; 2 adds a standby
+  instances: 1
+  # size of the database volume of each instance
+  size: 5Gi
+  # storage class of the database volume; empty: the cluster default
+  storageClassName: ""
+  # CPU and memory of each database instance
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  backup:
+    # scheduled backup through the barman-cloud plugin to an existing ObjectStore
+    enabled: false
+    # name of the barman-cloud ObjectStore in this project
+    objectStoreName: ""
+    # cron schedule with seconds, as CloudNativePG expects
+    schedule: "0 0 3 * * *"
+
+secrets:
+  # kubernetes: Secret from the values below. externalSecret: from a secret store
+  type: kubernetes
+  # name of an existing Secret with the keys MB_ENCRYPTION_SECRET_KEY and cookie-secret;
+  # the chart then renders no Secret of its own
+  existingSecret: ""
+  # key that encrypts stored data source credentials; empty: generated once and kept
+  encryptionKey: ""
+  # cookie secret of the login proxy; empty: generated once and kept
+  cookieSecret: ""
+  externalSecret:
+    storeKind: ClusterSecretStore
+    storeName: ""
+    refreshInterval: 1h
+    # vault item per key; the value is read from the item's password
+    items:
+      MB_ENCRYPTION_SECRET_KEY: metabase-encryption-key
+      cookie-secret: metabase-cookie-secret
