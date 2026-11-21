@@ -682,6 +682,59 @@
         }
       }
     },
+    "mcp": {
+      "type": "object",
+      "title": "MCP server",
+      "properties": {
+        "enabled": {"type": "boolean", "description": "Tools for AI agents: list and read conversations, post private notes; never a reply to a contact"},
+        "image": {
+          "type": "object",
+          "properties": {
+            "repository": {"type": "string", "description": "chatwoot-mcp image; required with mcp.enabled"},
+            "tag": {"type": "string"},
+            "pullPolicy": {"type": "string", "enum": ["Always", "IfNotPresent", "Never"]}
+          }
+        },
+        "accountId": {"type": "integer", "minimum": 1},
+        "noteInboxIds": {"type": "array", "items": {"type": "integer", "minimum": 1}, "description": "Inboxes post_private_note may write to; empty: every inbox of the MCP user"},
+        "targetName": {"type": "string", "pattern": "^[a-z0-9_-]{1,64}$"},
+        "callers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["kind", "name", "namespace"],
+            "properties": {
+              "kind": {"type": "string", "enum": ["ServiceAccount"]},
+              "name": {"type": "string", "minLength": 1},
+              "namespace": {"type": "string", "minLength": 1}
+            }
+          }
+        },
+        "callerAccount": {
+          "type": "object",
+          "properties": {
+            "enabled": {"type": "boolean", "description": "ServiceAccount chatwoot-mcp-caller with a long-lived token, for a gateway outside the cluster"}
+          }
+        },
+        "route": {
+          "type": "object",
+          "properties": {
+            "enabled": {"type": "boolean"},
+            "hostname": {"type": "string"},
+            "annotations": {"type": "object", "additionalProperties": {"type": "string"}}
+          }
+        },
+        "ingressFrom": {"type": "array", "items": {"type": "object"}},
+        "rbacProxy": {
+          "type": "object",
+          "properties": {
+            "image": {"type": "string", "minLength": 1},
+            "resources": {"type": "object"}
+          }
+        },
+        "resources": {"type": "object"}
+      }
+    },
     "secrets": {
       "type": "object",
       "properties": {
@@ -757,6 +810,10 @@
         },
         "agentClientSecret": {
           "type": "string"
+        },
+        "mcpToken": {
+          "type": "string",
+          "description": "Access token of the Chatwoot agent user the MCP server works as; required with mcp.enabled"
         }
       }
     }

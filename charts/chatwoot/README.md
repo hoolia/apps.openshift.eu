@@ -606,6 +606,42 @@ Only `clientSecret` stores a credential of the agent in the project. Use it when
 server cannot tell this cluster's ServiceAccount tokens from those of another cluster with
 the same issuer.
 
+### MCP server
+
+With `mcp.enabled`, Deployment `chatwoot-mcp` serves tools for AI agents over MCP
+(streamable HTTP at `/mcp`): list conversations, read one, and post a private note. No tool
+sends anything to a contact. The server calls Service `chatwoot-web` inside the project as
+one Chatwoot agent user; that user reads only the inboxes it is a member of.
+
+1. In Chatwoot, create an agent user for the server, add it to the inboxes it may read, and
+   copy its access token from its profile. A bot token cannot list conversations.
+2. Pass that token as `secrets.mcpToken`, or as vault item
+   `secrets.externalSecret.items.mcp-token`.
+3. Name the callers. kube-rbac-proxy in front of the server admits a call only with a
+   ServiceAccount token that may create `services/proxy` on Service `chatwoot-mcp`
+   (Role `chatwoot-mcp-caller`):
+   - a pod in the cluster: list its ServiceAccount in `mcp.callers`;
+   - a gateway elsewhere: `mcp.callerAccount.enabled` creates ServiceAccount
+     `chatwoot-mcp-caller` with a long-lived token in Secret `chatwoot-mcp-caller-token`,
+     and `mcp.route.enabled` publishes `https://<host>/mcp`.
+4. Ask the platform team to bind ServiceAccount `chatwoot-mcp` of the project to ClusterRole
+   `system:auth-delegator`: the proxy reviews each token with the Kubernetes API, a
+   cluster-wide right that a chart cannot grant. Without it every call is refused.
+
+| Value | Default | Meaning |
+|---|---|---|
+| `mcp.image.repository`, `mcp.image.tag` | empty | Image of the chatwoot-mcp server; required. |
+| `mcp.accountId` | `1` | Chatwoot account the tools work in. |
+| `mcp.noteInboxIds` | empty | Inbox ids `post_private_note` may write to. Empty: every inbox of the user. |
+| `mcp.targetName` | `chatwoot` | Tool prefix an MCP gateway that discovers the Service gives the tools. |
+| `mcp.route.hostname` | empty | Host of the Route. Empty: OpenShift assigns one under the default application domain. |
+| `mcp.ingressFrom` | empty | Further NetworkPolicy peers that may reach port 8443. |
+
+The proxy reaches the Kubernetes API through `networkPolicy.apiServerEgress`. A caller
+sends `Authorization: Bearer <token>`; the token of `chatwoot-mcp-caller` is read with:
+
+    oc -n <project> extract secret/chatwoot-mcp-caller-token --keys=token --to=-
+
 ### Interfaces for integrations
 
 Service `chatwoot-web` port 3000 serves the Chatwoot API (`/api/v1/accounts/...` with a
