@@ -260,7 +260,7 @@ spec:
   policyTypes:
   - Ingress
   - Egress
-  {{- if or .Values.mcp.route.enabled .Values.mcp.ingressFrom }}
+  {{- if or .Values.mcp.route.enabled .Values.mcp.ingressFrom .Values.mcp.callers }}
   # the proxy only; every call carries a token it reviews
   ingress:
   - ports:
@@ -271,6 +271,14 @@ spec:
     - namespaceSelector:
         matchLabels:
           policy-group.network.openshift.io/ingress: ""
+    {{- end }}
+    {{- /* the namespaces of mcp.callers */}}
+    {{- $callerNs := list }}
+    {{- range .Values.mcp.callers }}{{- $callerNs = append $callerNs .namespace }}{{- end }}
+    {{- range ($callerNs | uniq) }}
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: {{ . }}
     {{- end }}
     {{- with .Values.mcp.ingressFrom }}
     {{- toYaml . | nindent 4 }}

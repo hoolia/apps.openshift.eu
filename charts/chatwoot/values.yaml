@@ -556,7 +556,9 @@ mcp:
   # a chatwoot-mcp image: streamable HTTP on port 8000 at /mcp; required with mcp.enabled
   image:
     repository: ""
+    # a version tag
     tag: ""
+    # IfNotPresent or Always
     pullPolicy: IfNotPresent
   # id of the Chatwoot account the tools work in
   accountId: 1
@@ -582,21 +584,25 @@ mcp:
     hostname: ""
     # with a hostname outside that domain, the cert-manager annotations of route.annotations
     annotations: {}
-  # further Host headers the server answers (MCP_ALLOWED_HOSTS) besides mcp.route.hostname
-  # and, with mcp.callers, the Service names; with mcp.route.enabled and no hostname, the host OpenShift
-  # assigns (<route>-<namespace>.<application domain>) is required here
+  # further host names the server answers with any port (MCP_ALLOWED_HOSTS), besides
+  # mcp.route.hostname and, with mcp.callers, the Service names; with mcp.route.enabled and
+  # no hostname, the host OpenShift assigns (<route>-<namespace>.<application domain>) is
+  # required here
   allowedHosts: []
   # further peers (NetworkPolicyPeer) that may reach the proxy port 8443; the routers may
-  # with mcp.route.enabled
+  # with mcp.route.enabled, the namespaces of mcp.callers always
   ingressFrom: []
+  # kube-rbac-proxy in front of the server on port 8443
   rbacProxy:
     image: quay.io/brancz/kube-rbac-proxy:v0.23.0
+    # resources of the proxy container
     resources:
       requests:
         cpu: 5m
         memory: 32Mi
       limits:
         memory: 128Mi
+  # resources of the server container
   resources:
     requests:
       cpu: 10m

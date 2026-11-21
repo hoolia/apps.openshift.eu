@@ -8,6 +8,9 @@
 {{- if and $m.enabled $m.route.enabled (not $m.route.hostname) (not $m.allowedHosts) }}
 {{- fail "mcp.route.enabled without mcp.route.hostname needs the host OpenShift assigns in mcp.allowedHosts: the server refuses any other Host header" }}
 {{- end }}
+{{- if and $m.enabled (not (include "wrapper.mcpAllowedHosts" .)) }}
+{{- fail "mcp.enabled answers no Host header: set mcp.callers, mcp.route.hostname or mcp.allowedHosts" }}
+{{- end }}
 {{- if $m.enabled }}
 {{- /*
 The MCP server: tools over Chatwoot's API as one agent user (Secret chatwoot-mcp), behind
@@ -143,7 +146,8 @@ spec:
         app.kubernetes.io/name: chatwoot-mcp
     spec:
       serviceAccountName: chatwoot-mcp
-      # the proxy needs the token for its reviews; the server never calls the Kubernetes API
+      # the proxy needs the token for its reviews; the server has no Kubernetes client and
+      # its Role grants nothing
       automountServiceAccountToken: true
       securityContext:
         {{- include "wrapper.podSecurity" . | nindent 8 }}
@@ -178,6 +182,15 @@ spec:
             secretKeyRef:
               name: chatwoot-mcp
               key: mcp-token
+        # the server's own port on loopback, which the proxy's probe cannot see
+        readinessProbe:
+          exec:
+            command:
+            - python3
+            - -c
+            - import socket; socket.create_connection(("127.0.0.1", 8000), 2).close()
+          periodSeconds: 10
+          timeoutSeconds: 5
         resources:
           {{- toYaml $m.resources | nindent 10 }}
         securityContext:
@@ -244,6 +257,7 @@ spec:
     port: 8443
     targetPort: mcp
     protocol: TCP
+    # a gateway that discovers this port speaks TLS to it and sends a token of a caller
     appProtocol: agentgateway.dev/mcp
 {{- if $m.route.enabled }}
 ---
@@ -256,12 +270,9 @@ metadata:
     app.kubernetes.io/name: chatwoot-mcp
     app.kubernetes.io/component: route
     {{- include "chatwoot.commonLabels" $ | nindent 4 }}
+  # a tool call may take minutes; mcp.route.annotations may set another timeout
   annotations:
-    {{- with $m.route.annotations }}
-    {{- toYaml . | nindent 4 }}
-    {{- end }}
-    # a tool call may take minutes
-    haproxy.router.openshift.io/timeout: 330s
+    {{- toYaml (merge (deepCopy $m.route.annotations) (dict "haproxy.router.openshift.io/timeout" "330s")) | nindent 4 }}
 spec:
   {{- with $m.route.hostname }}
   host: {{ . }}
