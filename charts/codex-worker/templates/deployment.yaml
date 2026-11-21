@@ -41,7 +41,7 @@ spec:
           type: RuntimeDefault
       containers:
       - name: worker
-        image: "{{ .Values.image.repository }}@{{ .Values.image.digest }}"
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         env:
         - name: HOME

@@ -14,7 +14,7 @@ an operator must supply a real worker image and authentication configuration. Re
 without them fails. No placeholder image or generated authentication credential is used.
 The explicit `ci/test-values.yaml` fixture is for lint/render tests only.
 
-Supply `image.repository`, `image.digest`, `gitlab.apiV4Url`, `gitlab.projectId`,
+Supply `image.repository`, `image.tag`, `gitlab.apiV4Url`, `gitlab.projectId`,
 `authStore.projectId`, and both existing credential Secret names. The worker and auth store
 use the same GitLab API host. Each Secret has key `token`; the auth-store token belongs to
 the dedicated store project. `image.pullSecrets` accepts existing registry Secret names
@@ -39,7 +39,7 @@ helm install codex-worker ./charts/codex-worker \
   --namespace review --values worker-values.yaml
 ```
 
-Every value and its default is described in `values.yaml`. Images are pinned by digest.
+Every value and its default is described in `values.yaml`. The image is named by a version tag; `latest` is refused.
 The chart and worker application version are 0.1.0; the image owns its Codex CLI version.
 
 OpenShift TLS requests `<release>-tls` with `tls.crt` and `tls.key`. To use an existing

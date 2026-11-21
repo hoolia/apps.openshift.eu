@@ -7,10 +7,10 @@
     "image": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["repository", "digest", "pullPolicy", "pullSecrets"],
+      "required": ["repository", "tag", "pullPolicy", "pullSecrets"],
       "properties": {
         "repository": {"type": "string", "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._:/-]*$"},
-        "digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+        "tag": {"type": "string", "pattern": "^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$", "not": {"enum": ["latest"]}},
         "pullPolicy": {"enum": ["Always", "IfNotPresent", "Never"]},
         "pullSecrets": {"type": "array", "items": {
           "type": "object", "additionalProperties": false, "required": ["name"],

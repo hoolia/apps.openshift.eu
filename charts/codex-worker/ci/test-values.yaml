@@ -1,7 +1,7 @@
 # Synthetic render inputs only; this image is not a deployable worker.
 image:
   repository: registry.example.invalid/review/worker
-  digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  tag: 0.0.0-test
 gitlab:
   apiV4Url: https://gitlab.example.invalid/api/v4
   projectId: "101"
