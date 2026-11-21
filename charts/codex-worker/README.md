@@ -70,10 +70,18 @@ store before submitting reviews. The chart never fabricates that authentication.
 
 The Service name is the release name. It listens on HTTPS 3443. The Deployment has one
 replica, Recreate strategy, no Kubernetes API token and no fixed UID. It drops all
-capabilities and uses a read-only root filesystem. The only writable mounts are a
-pod-local `/tmp` and the PVC parent `/var/lib/codex`. The worker creates the private
-`/var/lib/codex/state` directory with mode 0700 under its admitted UID. The PVC root
-must never be mounted as the state directory.
+capabilities and uses a read-only root filesystem.
+
+The pod runs two containers from the same image. Container `worker` serves the requests
+and holds the request token, the TLS key, the auth-store token and the private state.
+Container `codex` runs the Codex CLI and holds none of them: it has no Secret, no token
+variable and no mount of the private state, and it listens on loopback only. The two
+share the pod network and one directory, `/var/lib/codex/exchange`, through which the
+worker hands the session to the CLI and takes it back.
+
+The claim is mounted by `subPath`: `state` in `worker` only, `exchange` in both. An init
+container creates both directories with mode 0700 under the admitted UID. Each container
+has its own `/tmp`.
 
 TCP readiness proves that the service process is listening. It does not prove inference
 readiness or usable subscription authentication. No liveness probe restarts an auth failure.
