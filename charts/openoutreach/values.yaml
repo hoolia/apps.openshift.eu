@@ -7,7 +7,7 @@ suspend: true
 mode: run
 
 image:
-  # the scout image, built from github.com/hoolia/openoutreach-scout at tag v<tag>
+  # the scout image; its source is listed under sources in Chart.yaml
   repository: ghcr.io/hoolia/openoutreach-scout
   # version of the scout
   tag: "0.1.0"

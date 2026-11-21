@@ -19,8 +19,6 @@ metadata:
     app.kubernetes.io/component: worker
     app.openshift.io/runtime: python
     {{- include "openoutreach.commonLabels" $ | nindent 4 }}
-  annotations:
-    app.openshift.io/vcs-uri: https://github.com/hoolia/openoutreach-scout
 spec:
   # one browser profile, one LinkedIn session: never two pods
   replicas: {{ if .Values.suspend }}0{{ else }}1{{ end }}
