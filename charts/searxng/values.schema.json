@@ -1,0 +1,40 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "image": {"type": "object"},
+    "port": {"type": "integer", "not": {"enum": [80, 443, 8080, 8443]}},
+    "settings": {"type": "object", "title": "SearXNG settings.yml"},
+    "resources": {"type": "object"},
+    "podLabels": {"type": "object"},
+    "secrets": {
+      "type": "object",
+      "properties": {
+        "type": {"type": "string", "enum": ["kubernetes", "externalSecret"]},
+        "secretKey": {"type": "string"},
+        "existingSecret": {"type": "string"},
+        "externalSecret": {"type": "object"}
+      }
+    },
+    "route": {
+      "type": "object",
+      "properties": {
+        "enabled": {"type": "boolean", "title": "Web interface for people"},
+        "host": {"type": "string", "title": "Hostname"},
+        "labels": {"type": "object"},
+        "annotations": {"type": "object"}
+      }
+    },
+    "mcp": {
+      "type": "object",
+      "properties": {
+        "enabled": {"type": "boolean", "title": "Web search tools for AI agents"},
+        "port": {"type": "integer", "not": {"enum": [80, 443, 8080, 8443]}},
+        "targetName": {"type": "string", "pattern": "^[a-z0-9-]*$"},
+        "allowedHosts": {"type": "array", "items": {"type": "string"}},
+        "ingressNamespaces": {"type": "array"}
+      }
+    },
+    "networkPolicy": {"type": "object"}
+  }
+}

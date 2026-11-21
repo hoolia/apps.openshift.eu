@@ -1,0 +1,30 @@
+{{- $r := .Values.remoteMCPServer }}
+{{- if and .Values.enabled $r.enabled }}
+{{- $name := include "mcp-higgsfield.name" . }}
+{{- $ns := include "mcp-higgsfield.namespace" . }}
+# registers the server for the agents of the project (kagent)
+apiVersion: kagent.dev/v1alpha2
+kind: RemoteMCPServer
+metadata:
+  name: {{ $name }}
+  namespace: {{ $ns }}
+  labels:
+    app: {{ $name }}
+    app.kubernetes.io/name: mcp-higgsfield
+    app.kubernetes.io/component: server
+    {{- include "mcp-higgsfield.commonLabels" . | nindent 4 }}
+    {{- include "mcp-higgsfield.catalogLabels" . | nindent 4 }}
+  {{- with .Values.mcp.icon }}
+  annotations:
+    openhands.dev/icon: {{ . }}
+  {{- end }}
+spec:
+  allowedNamespaces:
+    from: {{ $r.allowedNamespaces }}
+  description: {{ .Values.mcp.description | quote }}
+  url: {{ $r.url | default (printf "http://%s.%s:%v/mcp" $name $ns .Values.port) }}
+  protocol: STREAMABLE_HTTP
+  timeout: {{ $r.timeout }}
+  sseReadTimeout: {{ $r.sseReadTimeout }}
+  terminateOnClose: true
+{{- end }}

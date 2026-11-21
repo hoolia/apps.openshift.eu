@@ -1,0 +1,31 @@
+{{- if .Values.enabled }}
+# No appProtocol agentgateway.dev/mcp: the server speaks SSE, so the chart's own
+# AgentgatewayBackend describes it instead of a gateway's Service discovery
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "mcp-gsc.name" . }}
+  namespace: {{ include "mcp-gsc.namespace" . }}
+  labels:
+    app: {{ include "mcp-gsc.name" . }}
+    app.kubernetes.io/name: mcp-gsc
+    app.kubernetes.io/component: server
+    {{- include "mcp-gsc.commonLabels" . | nindent 4 }}
+    {{- include "mcp-gsc.catalogLabels" . | nindent 4 }}
+    {{- with .Values.service.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .Values.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "mcp-gsc.selectorLabels" . | nindent 4 }}
+  ports:
+  - name: mcp
+    port: {{ .Values.port }}
+    targetPort: mcp
+    protocol: TCP
+{{- end }}

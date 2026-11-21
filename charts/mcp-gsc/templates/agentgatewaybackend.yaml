@@ -1,0 +1,34 @@
+{{- if and (include "mcp-gsc.ready" .) .Values.agentgatewayBackend.enabled }}
+{{- $name := include "mcp-gsc.name" . }}
+# an MCP gateway that generates endpoints from backends serves it as
+# /mcp/<namespace>/<name>; the credential stays in the pod
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayBackend
+metadata:
+  name: {{ $name }}
+  namespace: {{ include "mcp-gsc.namespace" . }}
+  labels:
+    app: {{ $name }}
+    app.kubernetes.io/name: mcp-gsc
+    app.kubernetes.io/component: server
+    {{- include "mcp-gsc.commonLabels" . | nindent 4 }}
+    {{- include "mcp-gsc.catalogLabels" . | nindent 4 }}
+    {{- with .Values.agentgatewayBackend.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  annotations:
+    {{ .Values.mcp.labelDomain }}/description: {{ .Values.mcp.description | quote }}
+    {{- with .Values.mcp.icon }}
+    {{ $.Values.mcp.labelDomain }}/icon: {{ . }}
+    {{- end }}
+spec:
+  mcp:
+    targets:
+    - name: {{ $name }}
+      static:
+        backendRef:
+          name: {{ $name }}
+        port: {{ .Values.port }}
+        path: /sse
+        protocol: SSE
+{{- end }}

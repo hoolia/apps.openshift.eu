@@ -1,0 +1,66 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "team": {"type": "string"},
+    "tenant": {"type": "string"},
+    "enabled": {"type": "boolean"},
+    "nameOverride": {"type": "string", "maxLength": 63, "pattern": "^[a-z0-9-]*$"},
+    "image": {
+      "type": "object",
+      "properties": {
+        "repository": {"type": "string", "minLength": 1},
+        "tag": {"type": "string", "minLength": 1},
+        "pullPolicy": {"type": "string", "enum": ["Always", "IfNotPresent", "Never"]}
+      }
+    },
+    "gsc": {
+      "type": "object",
+      "properties": {
+        "package": {"type": "string", "minLength": 1},
+        "version": {"type": "string", "minLength": 1},
+        "allowDestructive": {"type": "boolean", "title": "Tools that add or delete properties and sitemaps"},
+        "dataState": {"type": "string", "enum": ["all", "final"]},
+        "extraEnv": {"type": "object"}
+      }
+    },
+    "secrets": {
+      "type": "object",
+      "properties": {
+        "type": {"type": "string", "enum": ["kubernetes", "externalSecret"]},
+        "serviceAccountJson": {"type": "string", "title": "Service account JSON key"},
+        "existingSecret": {"type": "string"},
+        "existingSecretKey": {"type": "string"},
+        "externalSecret": {
+          "type": "object",
+          "properties": {
+            "storeKind": {"type": "string"},
+            "storeName": {"type": "string"},
+            "refreshInterval": {"type": "string"},
+            "item": {"type": "string"},
+            "property": {"type": "string"}
+          }
+        }
+      }
+    },
+    "port": {"type": "integer", "not": {"enum": [80, 443, 8080, 8443]}},
+    "mcp": {"type": "object"},
+    "agentgatewayBackend": {
+      "type": "object",
+      "properties": {"enabled": {"type": "boolean"}, "labels": {"type": "object"}}
+    },
+    "remoteMCPServer": {
+      "type": "object",
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "url": {"type": "string"},
+        "protocol": {"type": "string", "enum": ["SSE", "STREAMABLE_HTTP"]},
+        "allowedNamespaces": {"type": "string", "enum": ["Same", "All"]}
+      }
+    },
+    "service": {"type": "object"},
+    "podLabels": {"type": "object"},
+    "resources": {"type": "object"},
+    "networkPolicy": {"type": "object"}
+  }
+}

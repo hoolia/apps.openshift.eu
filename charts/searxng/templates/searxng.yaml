@@ -1,0 +1,174 @@
+{{- $name := include "searxng.fullname" . }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ $name }}
+    app.kubernetes.io/name: searxng
+    app.kubernetes.io/component: server
+    {{- include "searxng.commonLabels" . | nindent 4 }}
+data:
+  settings.yml: |
+    use_default_settings: true
+    {{- toYaml .Values.settings | nindent 4 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ $name }}
+    app.kubernetes.io/name: searxng
+    app.kubernetes.io/component: server
+    {{- include "searxng.commonLabels" . | nindent 4 }}
+    app.openshift.io/runtime: python
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "searxng.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "searxng.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/settings: {{ toYaml .Values.settings | sha256sum }}
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - name: searxng
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        env:
+        - name: GRANIAN_PORT
+          value: {{ .Values.port | quote }}
+        - name: GRANIAN_HOST
+          value: 0.0.0.0
+        - name: SEARXNG_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "searxng.secretName" . }}
+              key: SEARXNG_SECRET
+        ports:
+        - name: http
+          containerPort: {{ .Values.port }}
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: http
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 20
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
+        securityContext:
+          {{- include "searxng.restricted" . | nindent 10 }}
+        volumeMounts:
+        - name: config
+          mountPath: /etc/searxng
+        - name: cache
+          mountPath: /var/cache/searxng
+      volumes:
+      - name: config
+        configMap:
+          name: {{ $name }}
+      - name: cache
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ $name }}
+    app.kubernetes.io/name: searxng
+    app.kubernetes.io/component: server
+    {{- include "searxng.commonLabels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "searxng.selectorLabels" . | nindent 4 }}
+  ports:
+  - name: http
+    port: {{ .Values.port }}
+    targetPort: http
+    protocol: TCP
+{{- if .Values.route.enabled }}
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ $name }}
+    app.kubernetes.io/name: searxng
+    app.kubernetes.io/component: route
+    {{- include "searxng.commonLabels" . | nindent 4 }}
+    {{- with .Values.route.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .Values.route.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.route.host }}
+  host: {{ . }}
+  {{- end }}
+  path: /
+  to:
+    kind: Service
+    name: {{ $name }}
+    weight: 100
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+{{- end }}
+{{- if .Values.networkPolicy.enabled }}
+---
+# SearXNG: its MCP server, the own project's pods only with the Route (people), the router
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ $name }}
+    app.kubernetes.io/name: searxng
+    app.kubernetes.io/component: server
+    {{- include "searxng.commonLabels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "searxng.selectorLabels" . | nindent 6 }}
+  policyTypes:
+  - Ingress
+  ingress:
+  - ports:
+    - protocol: TCP
+      port: {{ .Values.port }}
+    from:
+    - podSelector:
+        matchLabels:
+          {{- include "searxng.mcpSelectorLabels" . | nindent 10 }}
+    {{- if .Values.route.enabled }}
+    - namespaceSelector:
+        matchLabels:
+          policy-group.network.openshift.io/ingress: ""
+    {{- end }}
+{{- end }}

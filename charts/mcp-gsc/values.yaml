@@ -1,0 +1,123 @@
+# Team of the tenant the server serves: the chart puts every object into <tenant>-<team>, a
+# namespace the team already has. Empty: the release namespace
+team: ""
+# Tenant the server belongs to; required with team
+tenant: ""
+
+# switch of this server when a bundle chart includes it
+enabled: true
+
+# name of the server's objects, of its AgentgatewayBackend and of the server on an MCP
+# gateway (tools <name>_*). Empty: mcp.server
+nameOverride: ""
+
+# uv image with Python; the server package is installed from PyPI at every start
+image:
+  repository: ghcr.io/astral-sh/uv
+  tag: 0.9.11-python3.13-bookworm-slim@sha256:b6617231e5b985e887de048bf9100dfb66554d8b3ab07582d852aa59cc932825
+  pullPolicy: IfNotPresent
+
+gsc:
+  # PyPI package and pinned version of the server
+  package: mcp-search-console
+  version: 0.4.2
+  # tools that add or delete properties and sitemaps; false: read-only tools only
+  allowDestructive: false
+  # all: fresh data including the last days; final: finalized data only
+  dataState: all
+  # further server settings as environment variables, name to value
+  extraEnv: {}
+
+secrets:
+  # kubernetes: the key Secret from serviceAccountJson (empty: no Secret). externalSecret:
+  # from a secret store
+  type: kubernetes
+  # JSON key of a Google service account that is a user of your Search Console properties
+  serviceAccountJson: ""
+  # existing Secret with the JSON key under existingSecretKey; overrides type
+  existingSecret: ""
+  existingSecretKey: credentials.json
+  externalSecret:
+    # kind of the secret store
+    storeKind: ClusterSecretStore
+    # name of the secret store; required with type externalSecret
+    storeName: ""
+    # how often the Secret is refreshed from the store
+    refreshInterval: 1h
+    # vault item that holds the JSON key. Empty: <release>-<server>
+    item: ""
+    # field of the item with the JSON key
+    property: notes
+
+# container port of the server; not 80, 443, 8080 or 8443 (open to every project)
+port: 8000
+
+mcp:
+  # prefix of the catalog labels
+  labelDomain: mcp.openshift.eu
+  # <labelDomain>/server
+  server: gsc
+  # <labelDomain>/bundle
+  bundle: gsc
+  # <labelDomain>/category
+  category: marketing
+  # what the server offers, on the backend and RemoteMCPServer
+  description: "Google Search Console: search performance, URL inspection, indexing and sitemaps of your properties"
+  # image URL of the server's card
+  icon: https://cdn.simpleicons.org/googlesearchconsole
+
+# AgentgatewayBackend of the server (SSE): an MCP gateway that generates endpoints from
+# backends serves it as /mcp/<namespace>/<name>. Rendered once a key source is set
+agentgatewayBackend:
+  enabled: true
+  # extra labels on the backend, for example the gateway's exposure label of the platform
+  labels: {}
+
+# kagent RemoteMCPServer for the project's agents, for a cluster whose gateway does not
+# write one itself
+remoteMCPServer:
+  enabled: false
+  # address of the server for the agents, for example the gateway path; required
+  url: ""
+  # SSE: the server itself; STREAMABLE_HTTP: an MCP gateway in front
+  protocol: STREAMABLE_HTTP
+  # Same: agents of this project only; All: every project
+  allowedNamespaces: Same
+  timeout: 60s
+  sseReadTimeout: 5m0s
+
+service:
+  # extra labels and annotations on the Service
+  labels: {}
+  annotations: {}
+
+# extra pod labels, for example sidecar.istio.io/inject: "false" in a mesh namespace
+podLabels: {}
+
+# requests and limits of the server; the package install at start needs the memory
+resources:
+  requests:
+    cpu: 50m
+    memory: 192Mi
+  limits:
+    cpu: "1"
+    memory: 768Mi
+
+networkPolicy:
+  enabled: true
+  # namespaces (label selectors) that may call the server besides its own, e.g. the gateway's
+  ingressNamespaces: []
+  egress:
+    # the server reaches DNS and the public internet only (PyPI, Google APIs)
+    enabled: true
+    exceptCidrs:
+    - 10.0.0.0/8
+    - 172.16.0.0/12
+    - 192.168.0.0/16
+    - 100.64.0.0/10
+    - 169.254.0.0/16
+    - 127.0.0.0/8
+    # your own public ranges
+    extraExceptCidrs: []
+    # a proxy or mirror at a private address the server must reach: [{cidr, ports}]
+    allow: []

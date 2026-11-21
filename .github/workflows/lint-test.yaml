@@ -24,6 +24,12 @@ jobs:
       run: ci/check.sh
     - name: Test guacamole chart
       run: ci/test-guacamole.sh
+    - name: Test matomo chart
+      run: ci/test-matomo.sh
+    - name: Test metabase chart
+      run: ci/test-metabase.sh
+    - name: Test searxng, mcp-gsc and mcp-higgsfield charts
+      run: ci/test-mcp-charts.sh
     - name: Test opencode-agent chart
       run: ci/test-opencode-agent.sh
     - name: Test mcp-officeagent chart

@@ -1,0 +1,43 @@
+{{- if .Values.enabled }}
+{{- $h := .Values.higgsfield }}
+{{- $secret := include "mcp-higgsfield.secret" . }}
+# kagent's MCPServer runs the stdio server behind a streamable HTTP endpoint: a Deployment
+# and a Service <name>:<port> of the same name
+apiVersion: kagent.dev/v1alpha1
+kind: MCPServer
+metadata:
+  name: {{ include "mcp-higgsfield.name" . }}
+  namespace: {{ include "mcp-higgsfield.namespace" . }}
+  labels:
+    app: {{ include "mcp-higgsfield.name" . }}
+    app.kubernetes.io/name: mcp-higgsfield
+    app.kubernetes.io/component: server
+    {{- include "mcp-higgsfield.commonLabels" . | nindent 4 }}
+    {{- include "mcp-higgsfield.catalogLabels" . | nindent 4 }}
+spec:
+  transportType: stdio
+  stdioTransport: {}
+  timeout: {{ .Values.timeout }}
+  deployment:
+    image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+    imagePullPolicy: {{ .Values.image.pullPolicy }}
+    cmd: npx
+    args:
+    - -y
+    - "{{ $h.package }}@{{ $h.version }}"
+    port: {{ .Values.port }}
+    env:
+      # the pod's arbitrary UID has no writable home for the npm cache
+      HOME: /tmp
+      NPM_CONFIG_CACHE: /tmp/.npm
+      {{- range $k, $v := $h.extraEnv }}
+      {{ $k }}: {{ $v | toString | quote }}
+      {{- end }}
+    {{- with $secret }}
+    # HF_API_KEY and HF_SECRET as environment variables
+    secretRefs:
+    - name: {{ . }}
+    {{- end }}
+    resources:
+      {{- toYaml .Values.resources | nindent 6 }}
+{{- end }}
