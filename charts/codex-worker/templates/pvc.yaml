@@ -1,0 +1,23 @@
+{{- if not .Values.storage.existingClaim }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Release.Name }}-state
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: codex-worker
+    app.kubernetes.io/name: codex-worker
+    app.kubernetes.io/component: storage
+    {{- include "codex-worker.commonLabels" . | nindent 4 }}
+  annotations:
+    helm.sh/resource-policy: keep
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+spec:
+  accessModes:
+  - {{ .Values.storage.accessMode }}
+  storageClassName: {{ .Values.storage.storageClass | quote }}
+  volumeMode: Filesystem
+  resources:
+    requests:
+      storage: {{ .Values.storage.size | quote }}
+{{- end }}

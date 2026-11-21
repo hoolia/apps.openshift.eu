@@ -1,0 +1,25 @@
+# Synthetic render inputs only; this image is not a deployable worker.
+image:
+  repository: registry.example.invalid/review/worker
+  digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+gitlab:
+  apiV4Url: https://gitlab.example.invalid/api/v4
+  projectId: "101"
+authStore:
+  projectId: "102"
+secrets:
+  workerTokenSecret: request-token
+  authStoreTokenSecret: auth-store-token
+storage:
+  storageClass: test-block
+networkPolicy:
+  runnerNamespaceSelector:
+    matchLabels:
+      kubernetes.io/metadata.name: test-runners
+  monitoringNamespaceSelector:
+    matchLabels:
+      kubernetes.io/metadata.name: test-monitoring
+  egress:
+    dnsNamespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: test-dns

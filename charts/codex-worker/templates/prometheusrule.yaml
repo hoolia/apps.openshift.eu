@@ -1,0 +1,49 @@
+{{- if .Values.monitoring.rules.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: codex-worker
+    app.kubernetes.io/name: codex-worker
+    app.kubernetes.io/component: worker
+    {{- include "codex-worker.commonLabels" . | nindent 4 }}
+spec:
+  groups:
+  - name: codex-worker
+    rules:
+    - alert: CodexWorkerReviewFailed
+      expr: sum by (namespace, service) (increase(codex_worker_reviews_total{namespace="{{ .Release.Namespace }}",service="{{ .Release.Name }}",result="failure"}[{{ .Values.monitoring.rules.failureWindow }}])) > 0
+      for: {{ .Values.monitoring.rules.failureFor }}
+      labels:
+        severity: warning
+      annotations:
+        summary: Codex worker reviews are failing
+        description: At least one review failed during the configured failure window.
+        runbook_url: {{ printf "%s#codexworkerreviewfailed" .Values.monitoring.rules.runbookUrl | quote }}
+    - alert: CodexWorkerReviewStalled
+      expr: |
+        max by (namespace, service) (codex_worker_oldest_review_age_seconds{namespace="{{ .Release.Namespace }}",service="{{ .Release.Name }}"}) > {{ .Values.monitoring.rules.stallAgeSeconds }}
+        and on (namespace, service)
+        max by (namespace, service) (codex_worker_pending_reviews{namespace="{{ .Release.Namespace }}",service="{{ .Release.Name }}"}) > 0
+      for: {{ .Values.monitoring.rules.stallFor }}
+      labels:
+        severity: warning
+      annotations:
+        summary: Codex worker has a stalled review
+        description: A pending review exceeds the configured oldest-review age.
+        runbook_url: {{ printf "%s#codexworkerreviewstalled" .Values.monitoring.rules.runbookUrl | quote }}
+    - alert: CodexWorkerUnavailable
+      expr: |
+        min by (namespace, service) (up{namespace="{{ .Release.Namespace }}",service="{{ .Release.Name }}"}) == 0
+        or
+        absent(up{namespace="{{ .Release.Namespace }}",service="{{ .Release.Name }}"})
+      for: {{ .Values.monitoring.rules.unavailableFor }}
+      labels:
+        severity: warning
+      annotations:
+        summary: Codex worker metrics are unavailable
+        description: HTTPS metrics scrapes are failing or the scrape target is absent.
+        runbook_url: {{ printf "%s#codexworkerunavailable" .Values.monitoring.rules.runbookUrl | quote }}
+{{- end }}
