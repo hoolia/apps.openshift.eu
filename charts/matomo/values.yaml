@@ -1,0 +1,117 @@
+route:
+  # hostname of the site and tracker; empty: OpenShift assigns one
+  hostname: ""
+  # extra labels of the Route, such as the one that picks a router shard
+  labels: {}
+  # annotations of the Route; the cert-manager ones issue its certificate, add others such
+  # as an external-dns hostname
+  annotations:
+    cert-manager.io/issuer-kind: ClusterIssuer
+    cert-manager.io/issuer-name: letsencrypt
+
+image:
+  # Matomo php-fpm image
+  repository: docker.io/library/matomo
+  # pinned Matomo version
+  tag: 5.14.2-fpm-alpine
+  # pull policy of every container
+  pullPolicy: IfNotPresent
+
+nginx:
+  # nginx image in front of php-fpm
+  repository: docker.io/nginxinc/nginx-unprivileged
+  # pinned nginx version
+  tag: 1.31.7-alpine
+  # address ranges of the router whose X-Forwarded-For nginx trusts
+  realIpFrom:
+  - 10.0.0.0/8
+  # CPU and memory of the nginx container
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 500m
+      memory: 128Mi
+
+# php memory_limit of Matomo
+phpMemoryLimit: 512M
+
+# CPU and memory of the Matomo container
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: "1"
+    memory: 1Gi
+
+# extra labels of the pod template, such as a service mesh opt-out
+podLabels: {}
+
+# further Matomo settings as environment variables
+extraEnv: []
+
+persistence:
+  # size of the volume with config/config.ini.php; the code is copied from the image
+  size: 2Gi
+  # size of the volume with plugins/, which keeps the plugins installed from the Marketplace
+  pluginsSize: 1Gi
+  # storage class of both volumes; empty: the cluster default
+  storageClassName: ""
+
+database:
+  # MariaDB server image
+  image: docker.io/mariadb:11.4.10
+  # size of the database volume
+  size: 5Gi
+  # storage class of the database volume; empty: the cluster default
+  storageClassName: ""
+  # CPU and memory of the database
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  backup:
+    # scheduled logical backup by the MariaDB operator
+    enabled: false
+    # cron schedule of the backup
+    schedule: "0 2 * * *"
+    # how long a backup is kept
+    maxRetention: 168h
+    # size of the backup volume
+    size: 5Gi
+    # storage class of the backup volume; empty: the cluster default
+    storageClassName: ""
+    # CPU and memory of the backup job
+    resources:
+      requests:
+        cpu: 10m
+        memory: 64Mi
+      limits:
+        memory: 256Mi
+
+secrets:
+  # kubernetes: Secret from the values below. externalSecret: from a secret store
+  type: kubernetes
+  # name of an existing Secret with the keys password and root-password; the chart
+  # then renders no Secret of its own
+  existingSecret: ""
+  # password of the database user matomo; empty: generated once and kept
+  databasePassword: ""
+  # password of the database root user; empty: generated once and kept
+  databaseRootPassword: ""
+  externalSecret:
+    # kind of the secret store
+    storeKind: ClusterSecretStore
+    # name of the secret store; required with type externalSecret
+    storeName: ""
+    # how often the Secret is refreshed from the store
+    refreshInterval: 1h
+    # vault item per key; the value is read from the item's password
+    items:
+      password: matomo-db
+      root-password: matomo-db-root

@@ -1,0 +1,52 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "route": {
+      "type": "object",
+      "properties": {
+        "hostname": {"type": "string", "title": "Hostname", "description": "Leave empty for a generated hostname"},
+        "labels": {"type": "object"},
+        "annotations": {"type": "object"}
+      }
+    },
+    "podLabels": {"type": "object"},
+    "connectsTo": {"type": "array"},
+    "extraEnv": {"type": "array"},
+    "oauthProxy": {
+      "type": "object",
+      "properties": {
+        "enabled": {"type": "boolean", "title": "OpenShift login", "description": "Log in through the cluster before Metabase"},
+        "image": {"type": "string"},
+        "allowedGroups": {"type": "array", "items": {"type": "string"}, "title": "Groups that may log in"},
+        "loginClusterRole": {"type": "string"}
+      }
+    },
+    "database": {
+      "type": "object",
+      "properties": {
+        "imageName": {"type": "string"},
+        "instances": {"type": "integer", "minimum": 1, "title": "Database instances", "description": "2 or more adds a standby"},
+        "size": {"type": "string", "title": "Database volume size"},
+        "storageClassName": {"type": "string", "title": "Database storage class"},
+        "backup": {
+          "type": "object",
+          "properties": {
+            "enabled": {"type": "boolean", "title": "Scheduled database backup"},
+            "objectStoreName": {"type": "string", "title": "barman-cloud ObjectStore"},
+            "schedule": {"type": "string", "title": "Backup schedule (cron with seconds)"}
+          }
+        }
+      }
+    },
+    "secrets": {
+      "type": "object",
+      "properties": {
+        "type": {"type": "string", "enum": ["kubernetes", "externalSecret"]},
+        "existingSecret": {"type": "string", "title": "Existing Secret with keys MB_ENCRYPTION_SECRET_KEY and cookie-secret"},
+        "encryptionKey": {"type": "string"},
+        "cookieSecret": {"type": "string"}
+      }
+    }
+  }
+}

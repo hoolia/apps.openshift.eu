@@ -1,0 +1,281 @@
+{{- $proxy := .Values.oauthProxy }}
+{{- $port := ternary 4180 3000 $proxy.enabled }}
+{{- $groups := and $proxy.allowedGroups $proxy.loginClusterRole }}
+{{- if and $proxy.enabled $proxy.allowedGroups (not $proxy.loginClusterRole) }}
+{{- fail "oauthProxy.loginClusterRole is required with oauthProxy.allowedGroups" }}
+{{- end }}
+{{- if $proxy.enabled }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: metabase
+  labels:
+    app: metabase
+    app.kubernetes.io/name: metabase
+    app.kubernetes.io/component: server
+    {{- include "metabase.commonLabels" $ | nindent 4 }}
+  annotations:
+    # OAuth client of the login proxy; the redirect goes to the Route
+    serviceaccounts.openshift.io/oauth-redirectreference.primary: '{"kind":"OAuthRedirectReference","apiVersion":"v1","reference":{"kind":"Route","name":"metabase"}}'
+---
+{{- if $groups }}
+# Members of these groups pass the login proxy's check (verb login on services/proxy)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: metabase-app-login
+  labels:
+    app: metabase
+    app.kubernetes.io/name: metabase
+    app.kubernetes.io/component: server
+    {{- include "metabase.commonLabels" $ | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ $proxy.loginClusterRole }}
+subjects:
+{{- range $proxy.allowedGroups }}
+- apiGroup: rbac.authorization.k8s.io
+  kind: Group
+  name: {{ . }}
+{{- end }}
+---
+{{- end }}
+# Only the router reaches the login proxy; Metabase itself listens on loopback
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: metabase
+  labels:
+    app: metabase
+    app.kubernetes.io/name: metabase
+    app.kubernetes.io/component: server
+    {{- include "metabase.commonLabels" $ | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: metabase
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          policy-group.network.openshift.io/ingress: ""
+    ports:
+    - protocol: TCP
+      port: 4180
+---
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: metabase
+  labels:
+    app: metabase
+    app.kubernetes.io/name: metabase
+    app.kubernetes.io/component: server
+    {{- include "metabase.commonLabels" $ | nindent 4 }}
+    app.openshift.io/runtime: java
+  annotations:
+    app.openshift.io/connects-to: {{ concat (list (dict "apiVersion" "postgresql.cnpg.io/v1" "kind" "Cluster" "name" "metabase-db")) .Values.connectsTo | toJson | squote }}
+spec:
+  replicas: 1
+  # one Metabase per application database: no two versions migrate it at once
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: metabase
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: metabase
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- if $proxy.enabled }}
+      serviceAccountName: metabase
+      {{- else }}
+      automountServiceAccountToken: false
+      {{- end }}
+      containers:
+      - name: metabase
+        image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        env:
+        {{- if $proxy.enabled }}
+        # only the login proxy in this pod reaches Metabase
+        - name: MB_JETTY_HOST
+          value: 127.0.0.1
+        {{- else }}
+        - name: MB_JETTY_HOST
+          value: 0.0.0.0
+        {{- end }}
+        - name: MB_JETTY_PORT
+          value: "3000"
+        {{- with .Values.route.hostname }}
+        - name: MB_SITE_URL
+          value: https://{{ . }}
+        {{- end }}
+        - name: MB_DB_TYPE
+          value: postgres
+        - name: MB_DB_HOST
+          value: metabase-db-rw
+        - name: MB_DB_PORT
+          value: "5432"
+        - name: MB_DB_DBNAME
+          value: metabase
+        - name: MB_DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: metabase-db-app
+              key: username
+        - name: MB_DB_PASS
+          valueFrom:
+            secretKeyRef:
+              name: metabase-db-app
+              key: password
+        - name: MB_ENCRYPTION_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "metabase.secretName" . }}
+              key: MB_ENCRYPTION_SECRET_KEY
+        - name: MB_PLUGINS_DIR
+          value: /tmp/plugins
+        - name: MB_ANON_TRACKING_ENABLED
+          value: "false"
+        - name: MB_CHECK_FOR_UPDATES
+          value: "false"
+        - name: JAVA_TOOL_OPTIONS
+          value: -XX:MaxRAMPercentage=70
+        {{- with .Values.extraEnv }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- if not $proxy.enabled }}
+        ports:
+        - name: http
+          containerPort: 3000
+          protocol: TCP
+        {{- end }}
+        readinessProbe:
+          {{- include "metabase.healthProbe" . | nindent 10 }}
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+        livenessProbe:
+          {{- include "metabase.healthProbe" . | nindent 10 }}
+          initialDelaySeconds: 300
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 5
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
+        securityContext:
+          {{- include "metabase.restricted" . | nindent 10 }}
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+      {{- if $proxy.enabled }}
+      # Login through the cluster OAuth server with the ServiceAccount as client
+      - name: oauth-proxy
+        image: {{ $proxy.image }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        args:
+        - --provider=openshift
+        - --openshift-service-account=metabase
+        - --http-address=0.0.0.0:4180
+        - --https-address=
+        - --upstream=http://127.0.0.1:3000
+        - --email-domain=*
+        {{- if $groups }}
+        # the group check: verb login, granted by RoleBinding metabase-app-login
+        - '--openshift-sar={"namespace":"{{ .Release.Namespace }}","resource":"services/proxy","resourceName":"metabase","verb":"login"}'
+        {{- else }}
+        - '--openshift-sar={"namespace":"{{ .Release.Namespace }}","resource":"services","resourceName":"metabase","verb":"get"}'
+        {{- end }}
+        - --pass-basic-auth=false
+        - --cookie-name=_metabase
+        - --cookie-secure=true
+        - --cookie-samesite=lax
+        - --skip-provider-button=true
+        env:
+        - name: OAUTH2_PROXY_COOKIE_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "metabase.secretName" . }}
+              key: cookie-secret
+        ports:
+        - name: http
+          containerPort: 4180
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /oauth/healthz
+            port: http
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /oauth/healthz
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 20
+        resources:
+          {{- toYaml $proxy.resources | nindent 10 }}
+        securityContext:
+          {{- include "metabase.restricted" . | nindent 10 }}
+      {{- end }}
+      volumes:
+      - name: tmp
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: metabase
+  labels:
+    app: metabase
+    app.kubernetes.io/name: metabase
+    app.kubernetes.io/component: server
+    {{- include "metabase.commonLabels" $ | nindent 4 }}
+spec:
+  selector:
+    app.kubernetes.io/name: metabase
+  ports:
+  - name: http
+    port: {{ $port }}
+    targetPort: http
+    protocol: TCP
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: metabase
+  labels:
+    app: metabase
+    app.kubernetes.io/name: metabase
+    app.kubernetes.io/component: route
+    {{- include "metabase.commonLabels" $ | nindent 4 }}
+    {{- with .Values.route.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .Values.route.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.route.hostname }}
+  host: {{ . }}
+  {{- end }}
+  path: /
+  to:
+    kind: Service
+    name: metabase
+    weight: 100
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+  wildcardPolicy: None

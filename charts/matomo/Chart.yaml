@@ -1,0 +1,24 @@
+apiVersion: v2
+name: matomo
+description: Matomo web analytics with nginx, php-fpm and a MariaDB database
+type: application
+version: 0.1.0
+appVersion: "5.14.2"
+home: https://apps.openshift.eu
+icon: https://avatars.githubusercontent.com/u/698038?s=200
+keywords:
+- analytics
+- web-analytics
+- marketing
+- privacy
+sources:
+- https://github.com/matomo-org/matomo
+- https://github.com/hoolia/apps.openshift.eu
+maintainers:
+- name: GRN.CLOUD B.V.
+  url: https://apps.openshift.eu
+annotations:
+  charts.openshift.io/name: matomo
+  charts.openshift.io/provider: GRN.CLOUD B.V.
+  apps.openshift.eu/category: marketing
+  apps.openshift.eu/vendor: InnoCraft Ltd

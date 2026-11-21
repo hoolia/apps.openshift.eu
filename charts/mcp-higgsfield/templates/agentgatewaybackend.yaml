@@ -1,0 +1,35 @@
+{{- if and .Values.enabled .Values.agentgatewayBackend.enabled }}
+{{- $name := include "mcp-higgsfield.name" . }}
+# an MCP gateway that generates endpoints from backends serves it as
+# /mcp/<namespace>/<name>; the API key stays in the pod
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayBackend
+metadata:
+  name: {{ $name }}
+  namespace: {{ include "mcp-higgsfield.namespace" . }}
+  labels:
+    app: {{ $name }}
+    app.kubernetes.io/name: mcp-higgsfield
+    app.kubernetes.io/component: server
+    {{- include "mcp-higgsfield.commonLabels" . | nindent 4 }}
+    {{- include "mcp-higgsfield.catalogLabels" . | nindent 4 }}
+    {{- with .Values.agentgatewayBackend.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  annotations:
+    {{ .Values.mcp.labelDomain }}/description: {{ .Values.mcp.description | quote }}
+    {{- with .Values.mcp.icon }}
+    {{ $.Values.mcp.labelDomain }}/icon: {{ . }}
+    {{- end }}
+spec:
+  mcp:
+    targets:
+    - name: {{ $name }}
+      static:
+        # the Service kagent's MCPServer writes
+        backendRef:
+          name: {{ $name }}
+        port: {{ .Values.port }}
+        path: /mcp
+        protocol: StreamableHTTP
+{{- end }}

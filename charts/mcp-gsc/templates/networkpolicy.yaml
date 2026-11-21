@@ -1,0 +1,72 @@
+{{- if and .Values.enabled .Values.networkPolicy.enabled }}
+{{- $n := .Values.networkPolicy }}
+# Callers: the own project and the listed namespaces (an MCP gateway); out: DNS and the
+# public internet
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "mcp-gsc.name" . }}
+  namespace: {{ include "mcp-gsc.namespace" . }}
+  labels:
+    app: {{ include "mcp-gsc.name" . }}
+    app.kubernetes.io/name: mcp-gsc
+    app.kubernetes.io/component: server
+    {{- include "mcp-gsc.commonLabels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "mcp-gsc.selectorLabels" . | nindent 6 }}
+  policyTypes:
+  - Ingress
+  {{- if $n.egress.enabled }}
+  - Egress
+  {{- end }}
+  ingress:
+  - ports:
+    - protocol: TCP
+      port: {{ .Values.port }}
+    from:
+    - podSelector: {}
+    {{- range $n.ingressNamespaces }}
+    - namespaceSelector:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+  {{- with $n.egress }}
+  {{- if .enabled }}
+  egress:
+  - to:
+    - namespaceSelector: {}
+      podSelector:
+        matchLabels:
+          dns.operator.openshift.io/daemonset-dns: default
+    ports:
+    - protocol: UDP
+      port: 5353
+    - protocol: TCP
+      port: 5353
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+        {{- range concat .exceptCidrs .extraExceptCidrs }}
+        - {{ . }}
+        {{- end }}
+  {{- range .allow }}
+  - to:
+    - ipBlock:
+        cidr: {{ .cidr }}
+    {{- with .ports }}
+    ports:
+    {{- range . }}
+    - protocol: TCP
+      port: {{ . }}
+    {{- end }}
+    {{- end }}
+  {{- end }}
+  {{- end }}
+  {{- end }}
+{{- end }}

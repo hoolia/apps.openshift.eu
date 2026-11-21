@@ -1,0 +1,238 @@
+# config/config.ini.php of Matomo; the code itself is copied from the image at start.
+# Kept on uninstall: it holds the salt and the settings written in the browser
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: matomo-config
+  labels:
+    app: matomo
+    app.kubernetes.io/name: matomo
+    app.kubernetes.io/component: storage
+    {{- include "matomo.commonLabels" $ | nindent 4 }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  accessModes:
+  - ReadWriteOnce
+  {{- with .Values.persistence.storageClassName }}
+  storageClassName: {{ . }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.size }}
+---
+# plugins/ of Matomo: the image's plugins are copied over it at start, Marketplace
+# plugins stay. Kept on uninstall, as the database still lists them
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: matomo-plugins
+  labels:
+    app: matomo
+    app.kubernetes.io/name: matomo
+    app.kubernetes.io/component: storage
+    {{- include "matomo.commonLabels" $ | nindent 4 }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  accessModes:
+  - ReadWriteOnce
+  {{- with .Values.persistence.storageClassName }}
+  storageClassName: {{ . }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.pluginsSize }}
+---
+# nginx in front of php-fpm, after github.com/matomo-org/matomo-nginx
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: matomo-nginx
+  labels:
+    app: matomo
+    app.kubernetes.io/name: matomo
+    app.kubernetes.io/component: server
+    {{- include "matomo.commonLabels" $ | nindent 4 }}
+data:
+  default.conf: |
+    {{- include "matomo.nginxConf" . | nindent 4 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: matomo
+  labels:
+    app: matomo
+    app.kubernetes.io/name: matomo
+    app.kubernetes.io/component: server
+    {{- include "matomo.commonLabels" $ | nindent 4 }}
+    app.openshift.io/runtime: php
+  annotations:
+    app.openshift.io/connects-to: '[{"apiVersion":"k8s.mariadb.com/v1alpha1","kind":"MariaDB","name":"matomo-db"}]'
+spec:
+  replicas: 1
+  # ReadWriteOnce config volume
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: matomo
+  template:
+    metadata:
+      annotations:
+        checksum/nginx: {{ include "matomo.nginxConf" . | sha256sum }}
+      labels:
+        app.kubernetes.io/name: matomo
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - name: matomo
+        image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        # Copy the code into the empty webroot; the image's own copy fails on the
+        # mount points it may not chmod. A cookieless tracker setting lives in
+        # matomo.js, so rebuild that before serving (fails harmlessly before install)
+        command:
+        - sh
+        - -c
+        - >-
+          { [ -e matomo.php ] || cp -R /usr/src/matomo/. /var/www/html/; }
+          && { php console custom-matomo-js:update || echo "matomo.js not rebuilt"; }
+          && exec /entrypoint.sh php-fpm
+        env:
+        - name: MATOMO_DATABASE_HOST
+          value: matomo-db
+        - name: MATOMO_DATABASE_ADAPTER
+          value: mysql
+        - name: MATOMO_DATABASE_TABLES_PREFIX
+          value: matomo_
+        - name: MATOMO_DATABASE_USERNAME
+          value: matomo
+        - name: MATOMO_DATABASE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "matomo.secretName" . }}
+              key: password
+        - name: MATOMO_DATABASE_DBNAME
+          value: matomo
+        - name: PHP_MEMORY_LIMIT
+          value: {{ .Values.phpMemoryLimit | quote }}
+        {{- with .Values.extraEnv }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        readinessProbe:
+          tcpSocket:
+            port: 9000
+          periodSeconds: 10
+        livenessProbe:
+          tcpSocket:
+            port: 9000
+          initialDelaySeconds: 30
+          periodSeconds: 20
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
+        securityContext:
+          {{- include "matomo.restricted" . | nindent 10 }}
+        volumeMounts:
+        - name: html
+          mountPath: /var/www/html
+        - name: config
+          mountPath: /var/www/html/config
+        - name: plugins
+          mountPath: /var/www/html/plugins
+      - name: nginx
+        image: {{ .Values.nginx.repository }}:{{ .Values.nginx.tag }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        readinessProbe:
+          tcpSocket:
+            port: http
+          periodSeconds: 10
+        livenessProbe:
+          tcpSocket:
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 20
+        resources:
+          {{- toYaml .Values.nginx.resources | nindent 10 }}
+        securityContext:
+          {{- include "matomo.restricted" . | nindent 10 }}
+        volumeMounts:
+        - name: html
+          mountPath: /var/www/html
+          readOnly: true
+        - name: plugins
+          mountPath: /var/www/html/plugins
+          readOnly: true
+        - name: nginx
+          mountPath: /etc/nginx/conf.d
+          readOnly: true
+      volumes:
+      - name: html
+        emptyDir: {}
+      - name: config
+        persistentVolumeClaim:
+          claimName: matomo-config
+      - name: plugins
+        persistentVolumeClaim:
+          claimName: matomo-plugins
+      - name: nginx
+        configMap:
+          name: matomo-nginx
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: matomo
+  labels:
+    app: matomo
+    app.kubernetes.io/name: matomo
+    app.kubernetes.io/component: server
+    {{- include "matomo.commonLabels" $ | nindent 4 }}
+spec:
+  selector:
+    app.kubernetes.io/name: matomo
+  ports:
+  - name: http
+    port: 8080
+    targetPort: http
+    protocol: TCP
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: matomo
+  labels:
+    app: matomo
+    app.kubernetes.io/name: matomo
+    app.kubernetes.io/component: route
+    {{- include "matomo.commonLabels" $ | nindent 4 }}
+    {{- with .Values.route.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .Values.route.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.route.hostname }}
+  host: {{ . }}
+  {{- end }}
+  path: /
+  to:
+    kind: Service
+    name: matomo
+    weight: 100
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+  wildcardPolicy: None
