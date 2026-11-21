@@ -93,6 +93,22 @@ spec:
         - name: ODOO_API_KEY_FILE
           value: /etc/chatwoot-agent-odoo/odoo-api-key
         {{- end }}
+        {{- with .Values.agentBot.quotations }}
+        {{- if .enabled }}
+        {{- if not (include "wrapper.botRecords" $) }}
+        {{- fail "agentBot.quotations.enabled needs odoo.website.identity.records: the bridge's Odoo key" }}
+        {{- end }}
+        # a QUOTE answer of the bot's agent becomes an Odoo quotation (see README, Quotations)
+        - name: QUOTATIONS
+          value: "1"
+        - name: QUOTE_MARKER
+          value: {{ .marker | quote }}
+        - name: QUOTE_SENT_MESSAGE
+          value: {{ .sentMessage | quote }}
+        - name: QUOTE_REFUSED_MESSAGE
+          value: {{ .refusedMessage | quote }}
+        {{- end }}
+        {{- end }}
         {{- end }}
         {{- if .Values.draftAgent.enabled }}
         {{- $d := .Values.draftAgent }}

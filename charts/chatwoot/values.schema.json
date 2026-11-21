@@ -652,6 +652,17 @@
         "failureMessage": {
           "type": "string"
         },
+        "quotations": {
+          "type": "object",
+          "title": "QUOTE answers of the agent become Odoo quotations",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {"type": "boolean"},
+            "marker": {"type": "string", "pattern": "^[A-Z][A-Z_]{2,31}$"},
+            "sentMessage": {"type": "string", "minLength": 1},
+            "refusedMessage": {"type": "string", "minLength": 1}
+          }
+        },
         "agentUrl": {
           "type": "string",
           "description": "A2A address of the bot's own agent; empty: agent.url"

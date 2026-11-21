@@ -28,6 +28,14 @@ Odoo lacks after "missing:"; phone and company the login passed fill a gap only.
 other visitor is not logged in, whatever address they type: the agent gets no name, no email
 and no record. The agent never reads Odoo itself on this path.
 
+With QUOTATIONS an answer of the bot's agent that holds "<QUOTE_MARKER> {json}" never
+reaches the visitor, none of it: the bridge passes the JSON object to Odoo (sale.order
+grncloud_chat_quote of module grncloud_chat_order) with the conversation and, for a
+logged-in visitor only, the verified email. Odoo checks products, options and limits, makes
+the quotation and mails it; the visitor gets QUOTE_SENT_MESSAGE with its number, or
+QUOTE_REFUSED_MESSAGE with Odoo's reason. The agent learns the outcome from a bridge note
+before the visitor's next message. A failure of Odoo hands the conversation to staff.
+
 With PANEL_PORT it serves the agent panel instead or as well, a Chatwoot Dashboard App in
 the conversation sidebar: staff ask the same agent to summarise the conversation, suggest a
 reply or answer a question. It listens on 127.0.0.1 next to oauth2-proxy, so only a request
@@ -90,6 +98,11 @@ SIGNATURE_AGE = 300
 TERMINAL = {"completed", "failed", "canceled", "rejected", "input-required", "auth-required"}
 
 
+QUOTE_SENT = ("Quotation {order} is on its way to {email}. Review it in the customer portal, then "
+              "sign and pay it there to order; nothing is ordered before that.")
+QUOTE_REFUSED = "I could not make that quotation: {error}"
+
+
 def read_file(path):
     with open(path, encoding="utf-8") as f:
         return f.read().strip()
@@ -114,6 +127,20 @@ class Config:
         self.odoo_key_file = env.get("ODOO_API_KEY_FILE", "")
         if self.identity_records and not (self.odoo_url.startswith("https://") and self.odoo_key_file):
             raise ValueError("IDENTITY_RECORDS needs an https ODOO_URL and ODOO_API_KEY_FILE")
+        # a QUOTE answer of the bot's agent becomes an Odoo quotation
+        self.quotations = env.get("QUOTATIONS", "") == "1"
+        self.quote_marker = env.get("QUOTE_MARKER", "QUOTE").strip()
+        self.quote_sent_message = env.get("QUOTE_SENT_MESSAGE", QUOTE_SENT)
+        self.quote_refused_message = env.get("QUOTE_REFUSED_MESSAGE", QUOTE_REFUSED)
+        if self.quotations and not (self.odoo_url.startswith("https://") and self.odoo_key_file
+                                    and self.quote_marker):
+            raise ValueError("QUOTATIONS needs an https ODOO_URL, ODOO_API_KEY_FILE and a QUOTE_MARKER")
+        # a broken template must fail at start, not after Odoo mailed the quotation
+        try:
+            self.quote_sent_message.format(order="S0", email="a@b.c")
+            self.quote_refused_message.format(error="x")
+        except (KeyError, IndexError, ValueError) as e:
+            raise ValueError(f"QUOTE_SENT_MESSAGE or QUOTE_REFUSED_MESSAGE: {e!r}") from None
         self.a2a_timeout = int(env.get("A2A_TIMEOUT", "300"))
         self.auth = env.get("A2A_AUTH", "none")
         self.token_file = env.get("A2A_TOKEN_FILE", "")
@@ -183,6 +210,27 @@ def normalize(text):
 def hands_off(reply, marker):
     """Whether an answer of the agent asks for a person: the marker as a word of its own."""
     return bool(marker) and re.search(r"(?<!\w)" + re.escape(marker) + r"(?!\w)", reply or "") is not None
+
+
+def quote_request(reply, marker):
+    """The quotation an answer asks for: the JSON object after the marker (a word of its own,
+    then "{", optionally after a colon), anywhere in the answer and over several lines; False
+    when no JSON object can be read there; None for an answer without it."""
+    if not marker:
+        return None
+    # any case, an optional colon and code fence; the first one that reads as an object wins
+    pattern = r"(?<!\w)" + re.escape(marker) + r"\s*:?\s*(?:```(?:json)?\s*)?(?=\{)"
+    request = None
+    for found in re.finditer(pattern, reply or "", re.IGNORECASE):
+        try:
+            obj, _ = json.JSONDecoder().raw_decode(reply[found.end():])
+        except ValueError:
+            request = False
+            continue
+        if isinstance(obj, dict):
+            return obj
+        request = False
+    return request
 
 
 # a category is a label the bridge sets; LABEL is any label of Chatwoot (letters, digits, - and _)
@@ -471,17 +519,44 @@ def login_profile(conversation):
     return {k: v for k, v in out.items() if v}
 
 
+class Quotations:
+    """A QUOTE answer of the bot's agent as an Odoo quotation, through sale.order
+    grncloud_chat_quote with the bridge's API key. Odoo decides: products, options, prices,
+    limits and the partner (the verified email's own, else a new contact) are its checks."""
+
+    def __init__(self, config, odoo=None):
+        self.config = config
+        if odoo is None:
+            sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+            import odoo_bridge  # the Odoo client of the chart, in the same directory
+            odoo = odoo_bridge.Odoo(config)
+        self.odoo = odoo
+
+    def create(self, account, conversation, quote, email):
+        kwargs = {"conversation": f"{account}:{conversation}", "quote": quote}
+        if email:
+            kwargs["verified_email"] = email
+        result = self.odoo.call("sale.order", "grncloud_chat_quote", **kwargs)
+        if not isinstance(result, dict) or "ok" not in result:
+            raise RuntimeError(f"grncloud_chat_quote answered {type(result).__name__}")
+        return result
+
+
 NOT_LOGGED_IN = ("[Bridge] The visitor is not logged in. You have no customer data and must not "
                  "claim any: answer from public information only. A visitor who asks about their "
                  "own orders, invoices or tickets can log in on the website first.")
 
 
 class Bot:
-    def __init__(self, config, credentials=None, records=None):
+    def __init__(self, config, credentials=None, records=None, quotations=None):
         self.config = config
         self.credentials = credentials or Credentials(config)
         self.records = records if records is not None else (
             CustomerRecords(config) if config.identity_records else None)
+        self.quotations = quotations if quotations is not None else (
+            Quotations(config) if config.quotations else None)
+        # per conversation: the outcome of its last QUOTE, for the agent's next turn
+        self.notes = {}
         self.contexts = {}
         self.locks = {}
         self.locks_lock = threading.Lock()
@@ -614,7 +689,9 @@ class Bot:
             self.hand_off(account, conv["id"], c.handoff_message)
             return
         context_id = self.context_of(account, conv)
-        text = self.who(conv) + "\n\n" + content
+        # kept until the agent got it: a failed call must not lose a quotation's outcome
+        note = self.notes.get((account, conv["id"]))
+        text = self.who(conv) + ("\n" + note if note else "") + "\n\n" + content
         if c.instructions and not context_id:
             text = c.instructions + "\n\n" + text
         email = verified_email(conv)
@@ -628,13 +705,54 @@ class Bot:
             LOG.warning("conversation %s: agent failed: %s", conv["id"], e)
             self.hand_off(account, conv["id"], c.failure_message)
             return
+        if note:
+            self.notes.pop((account, conv["id"]), None)
         self.remember(account, conv, context_id)
+        request = quote_request(reply, c.quote_marker) if self.quotations else None
+        if request is not None:
+            # the whole answer stays with the bridge; a HANDOFF in it still hands off
+            if self.quote(account, conv, request, email) and hands_off(reply, c.marker):
+                self.hand_off(account, conv["id"], c.handoff_message)
+            return
         if not reply or hands_off(reply, c.marker):
             LOG.info("conversation %s: handoff by the agent", conv["id"])
             self.hand_off(account, conv["id"], c.handoff_message)
             return
         self.say(account, conv["id"], reply)
         LOG.info("conversation %s: answered", conv["id"])
+
+
+    def quote(self, account, conv, request, email):
+        """A quotation request of the agent: the quotation in Odoo, the outcome to the visitor
+        and, at the next message, to the agent. The answer itself never reaches the visitor.
+        False when the conversation went to staff."""
+        c, key, m = self.config, (account, conv["id"]), self.config.quote_marker
+        if request is False:
+            result = {"ok": False, "error": "the request was not one JSON object"}
+        else:
+            try:
+                result = self.quotations.create(account, conv["id"], request, email)
+                if result.get("ok") and not (result.get("order") and result.get("email")):
+                    raise RuntimeError("grncloud_chat_quote named no order or email")
+            except Exception as e:  # Odoo down, slow or the module missing: staff take over
+                LOG.warning("conversation %s: quotation failed: %s", conv["id"], e)
+                self.notes[key] = (f"[Bridge] Your {m} failed in the system; a quotation may or may "
+                                   "not exist. Staff took over; do not send it again.")
+                self.hand_off(account, conv["id"], c.failure_message)
+                return False
+        if result.get("ok"):
+            order, to = str(result["order"]), str(result["email"])
+            LOG.info("conversation %s: quotation %s sent", conv["id"], order)
+            self.notes[key] = (f"[Bridge] Your {m} made quotation {order}; it is mailed to {to}. "
+                               f"Do not send the same {m} again.")
+            self.say(account, conv["id"], c.quote_sent_message.format(order=order, email=to))
+            return True
+        error = str(result.get("error") or "unknown reason")[:500]
+        LOG.info("conversation %s: quotation refused: %s", conv["id"], error)
+        self.notes[key] = (f"[Bridge] Your {m} was refused: {error}. Nothing was made. Fix what "
+                           f"was refused with the visitor before you send {m} again.")
+        self.say(account, conv["id"], c.quote_refused_message.format(error=error))
+        return True
 
 
 PANEL_PROMPTS = {
