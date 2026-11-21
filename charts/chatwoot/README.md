@@ -257,6 +257,37 @@ window.$chatwoot.setUser(email, { email: email, name: name, identifier_hash: has
   the inbox's identity validation key. Compute the hash on the site's server, never in the
   browser.
 
+#### Quotations
+
+With `agentBot.quotations.enabled` (needs `odoo.website.identity.records`) the agent can
+make a quotation. Odoo needs module `grncloud_chat_order`, and the bridge's Odoo user needs
+its group "Website chat quotations".
+
+```mermaid
+sequenceDiagram
+    participant V as Visitor
+    participant B as Agent bridge
+    participant A as Agent
+    participant O as Odoo
+    V->>B: "Send me a quotation"
+    B->>A: message with the bridge note
+    A-->>B: QUOTE {"product_id": 7, "options": {...}, "contact": {...}}
+    B->>O: sale.order grncloud_chat_quote(conversation, quote, verified_email)
+    O-->>B: {"ok": true, "order": "S00042", "email": "..."}
+    B->>V: sentMessage with S00042
+    Note over B,A: next message: "[Bridge] Your QUOTE made quotation S00042"
+```
+
+- An answer with a line `<marker> {json}` never reaches the visitor; text before it is
+  dropped too.
+- Only a verified email goes to Odoo as `verified_email`. Odoo puts the quotation on that
+  customer's own partner; for anyone else it makes a new contact from the JSON.
+- Odoo checks the products, options, prices and limits and mails the quotation. The visitor
+  gets `sentMessage` (`{order}`, `{email}`) or `refusedMessage` (`{error}`); the agent gets
+  the outcome in the bridge note of the next message.
+- A failure of Odoo, or an answer that is no `{"ok": ...}` object, hands the conversation
+  to a person with `agentBot.failureMessage`.
+
 ### Agent panel
 
 With `copilotPanel.enabled` the Job registers a Dashboard App `copilotPanel.title` at
