@@ -1,0 +1,118 @@
+route:
+  # hostname of Activepieces; required: webhooks, OAuth callbacks and the piece
+  # downloads of the worker use it
+  hostname: ""
+  # extra labels of the Route, such as the one that picks a router shard
+  labels: {}
+  # annotations of the Route; the cert-manager ones issue its certificate
+  annotations:
+    cert-manager.io/issuer-kind: ClusterIssuer
+    cert-manager.io/issuer-name: letsencrypt
+
+image:
+  # Activepieces community edition image
+  repository: ghcr.io/activepieces/activepieces
+  # pinned Activepieces version
+  tag: 0.93.0
+  # pull policy of every container
+  pullPolicy: IfNotPresent
+
+# how flows run their code steps: SANDBOX_CODE_ONLY isolates code steps in V8 (npm
+# imports in code steps fail); UNSANDBOXED runs them in the worker process with its
+# environment. The process sandboxes need CAP_SYS_ADMIN and do not run here.
+executionMode: SANDBOX_CODE_ONLY
+
+# flow runs one worker processes at once
+workerConcurrency: 5
+
+# days that run data, logs and events are kept
+executionDataRetentionDays: 30
+
+# CPU and memory of the Activepieces container (API and worker in one pod)
+resources:
+  requests:
+    cpu: 500m
+    memory: 1Gi
+  limits:
+    cpu: "2"
+    memory: 3Gi
+
+cache:
+  # size limit of the piece and code cache; it is filled again after a restart
+  sizeLimit: 5Gi
+
+# extra labels of the pod template, such as a service mesh opt-out
+podLabels: {}
+
+# components Activepieces calls, as {apiVersion, kind, name}, for the console topology
+connectsTo: []
+
+# further Activepieces settings as environment variables, for example AP_SMTP_*
+extraEnv: []
+
+database:
+  # PostgreSQL image of the CloudNativePG operator
+  imageName: ghcr.io/cloudnative-pg/postgresql:17.11-standard-trixie
+  # PostgreSQL instances; 2 adds a standby
+  instances: 1
+  # size of the database volume of each instance
+  size: 5Gi
+  # storage class of the database volume; empty: the cluster default
+  storageClassName: ""
+  # CPU and memory of each database instance
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  backup:
+    # scheduled backup through the barman-cloud plugin to an existing ObjectStore
+    enabled: false
+    # name of the barman-cloud ObjectStore in this project
+    objectStoreName: ""
+    # cron schedule with seconds, as CloudNativePG expects
+    schedule: "0 0 3 * * *"
+
+queue:
+  # Valkey image of the job queue
+  image: docker.io/valkey/valkey:8.1.11-alpine
+  # size of the queue volume
+  size: 1Gi
+  # storage class of the queue volume; empty: the cluster default
+  storageClassName: ""
+  # CPU and memory of the queue
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+secrets:
+  # kubernetes: Secret from the values below. externalSecret: from a secret store
+  type: kubernetes
+  # name of an existing Secret with the keys encryption-key, jwt-secret and
+  # queue-password; the chart then renders no Secret of its own
+  existingSecret: ""
+  # key that encrypts the stored connections; 32 hexadecimal characters are used as
+  # they are, any other text is hashed to them; empty: generated once and kept
+  encryptionKey: ""
+  # key that signs the login tokens; empty: generated once and kept
+  jwtSecret: ""
+  # password of the Valkey queue; empty: generated once and kept
+  queuePassword: ""
+  externalSecret:
+    # kind of the secret store
+    storeKind: ClusterSecretStore
+    # name of the secret store; required with type externalSecret
+    storeName: ""
+    # how often the Secret is refreshed from the store
+    refreshInterval: 1h
+    # vault item per key; the value is read from the item's password
+    items:
+      encryption-key: activepieces-encryption-key
+      jwt-secret: activepieces-jwt-secret
+      queue-password: activepieces-queue-password

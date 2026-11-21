@@ -1,0 +1,25 @@
+apiVersion: v2
+name: activepieces
+description: Activepieces workflow automation with a PostgreSQL database and a Valkey queue
+type: application
+version: 0.1.0
+appVersion: "0.93.0"
+home: https://apps.openshift.eu
+icon: https://cdn.activepieces.com/brand/logo.svg
+keywords:
+- automation
+- workflow
+- integration
+- no-code
+- mcp
+sources:
+- https://github.com/activepieces/activepieces
+- https://github.com/hoolia/apps.openshift.eu
+maintainers:
+- name: GRN.CLOUD B.V.
+  url: https://apps.openshift.eu
+annotations:
+  charts.openshift.io/name: activepieces
+  charts.openshift.io/provider: GRN.CLOUD B.V.
+  apps.openshift.eu/category: automation
+  apps.openshift.eu/vendor: Activepieces Inc

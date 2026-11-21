@@ -1,0 +1,215 @@
+{{- $secret := include "activepieces.secretName" . }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: activepieces
+  labels:
+    app: activepieces
+    app.kubernetes.io/name: activepieces
+    app.kubernetes.io/component: server
+    {{- include "activepieces.commonLabels" $ | nindent 4 }}
+    app.openshift.io/runtime: nodejs
+  annotations:
+    app.openshift.io/custom-icon: {{ .Chart.Icon }}
+    app.openshift.io/connects-to: {{ concat (list (dict "apiVersion" "postgresql.cnpg.io/v1" "kind" "Cluster" "name" "activepieces-db") (dict "apiVersion" "apps/v1" "kind" "Deployment" "name" "activepieces-queue")) .Values.connectsTo | toJson | squote }}
+spec:
+  replicas: 1
+  # one version migrates the database at a time
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: activepieces
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: activepieces
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      automountServiceAccountToken: false
+      # the worker finishes its running flows before the API stops
+      terminationGracePeriodSeconds: 705
+      initContainers:
+      # the API exits when the database does not answer; on a first install the
+      # database starts minutes later, so wait instead of crash-looping
+      - name: wait-for-database
+        image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command:
+        - node
+        - -e
+        - |
+          const net = require('net');
+          const tryOnce = () => {
+            const s = net.connect(5432, 'activepieces-db-rw');
+            s.on('connect', () => { s.end(); process.exit(0); });
+            s.on('error', () => { s.destroy(); setTimeout(tryOnce, 3000); });
+          };
+          tryOnce();
+        resources:
+          requests:
+            cpu: 10m
+            memory: 64Mi
+          limits:
+            memory: 256Mi
+        securityContext:
+          {{- include "activepieces.restricted" . | nindent 10 }}
+      containers:
+      - name: activepieces
+        image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        env:
+        - name: HOME
+          value: /tmp
+        - name: AP_PORT
+          value: "8080"
+        - name: AP_FRONTEND_URL
+          value: {{ include "activepieces.url" . }}
+        - name: AP_ENVIRONMENT
+          value: prod
+        - name: AP_EDITION
+          value: ce
+        - name: AP_EXECUTION_MODE
+          value: {{ .Values.executionMode }}
+        - name: AP_WORKER_CONCURRENCY
+          value: {{ .Values.workerConcurrency | quote }}
+        - name: AP_EXECUTION_DATA_RETENTION_DAYS
+          value: {{ .Values.executionDataRetentionDays | quote }}
+        - name: AP_CONFIG_PATH
+          value: /usr/src/app/cache/config
+        - name: AP_TELEMETRY_ENABLED
+          value: "false"
+        - name: AP_QUEUE_UI_ENABLED
+          value: "false"
+        - name: AP_DB_TYPE
+          value: POSTGRES
+        - name: AP_POSTGRES_HOST
+          value: activepieces-db-rw
+        - name: AP_POSTGRES_PORT
+          value: "5432"
+        - name: AP_POSTGRES_DATABASE
+          value: activepieces
+        - name: AP_POSTGRES_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: activepieces-db-app
+              key: username
+        - name: AP_POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: activepieces-db-app
+              key: password
+        - name: AP_REDIS_TYPE
+          value: STANDALONE
+        - name: AP_REDIS_HOST
+          value: activepieces-queue
+        - name: AP_REDIS_PORT
+          value: "6379"
+        - name: AP_REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ $secret }}
+              key: queue-password
+        - name: AP_ENCRYPTION_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ $secret }}
+              key: encryption-key
+        - name: AP_JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: {{ $secret }}
+              key: jwt-secret
+        {{- with .Values.extraEnv }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        # the first start migrates the database and syncs the piece catalogue
+        startupProbe:
+          httpGet:
+            path: /api/v1/health
+            port: http
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 60
+        readinessProbe:
+          httpGet:
+            path: /api/v1/health
+            port: http
+          periodSeconds: 10
+          timeoutSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /api/v1/health
+            port: http
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 5
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
+        securityContext:
+          {{- include "activepieces.restricted" . | nindent 10 }}
+        volumeMounts:
+        - name: cache
+          mountPath: /usr/src/app/cache
+        - name: tmp
+          mountPath: /tmp
+      volumes:
+      - name: cache
+        emptyDir:
+          sizeLimit: {{ .Values.cache.sizeLimit }}
+      - name: tmp
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: activepieces
+  labels:
+    app: activepieces
+    app.kubernetes.io/name: activepieces
+    app.kubernetes.io/component: server
+    {{- include "activepieces.commonLabels" $ | nindent 4 }}
+spec:
+  selector:
+    app.kubernetes.io/name: activepieces
+  ports:
+  - name: http
+    port: 8080
+    targetPort: http
+    protocol: TCP
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: activepieces
+  labels:
+    app: activepieces
+    app.kubernetes.io/name: activepieces
+    app.kubernetes.io/component: route
+    {{- include "activepieces.commonLabels" $ | nindent 4 }}
+    {{- with .Values.route.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .Values.route.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  host: {{ .Values.route.hostname }}
+  path: /
+  to:
+    kind: Service
+    name: activepieces
+    weight: 100
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+  wildcardPolicy: None
