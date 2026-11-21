@@ -168,6 +168,10 @@ flowchart LR
 
 - The bridge refuses a webhook without a valid `X-Chatwoot-Signature`, and only the worker
   pods reach it.
+- An answer that holds `agentBot.handoff.marker` as a word of its own, anywhere in the
+  text (`HANDOFF`, `I'll pass you on. HANDOFF`), hands off: the customer gets
+  `agentBot.handoff.message`, never the rest of that answer. `HANDOFFS` or `handoff` is
+  text.
 - The first message of a conversation carries `agentBot.instructions`; the A2A context id is
   kept in the conversation's custom attribute `a2a_context_id`, so later messages continue it.
 - Chatwoot refuses webhooks to private addresses. The chart initializer of web and worker

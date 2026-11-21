@@ -193,6 +193,23 @@ class BotTest(Base):
                                              "/api/v1/accounts/1/conversations/7/toggle_status"])
         self.assertEqual(self.state["chatwoot"][-2][1]["content"], "A colleague takes over.")
 
+    def test_marker_inside_an_answer_hands_off(self):
+        for answer in ("I'll pass you to a colleague. HANDOFF", "HANDOFF.", "**HANDOFF**", "ok\nHANDOFF\n"):
+            self.state["chatwoot"].clear()
+            self.state["agent"] = lambda b, a=answer: message(a)
+            self.bot().handle(event())
+            self.assertEqual(self.paths()[-2:], ["/api/v1/accounts/1/conversations/7/messages",
+                                                 "/api/v1/accounts/1/conversations/7/toggle_status"], answer)
+            # the customer gets the handoff message, not the agent's text
+            self.assertEqual([m[1]["content"] for m in self.state["chatwoot"] if "content" in m[1]],
+                             ["A colleague takes over."], answer)
+
+    def test_marker_as_part_of_a_word_is_an_answer(self):
+        self.assertFalse(agent_bot.hands_off("Our HANDOFFS take a day.", "HANDOFF"))
+        self.assertFalse(agent_bot.hands_off("A handoff is possible.", "HANDOFF"))
+        self.assertFalse(agent_bot.hands_off("HANDOFF", ""))
+        self.assertTrue(agent_bot.hands_off("-HANDOFF-", "HANDOFF"))
+
     def test_failure_hands_off(self):
         for failure in (500, {"error": {"code": -32000, "message": "boom"}},
                         {"result": {"kind": "task", "id": "t", "status": {"state": "failed"}}}):
