@@ -140,7 +140,8 @@ def to_entry(obj: dict, name: str) -> tuple[dict | None, str]:
         entry["url"] = PROXY + url[len(UPSTREAM):]
     elif spec.get("headersFrom"):
         return None, "needs headers from a Secret"
-    entry["timeout"] = 120
+    # one MCP tool call: the same 300 s as the platform gateway and every MCP client
+    entry["timeout"] = 300
     return entry, ""
 
 
