@@ -51,7 +51,7 @@
         "url": {"type": "string", "pattern": "^(https?://.+)?$"},
         "accountId": {"type": "integer", "minimum": 1},
         "leadAttribute": {"type": "string", "minLength": 1},
-        "excludedSenderIds": {"type": "string", "pattern": "^([0-9]+(,[0-9]+)*)?$"}
+        "excludedSenderIds": {"type": ["string", "integer"], "pattern": "^([0-9]+(,[0-9]+)*)?$"}
       }
     },
     "odoo": {
