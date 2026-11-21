@@ -257,6 +257,16 @@ odoo:
     # Empty: chats stay tickets
     salesLabel: sales
     cancelledStage: Cancelled
+    # Chatwoot identity validation on the Website inbox: the site signs the identifier of a
+    # logged-in customer (their email) with the key secrets.websiteIdentityKey and passes it
+    # to the widget (setUser with identifier_hash); a contact identifier without a valid
+    # signature is refused. Only such a conversation counts as a logged-in customer
+    identity:
+      enabled: false
+      # with agentBot.enabled: the bot's agent gets the logged-in customer's own partner,
+      # sale orders, subscriptions and tickets, read by the bridge with secrets.odooApiKey.
+      # The bridge then needs Odoo's address in networkPolicy.agentEgress
+      records: true
   # leads made by the sales label (odoo.website.salesLabel)
   sales:
     # the label, added by staff on a conversation of ticketInbox, also moves it to sales: a
@@ -415,6 +425,11 @@ agentBot:
   # names of the inboxes the bot answers in; "*" is every inbox. A listed inbox is taken
   # from any other bot; an inbox created later is connected on the next upgrade
   inboxes: []
+  # A2A address of the bot's own agent, with agent.auth; empty: agent.url. A bot that
+  # answers the public needs an agent without access to customer data: before every message
+  # the bridge tells it whether the visitor is a customer the website verified
+  # (odoo.website.identity), and with whose records
+  agentUrl: ""
   # what the agent reads before the first message of each conversation
   instructions: >-
     You answer a customer in a support chat. Reply with the message for the customer only,
@@ -522,6 +537,9 @@ secrets:
   # API token of the Jira site, with odoo.panel.issues.url; required (read access to the
   # linked issues is enough)
   issueTrackerToken: ""
+  # identity validation key of the Website inbox, with odoo.website.identity.enabled; the
+  # site that signs customers needs the same value. Empty: generated once and kept
+  websiteIdentityKey: ""
   externalSecret:
     storeKind: ClusterSecretStore
     storeName: ""
@@ -544,3 +562,4 @@ secrets:
       odoo-bridge-token: chatwoot-odoo-bridge-token
       odoo-inbox-secret: chatwoot-odoo-inbox-secret
       issue-tracker-token: chatwoot-issue-tracker-token
+      website-identity-key: chatwoot-website-identity-key

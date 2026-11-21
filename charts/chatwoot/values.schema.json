@@ -383,7 +383,15 @@
             "ticketsPerHour": {"type": "integer", "minimum": 1},
             "conversationsPerMinute": {"type": "integer", "minimum": 1},
             "salesLabel": {"type": "string", "title": "Label that moves a chat to a lead", "pattern": "^([A-Za-z0-9_-]{1,64})?$"},
-            "cancelledStage": {"type": "string", "title": "Stage of a ticket whose chat moved to a lead"}
+            "cancelledStage": {"type": "string", "title": "Stage of a ticket whose chat moved to a lead"},
+            "identity": {
+              "type": "object",
+              "title": "Identity validation of logged-in customers",
+              "properties": {
+                "enabled": {"type": "boolean"},
+                "records": {"type": "boolean", "title": "The bot's agent gets the customer's own Odoo records"}
+              }
+            }
           }
         },
         "sales": {
@@ -622,6 +630,10 @@
         },
         "failureMessage": {
           "type": "string"
+        },
+        "agentUrl": {
+          "type": "string",
+          "description": "A2A address of the bot's own agent; empty: agent.url"
         }
       }
     },
@@ -700,6 +712,10 @@
         "issueTrackerToken": {
           "type": "string",
           "description": "API token of the Jira site, with odoo.panel.issues.url"
+        },
+        "websiteIdentityKey": {
+          "type": "string",
+          "description": "Identity validation key of the Website inbox, with odoo.website.identity.enabled"
         },
         "draftToken": {
           "type": "string"

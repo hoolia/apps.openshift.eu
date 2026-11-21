@@ -78,6 +78,21 @@ spec:
           value: {{ .Values.agentBot.handoff.message | quote }}
         - name: FAILURE_MESSAGE
           value: {{ .Values.agentBot.failureMessage | quote }}
+        - name: BOT_A2A_URL
+          value: {{ .Values.agentBot.agentUrl | quote }}
+        - name: BOT_INBOXES
+          value: {{ join "," .Values.agentBot.inboxes | quote }}
+        {{- if include "wrapper.botRecords" . }}
+        # the own Odoo records of a customer the website verified, read by the bridge
+        - name: IDENTITY_RECORDS
+          value: "1"
+        - name: ODOO_URL
+          value: {{ .Values.odoo.url | trimSuffix "/" | quote }}
+        - name: ODOO_DATABASE
+          value: {{ .Values.odoo.database | quote }}
+        - name: ODOO_API_KEY_FILE
+          value: /etc/chatwoot-agent-odoo/odoo-api-key
+        {{- end }}
         {{- end }}
         {{- if .Values.draftAgent.enabled }}
         {{- $d := .Values.draftAgent }}
@@ -161,6 +176,11 @@ spec:
           mountPath: /etc/chatwoot-draft
           readOnly: true
         {{- end }}
+        {{- if include "wrapper.botRecords" . }}
+        - name: odoo
+          mountPath: /etc/chatwoot-agent-odoo
+          readOnly: true
+        {{- end }}
         {{- if .Values.tenantFacts.enabled }}
         - name: kube
           mountPath: /var/run/secrets/kube
@@ -194,6 +214,12 @@ spec:
       - name: draft
         secret:
           secretName: chatwoot-draft
+          defaultMode: 0440
+      {{- end }}
+      {{- if include "wrapper.botRecords" . }}
+      - name: odoo
+        secret:
+          secretName: chatwoot-agent-odoo
           defaultMode: 0440
       {{- end }}
       {{- if .Values.tenantFacts.enabled }}

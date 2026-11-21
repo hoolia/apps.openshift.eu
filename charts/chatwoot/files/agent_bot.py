@@ -8,6 +8,16 @@ conversation, and the answer comes back as an outgoing message with the bot's ac
 A listed keyword, an answer that is the handoff marker, or a failure sets the conversation
 to open, so staff take over. The bot never sees a conversation that is open.
 
+BOT_A2A_URL names the bot's own agent; without it the bot asks A2A_URL like the other
+paths. Every message the bot passes on starts with a note of the bridge on who writes. A
+visitor counts as logged in only when Chatwoot verified the contact in this conversation
+(identity validation: the website signed the contact's identifier, and hmac_verified is set
+on the conversation's contact inbox); the identifier is then the customer's email. With
+IDENTITY_RECORDS the note of a logged-in customer holds that customer's own partner, sale
+orders, subscriptions and tickets, read by the bridge from Odoo for exactly that email. Any
+other visitor is not logged in, whatever address they type: the agent gets no name, no email
+and no record. The agent never reads Odoo itself on this path.
+
 With PANEL_PORT it serves the agent panel instead or as well, a Chatwoot Dashboard App in
 the conversation sidebar: staff ask the same agent to summarise the conversation, suggest a
 reply or answer a question. It listens on 127.0.0.1 next to oauth2-proxy, so only a request
@@ -83,6 +93,17 @@ class Config:
         self.webhook_secret_file = env.get("WEBHOOK_SECRET_FILE", "")
         self.bot_enabled = bool(self.bot_token_file and self.webhook_secret_file)
         self.a2a_url = env["A2A_URL"]
+        # the agent of the bot path; the drafts, the triage and the panel keep A2A_URL
+        self.bot_a2a_url = env.get("BOT_A2A_URL", "").strip() or self.a2a_url
+        # the inboxes the bot holds: there a pending conversation is the bot's, not a draft's
+        self.bot_inboxes = {i.strip() for i in env.get("BOT_INBOXES", "").split(",") if i.strip()}
+        # the logged-in customer's own Odoo records in the bot's note
+        self.identity_records = env.get("IDENTITY_RECORDS", "") == "1"
+        self.odoo_url = env.get("ODOO_URL", "").rstrip("/")
+        self.odoo_database = env.get("ODOO_DATABASE", "")
+        self.odoo_key_file = env.get("ODOO_API_KEY_FILE", "")
+        if self.identity_records and not (self.odoo_url.startswith("https://") and self.odoo_key_file):
+            raise ValueError("IDENTITY_RECORDS needs an https ODOO_URL and ODOO_API_KEY_FILE")
         self.a2a_timeout = int(env.get("A2A_TIMEOUT", "300"))
         self.auth = env.get("A2A_AUTH", "none")
         self.token_file = env.get("A2A_TOKEN_FILE", "")
@@ -253,10 +274,131 @@ class Credentials:
         return {"Authorization": "Bearer " + token}
 
 
+EMAIL = re.compile(r"^[^@\s<>]{1,64}@[A-Za-z0-9.-]{1,253}\.[A-Za-z]{2,63}$")
+
+
+def verified_email(conversation):
+    """The customer's email when Chatwoot verified the contact of this conversation, else None.
+
+    hmac_verified belongs to the conversation's contact inbox: only the browser that passed
+    identity validation has it. The identifier is what the website signed, never what the
+    visitor typed; an email typed in the pre-chat form changes neither."""
+    meta = (conversation or {}).get("meta") or {}
+    if meta.get("hmac_verified") is not True:
+        return None
+    identifier = (meta.get("sender") or {}).get("identifier")
+    if not isinstance(identifier, str) or not EMAIL.match(identifier.strip()):
+        return None
+    return identifier.strip().lower()
+
+
+MAX_RECORDS = 10
+
+
+class CustomerRecords:
+    """The own records of one logged-in customer, read from Odoo with the bridge's API key: the
+    partner whose email is exactly that address, and its company's sale orders, subscriptions
+    and helpdesk tickets. Kept two minutes per address. Nothing else is read."""
+
+    def __init__(self, config, odoo=None):
+        self.config = config
+        if odoo is None:
+            sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+            import odoo_bridge  # the Odoo client of the chart, in the same directory
+            odoo = odoo_bridge.Odoo(config)
+        self.odoo = odoo
+        self.cache = {}
+        self.lock = threading.Lock()
+
+    @staticmethod
+    def name(value):
+        return value[1] if isinstance(value, list) and len(value) == 2 else ""
+
+    def partner(self, email):
+        """(company partner id, its name) of the address, None for no or several companies."""
+        escaped = email.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        rows = self.odoo.call("res.partner", "search_read", domain=[["email", "=ilike", escaped]],
+                              fields=["id", "name", "commercial_partner_id"], limit=20) or []
+        companies = {}
+        for r in rows:
+            cp = r.get("commercial_partner_id")
+            pid = cp[0] if isinstance(cp, list) and cp else r.get("id")
+            companies[pid] = self.name(cp) or r.get("name") or ""
+        if len(companies) != 1:
+            return None, len(companies)
+        (pid, name), = companies.items()
+        return (pid, name), 1
+
+    def part(self, title, read):
+        try:
+            lines = read()
+        except Exception as e:  # one part not readable; the others still show
+            LOG.warning("customer records: %s not read: %s", title, type(e).__name__)
+            return [f"{title}: not available"]
+        return [f"{title}: none"] if not lines else [f"{title}:"] + ["- " + x for x in lines]
+
+    def orders(self, pid):
+        rows = self.odoo.call("sale.order", "search_read", domain=[["partner_id", "child_of", pid]],
+                              fields=["name", "state", "amount_total", "currency_id", "date_order"],
+                              order="date_order desc", limit=MAX_RECORDS) or []
+        return [f"{plain(r.get('name'), ' ', 40)}, {plain(r.get('state'), '', 20)}, "
+                f"{(r.get('date_order') or '')[:10]}, {r.get('amount_total')} {plain(self.name(r.get('currency_id')), '', 8)}"
+                for r in rows]
+
+    def subscriptions(self, pid):
+        rows = self.odoo.call("sale.order", "search_read",
+                              domain=[["partner_id", "child_of", pid], ["is_subscription", "=", True]],
+                              fields=["name", "subscription_state", "recurring_monthly", "currency_id",
+                                      "next_invoice_date"], order="id desc", limit=MAX_RECORDS) or []
+        return [f"{plain(r.get('name'), ' ', 40)}, {plain(r.get('subscription_state'), '', 30)}, "
+                f"{r.get('recurring_monthly')} {plain(self.name(r.get('currency_id')), '', 8)} a month, "
+                f"next invoice {r.get('next_invoice_date') or 'none'}" for r in rows]
+
+    def tickets(self, pid):
+        rows = self.odoo.call("helpdesk.ticket", "search_read", domain=[["partner_id", "child_of", pid]],
+                              fields=["name", "stage_id", "create_date"], order="create_date desc",
+                              limit=MAX_RECORDS) or []
+        return [f"{plain(r.get('name'), ' ', 120)}, {plain(self.name(r.get('stage_id')), ' ', 40)}, "
+                f"opened {(r.get('create_date') or '')[:10]}" for r in rows]
+
+    def text(self, email):
+        """The records as lines for the bridge's note."""
+        now = time.time()
+        with self.lock:
+            hit = self.cache.get(email)
+            if hit and hit[1] > now:
+                return hit[0]
+        try:
+            found, count = self.partner(email)
+        except Exception as e:  # Odoo down: the customer is logged in, the records are missing
+            LOG.warning("customer records: partner not read: %s", type(e).__name__)
+            return "Their records are not available right now."
+        if not found:
+            text = ("No customer record has this address." if count == 0 else
+                    "Several customer records have this address; none is shown.")
+        else:
+            pid, name = found
+            lines = [f"Customer: {plain(name, ' ', 100)}"]
+            lines += self.part("Sale orders", lambda: self.orders(pid))
+            lines += self.part("Subscriptions", lambda: self.subscriptions(pid))
+            lines += self.part("Support tickets", lambda: self.tickets(pid))
+            text = "Their own records, read by the bridge from Odoo:\n" + "\n".join(lines)
+        with self.lock:
+            self.cache[email] = (text, now + 120)
+        return text
+
+
+NOT_LOGGED_IN = ("[Bridge] The visitor is not logged in. You have no customer data and must not "
+                 "claim any: answer from public information only. A visitor who asks about their "
+                 "own orders, invoices or tickets can log in on the website first.")
+
+
 class Bot:
-    def __init__(self, config, credentials=None):
+    def __init__(self, config, credentials=None, records=None):
         self.config = config
         self.credentials = credentials or Credentials(config)
+        self.records = records if records is not None else (
+            CustomerRecords(config) if config.identity_records else None)
         self.contexts = {}
         self.locks = {}
         self.locks_lock = threading.Lock()
@@ -293,29 +435,38 @@ class Bot:
             LOG.warning("conversation %s: context not saved: %s", conv["id"], e)
 
     # --- A2A --------------------------------------------------------------------------
-    def rpc(self, method, params):
+    def rpc(self, method, params, url=None):
         body = {"jsonrpc": "2.0", "id": str(uuid.uuid4()), "method": method, "params": params}
-        got = http_json(self.config.a2a_url, body, self.credentials.header(), timeout=self.config.a2a_timeout)
+        got = http_json(url or self.config.a2a_url, body, self.credentials.header(), timeout=self.config.a2a_timeout)
         if "error" in got:
             raise RuntimeError(f"{method}: {got['error'].get('message', got['error'])}")
         return got.get("result") or {}
 
-    def ask(self, text, context_id, metadata):
+    def ask(self, text, context_id, metadata, url=None):
         message = {"kind": "message", "role": "user", "messageId": str(uuid.uuid4()),
                    "parts": [{"kind": "text", "text": text}], "metadata": metadata}
         if context_id:
             message["contextId"] = context_id
-        result = self.rpc("message/send", {"message": message, "configuration": {"blocking": True}})
+        result = self.rpc("message/send", {"message": message, "configuration": {"blocking": True}}, url)
         deadline = time.time() + self.config.a2a_timeout
         while result.get("kind") == "task" and (result.get("status") or {}).get("state") not in TERMINAL:
             if time.time() > deadline:
                 raise TimeoutError("no answer within %ss" % self.config.a2a_timeout)
             time.sleep(3)
-            result = self.rpc("tasks/get", {"id": result["id"]})
+            result = self.rpc("tasks/get", {"id": result["id"]}, url)
         state = (result.get("status") or {}).get("state")
         if state in ("failed", "canceled", "rejected", "auth-required"):
             raise RuntimeError("task " + state)
         return answer_text(result), result.get("contextId") or context_id
+
+    def who(self, conv):
+        """The bridge's note on who writes, sent before each customer message."""
+        email = verified_email(conv)
+        if not email:
+            return NOT_LOGGED_IN
+        note = (f"[Bridge] The visitor is logged in as {email} (verified by the website login). "
+                "Use only the records below, and only for this customer.")
+        return note + "\n" + (self.records.text(email) if self.records else "No records are shared on this chat.")
 
     # --- events -----------------------------------------------------------------------
     def wanted(self, event):
@@ -357,13 +508,16 @@ class Bot:
             return
         context_id = (conv.get("custom_attributes") or {}).get(c.context_attribute) \
             or self.contexts.get((account, conv["id"]))
-        text = content if context_id or not c.instructions else c.instructions + "\n\n" + content
-        sender = event.get("sender") or {}
+        text = self.who(conv) + "\n\n" + content
+        if c.instructions and not context_id:
+            text = c.instructions + "\n\n" + text
+        email = verified_email(conv)
+        # a contact the website did not verify is nobody: no name, no address reach the agent
         metadata = {"chatwoot": {"account": account, "conversation": conv["id"],
                                  "inbox": (event.get("inbox") or {}).get("id"),
-                                 "contact": {k: sender.get(k) for k in ("name", "email") if sender.get(k)}}}
+                                 "contact": {"email": email, "verified": True} if email else {"verified": False}}}
         try:
-            reply, context_id = self.ask(text, context_id, metadata)
+            reply, context_id = self.ask(text, context_id, metadata, c.bot_a2a_url)
         except Exception as e:  # any failure goes to staff
             LOG.warning("conversation %s: agent failed: %s", conv["id"], e)
             self.hand_off(account, conv["id"], c.failure_message)
@@ -513,10 +667,15 @@ class Drafts:
         conv = event.get("conversation") or {}
         inbox = (event.get("inbox") or {}).get("name") or ""
         inboxes = self.config.draft_inboxes
+        # a pending conversation of an inbox the bot holds is the bot's: drafts start after
+        # the handoff, and the sweep catches the message that asked for it
+        bots = self.config.bot_inboxes
+        held = conv.get("status") == "pending" and ("*" in bots or inbox in bots)
         return (event.get("event") == "message_created"
                 and event.get("message_type") == "incoming"
                 and not event.get("private")
                 and conv.get("id") is not None
+                and not held
                 and ("*" in inboxes or inbox in inboxes))
 
     def lock(self, key):
@@ -1221,8 +1380,9 @@ def main():
     if bot and (bot.config.bot_enabled or staff or drafts):
         pool = ThreadPoolExecutor(max_workers=8)
         server = http.server.ThreadingHTTPServer(("0.0.0.0", bot.config.port), make_handler(bot, pool, staff, drafts))
-        LOG.info("agent bridge listening on %s, agent %s, auth %s, bot %s, panel %s, drafts %s, triage %s, "
-                 "facts %s, sweep %s", bot.config.port, bot.config.a2a_url, bot.config.auth, bot.config.bot_enabled,
+        LOG.info("agent bridge listening on %s, agent %s, auth %s, bot %s (agent %s, customer records %s), "
+                 "panel %s, drafts %s, triage %s, facts %s, sweep %s", bot.config.port, bot.config.a2a_url,
+                 bot.config.auth, bot.config.bot_enabled, bot.config.bot_a2a_url, bot.records is not None,
                  staff is not None, drafts is not None, bool(drafts and drafts.triage), facts is not None, sweep)
         server.serve_forever()
     else:
