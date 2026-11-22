@@ -287,19 +287,21 @@ sequenceDiagram
   `street`, `zip`, `city`, `country`). A logged-in customer's contact and company come from
   Odoo, not from the JSON.
 - Only a verified email goes to Odoo as `verified_email`. Odoo puts the quotation on that
-  customer's own partner; for anyone else it makes a new contact from the JSON.
+  customer's own partner; for anyone else the Odoo module decides between a quotation on a
+  new contact from the JSON and a lead.
 - Odoo checks the products, options, prices and limits and mails the quotation. The visitor
   gets `sentMessage` (`{order}`, `{email}`) or `refusedMessage` (`{error}`); the agent gets
   the outcome in the bridge note of the next message.
 - Odoo may answer with a lead instead of a quotation (`"lead": true`, the lead's reference
   in `order`): people send the quotation later. The visitor then gets `leadMessage`
-  (`{email}`), or with it empty the `message` of Odoo's answer; the conversation stays
-  with the bot.
+  (`{email}`), or with it empty the `message` of Odoo's answer (without one: the built-in
+  English default). The conversation stays with the bot unless the same answer holds
+  `HANDOFF`. A `lead` that is no boolean hands the conversation to a person.
 - A failure of Odoo, or an answer that is no `{"ok": ...}` object or names no order, hands
   the conversation to a person with `agentBot.failureMessage`. A `HANDOFF` in the same
   answer hands off after the quotation.
-- `sentMessage`, `refusedMessage` and `leadMessage` are checked at start: an unknown `{placeholder}` stops
-  the bridge.
+- `sentMessage`, `refusedMessage` and `leadMessage` are checked at start: an unknown
+  `{placeholder}` stops the bridge.
 
 ### Agent panel
 

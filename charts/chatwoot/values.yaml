@@ -484,10 +484,10 @@ agentBot:
   # quotations from the chat: an answer of the agent that holds "<marker> {json}" never
   # reaches the visitor, none of it; the bridge passes the JSON to the quotation method of
   # an Odoo module (README, Quotations) with the bridge's Odoo key, so it needs
-  # odoo.website.identity.records. Odoo checks products, options and limits, makes the
-  # quotation on the verified customer's own partner or a new contact, and mails it; the
-  # visitor gets sentMessage ({order}, {email}) or refusedMessage ({error}). A failure of
-  # Odoo hands the conversation to a person
+  # odoo.website.identity.records. Odoo checks products, options and limits, then makes
+  # and mails the quotation, or makes a lead when people send it; the visitor gets
+  # sentMessage ({order}, {email}), leadMessage ({email}) or refusedMessage ({error}). A
+  # failure of Odoo hands the conversation to a person
   quotations:
     enabled: false
     # the word before the JSON object, upper case; the agent's instructions must name it
@@ -499,7 +499,8 @@ agentBot:
     # to the visitor when Odoo refused; {error} only
     refusedMessage: "I could not make that quotation: {error}"
     # to the visitor when Odoo made a lead instead of a quotation ("lead": true) and people
-    # send the quotation; {email} only. Empty: the "message" of Odoo's answer
+    # send the quotation; {email} only. Empty: the "message" of Odoo's answer, and
+    # without one this default
     leadMessage: "Thank you. We will send you a quotation at {email}."
 
 # A panel in the conversation sidebar (Chatwoot Dashboard App) where staff ask the agent to

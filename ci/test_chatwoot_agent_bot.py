@@ -710,6 +710,28 @@ class QuoteTest(Base):
         self.bot(FakeQuoteOdoo(dict(self.LEAD)), QUOTE_LEAD_MESSAGE="").handle(event())
         self.assertEqual(self.answers()[-1], self.LEAD["message"])
 
+    def test_lead_without_a_usable_odoo_message(self):
+        self.quote_answer()
+        default = "Thank you. We will send you a quotation at ann@example.com."
+        for said in (None, "", "  ", {"a": 1}, True):
+            self.bot(FakeQuoteOdoo({**self.LEAD, "message": said}),
+                     QUOTE_LEAD_MESSAGE=" ").handle(event())
+            self.assertEqual(self.answers()[-1], default)
+        self.bot(FakeQuoteOdoo({**self.LEAD, "message": "x" * 900}),
+                 QUOTE_LEAD_MESSAGE="").handle(event())
+        self.assertEqual(self.answers()[-1], "x" * 500)
+
+    def test_lead_that_is_no_boolean_hands_off(self):
+        self.quote_answer()
+        self.bot(FakeQuoteOdoo({**self.LEAD, "lead": "true"})).handle(event())
+        self.assertEqual(self.answers(), ["Sorry."])
+
+    def test_lead_and_handoff_in_one_answer_does_both(self):
+        self.state["agent"] = lambda b: message("QUOTE " + json.dumps(QUOTE) + "\nHANDOFF")
+        self.bot(FakeQuoteOdoo(dict(self.LEAD))).handle(event())
+        self.assertEqual(self.answers(), ["Thank you. We will send you a quotation at ann@example.com.",
+                                          "A colleague takes over."])
+
     def test_quotation_keeps_the_sent_message(self):
         self.quote_answer()
         self.bot(FakeQuoteOdoo({**self.LEAD, "lead": False, "order": "S00043"})).handle(event())

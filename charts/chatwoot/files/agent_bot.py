@@ -136,7 +136,7 @@ class Config:
         self.quote_sent_message = env.get("QUOTE_SENT_MESSAGE", QUOTE_SENT)
         self.quote_refused_message = env.get("QUOTE_REFUSED_MESSAGE", QUOTE_REFUSED)
         # empty: the "message" of Odoo's answer
-        self.quote_lead_message = env.get("QUOTE_LEAD_MESSAGE", QUOTE_LEAD)
+        self.quote_lead_message = env.get("QUOTE_LEAD_MESSAGE", QUOTE_LEAD).strip()
         if self.quotations and not (self.odoo_url.startswith("https://") and self.odoo_key_file
                                     and self.quote_marker):
             raise ValueError("QUOTATIONS needs an https ODOO_URL, ODOO_API_KEY_FILE and a QUOTE_MARKER")
@@ -741,6 +741,9 @@ class Bot:
                 result = self.quotations.create(account, conv["id"], request, email)
                 if result.get("ok") and not (result.get("order") and result.get("email")):
                     raise RuntimeError("grncloud_chat_quote named no order or email")
+                if result.get("ok") and not isinstance(result.get("lead", False), bool):
+                    # taken for a quotation, a lead would tell the visitor to sign and pay
+                    raise RuntimeError("grncloud_chat_quote answered a lead that is no boolean")
             except Exception as e:  # Odoo down, slow or the module missing: staff take over
                 LOG.warning("conversation %s: quotation failed: %s", conv["id"], e)
                 self.notes[key] = (f"[Bridge] Your {m} failed in the system; a quotation may or may "
@@ -753,8 +756,10 @@ class Bot:
             LOG.info("conversation %s: lead %s for a quotation", conv["id"], ref)
             self.notes[key] = (f"[Bridge] Your {m} made lead {ref}, not a quotation: the sales "
                                f"team sends a quotation to {to}. Do not send the same {m} again.")
+            said = result.get("message")
+            said = said.strip()[:500] if isinstance(said, str) else ""
             text = (c.quote_lead_message.format(email=to) if c.quote_lead_message
-                    else str(result.get("message") or "").strip() or QUOTE_LEAD.format(email=to))
+                    else said or QUOTE_LEAD.format(email=to))
             self.say(account, conv["id"], text)
             return True
         if result.get("ok"):
