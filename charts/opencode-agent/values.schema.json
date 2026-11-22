@@ -383,6 +383,7 @@
     "serviceAccount": {
       "type": "object",
       "properties": {
+        "clusterRole": {"type": "string"},
         "name": {
           "type": "string"
         }

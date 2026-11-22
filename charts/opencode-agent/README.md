@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Runs one personal OpenCode coding agent for one person in your project. The person works with it in the browser behind a login; other agents call it over A2A (agent-to-agent, port 8080). The agent works in a Git work tree on a persistent volume and acts on your project with its own ServiceAccount, which has the `edit` role in the project only.
+Runs one personal OpenCode coding agent for one person in your project. The person works with it in the browser behind a login; other agents call it over A2A (agent-to-agent, port 8080). The agent works in a Git work tree on a persistent volume and acts on your project with its own ServiceAccount, which has the role of `serviceAccount.clusterRole` (default `edit`) in the project only.
 
 The agent is a kagent `Agent` of type `BYO`: kagent renders the Deployment and the A2A Service from it. One pod holds five containers: the A2A adapter `opencode-a2a`, `opencode serve` (OpenCode 2.x, API and web UI) on 127.0.0.1, the OpenShift `oauth-proxy` in front of the UI, a UI proxy on 127.0.0.1 that hands the UI to OpenCode as its user `opencode` with the server password, and a token proxy on 127.0.0.1 that adds the agent's credential to every model and A2A call to `gateway.upstream`.
 
