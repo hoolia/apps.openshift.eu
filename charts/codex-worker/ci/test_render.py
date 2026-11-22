@@ -125,6 +125,7 @@ class RenderTests(unittest.TestCase):
             "CI_API_V4_URL": "https://gitlab.example.invalid/api/v4",
             "CI_PROJECT_ID": "101", "CODEX_AUTH_STORE_PROJECT_ID": "102",
             "CODEX_GATEWAY_URL": "https://gateway.example.invalid/chatgpt_passthrough/backend-api/codex",
+            "CODEX_MODEL": "test-model-1",
             "HOME": "/tmp", "TMPDIR": "/tmp",
         }
         self.assertEqual({name: entry["value"] for name, entry in env.items() if "value" in entry}, expected)
@@ -241,7 +242,7 @@ class RenderTests(unittest.TestCase):
             "gitlab.apiV4Url=http://gitlab.example.invalid/api/v4", "gitlab.projectId=", "authStore.projectId=",
             "gitlab.apiV4Url=https://gitlab.example.invalid/api/v4/",
             "authStore.endpoint=https://store.example.invalid", "secrets.workerTokenSecret=", "secrets.authStoreTokenSecret=",
-            "secrets.gatewayKeySecret=", "gateway.url=", "gateway.url=http://gateway.example.invalid/codex",
+            "secrets.gatewayKeySecret=", "gateway.url=", "gateway.model=", "gateway.model=bad model", "gateway.url=http://gateway.example.invalid/codex",
             "gateway.url=https://gateway.example.invalid/codex/", "gateway.url=https://user@gateway.example.invalid/codex",
             "storage.storageClass=", "storage.accessMode=ReadWriteMany", "tls.existingSecret=conflict",
             "tls.openshift.enabled=false", "monitoring.rules.enabled=true",

@@ -140,7 +140,7 @@ if (process.platform === "linux") {
 }
 assert.equal(statSync(join(process.env.CODEX_HOME, "auth.json")).isFile(), true);
 assert.equal(statSync(join(process.env.CODEX_HOME, "auth.json")).nlink, 1);
-assert.doesNotMatch(readFileSync(join(process.env.CODEX_HOME, "config.toml"), "utf8"), /^model\\s*=/m);
+assert.match(readFileSync(join(process.env.CODEX_HOME, "config.toml"), "utf8"), /^model = "synthetic-model-1"$/m);
 phase = "rotation";
 const authPath = realpathSync(join(process.env.CODEX_HOME, "auth.json"));
 const auth = JSON.parse(readFileSync(authPath, "utf8"));
@@ -176,7 +176,7 @@ process.exit(job.exitCode ?? 0);
     CODEX_EXCHANGE_DIR: join(directory, "exchange"), CODEX_AGENT_POLL_MS: "25",
     CI_API_V4_URL: `${base}/api/v4`, CI_PROJECT_ID: "27",
     CODEX_GATEWAY_URL: "https://gateway.invalid/chatgpt_passthrough/backend-api/codex",
-    CODEX_GATEWAY_KEY: "synthetic-gateway-0001",
+    CODEX_GATEWAY_KEY: "synthetic-gateway-0001", CODEX_MODEL: "synthetic-model-1",
     HUB_READ_TOKEN: "synthetic-hub", CI_JOB_TOKEN: "synthetic-job",
     NODE_OPTIONS: "", ...options.environment,
   };

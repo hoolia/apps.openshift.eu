@@ -7,6 +7,7 @@ gitlab:
   projectId: "101"
 gateway:
   url: https://gateway.example.invalid/chatgpt_passthrough/backend-api/codex
+  model: test-model-1
 authStore:
   projectId: "102"
 secrets:

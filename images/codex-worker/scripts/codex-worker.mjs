@@ -102,11 +102,11 @@ async function main() {
     "CI_API_V4_URL", "CI_PROJECT_ID", "CODEX_AUTH_STORE_PROJECT_ID",
     "CODEX_AUTH_STORE_TOKEN", "CODEX_AUTH_STATE_DIR", "CODEX_AUTH_LOCK_FD",
     "CODEX_EXCHANGE_DIR", "CODEX_AGENT_URL", "CODEX_AGENT_POLL_MS", "CODEX_AGENT_WAIT_MS",
-    "CODEX_GATEWAY_URL", "CODEX_GATEWAY_KEY",
+    "CODEX_GATEWAY_URL", "CODEX_GATEWAY_KEY", "CODEX_MODEL",
   ].filter((name) => process.env[name] !== undefined).map((name) => [name, process.env[name]]));
   if (!["CI_API_V4_URL", "CI_PROJECT_ID", "CODEX_AUTH_STORE_PROJECT_ID",
     "CODEX_AUTH_STORE_TOKEN", "CODEX_EXCHANGE_DIR", "CODEX_AGENT_URL",
-    "CODEX_GATEWAY_URL", "CODEX_GATEWAY_KEY"].every((name) => environment[name])) {
+    "CODEX_GATEWAY_URL", "CODEX_GATEWAY_KEY", "CODEX_MODEL"].every((name) => environment[name])) {
     throw new WorkerError("invalid_worker_config");
   }
   await mkdir(state, { recursive: true, mode: 0o700 });

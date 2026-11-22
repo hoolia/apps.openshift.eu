@@ -58,12 +58,12 @@ for (const enabled of [true, false]) {
         CODEX_AUTH_STORE_PROJECT_ID: "2121",
         CI_API_V4_URL: `http://127.0.0.1:${store.address().port}/api/v4`,
         CODEX_AUTH_STORE_TOKEN: "synthetic-store-token",
-        CODEX_GATEWAY_URL: "https://gateway.invalid/chatgpt_passthrough/backend-api/codex", CODEX_GATEWAY_KEY: "synthetic-gateway-0001",
+        CODEX_GATEWAY_URL: "https://gateway.invalid/chatgpt_passthrough/backend-api/codex", CODEX_GATEWAY_KEY: "synthetic-gateway-0001", CODEX_MODEL: "gpt-5.6-terra",
       },
     });
     assert.equal(collected.code, 3, collected.stderr);
     const config = await readFile(join(directory, "config.toml"), "utf8");
-    assert.doesNotMatch(config, /^model\s*=/m);
+    assert.match(config, /^model = "gpt-5.6-terra"$/m);
     await writeFile(join(home, "config.toml"), config, { mode: 0o600 });
 
     const requests = [];
@@ -248,7 +248,7 @@ test("persists a native ephemeral refresh when inference fails", { timeout: 1200
       CODEX_EXCHANGE_DIR: exchange, CODEX_AGENT_URL: agentUrl, CODEX_AGENT_POLL_MS: "25",
       CI_PROJECT_ID: "27", CI_API_V4_URL: `${base}/api/v4`,
       CODEX_AUTH_STORE_PROJECT_ID: "2121", CODEX_AUTH_STORE_TOKEN: "synthetic-store-token",
-      CODEX_GATEWAY_URL: "https://gateway.invalid/chatgpt_passthrough/backend-api/codex", CODEX_GATEWAY_KEY: "synthetic-gateway-0001",
+      CODEX_GATEWAY_URL: "https://gateway.invalid/chatgpt_passthrough/backend-api/codex", CODEX_GATEWAY_KEY: "synthetic-gateway-0001", CODEX_MODEL: "gpt-5.6-terra",
     },
   });
   assert.equal(result.signal, null, result.stderr);

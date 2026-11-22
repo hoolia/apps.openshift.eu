@@ -20,6 +20,8 @@ gitlab:
 gateway:
   # HTTPS URL of the gateway's Codex backend route, without a trailing slash; required.
   url: ""
+  # Model name the gateway key allows, as the subscription plan names it; required.
+  model: ""
 
 # Dedicated authentication store on the same GitLab host.
 authStore:

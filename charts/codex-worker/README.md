@@ -19,14 +19,17 @@ The worker image is built from `images/codex-worker` of this repository and publ
 its own.
 
 Supply `image.repository`, `image.tag`, `gitlab.apiV4Url`, `gitlab.projectId`,
-`authStore.projectId`, `gateway.url` and the three existing credential Secret names. The
+`authStore.projectId`, `gateway.url`, `gateway.model` and the three existing credential
+Secret names. The
 worker and auth store use the same GitLab API host. Each Secret has key `token`; the
 auth-store token belongs to the dedicated store project.
 
 All model traffic goes through a model gateway. `gateway.url` is the HTTPS URL of the
 gateway route that forwards to the Codex backend. The CLI sends the gateway key in header
 `x-bf-vk` and the subscription token in `Authorization`; the gateway checks the key and
-forwards the token. The worker starts no review without both. `image.pullSecrets` accepts existing registry Secret names
+forwards the token. The gateway admits only the models its key names, so `gateway.model`
+names the model of each review; the CLI's own default is not used. The worker starts no
+review without the URL, the key and the model. `image.pullSecrets` accepts existing registry Secret names
 as a list of `{name: ...}` objects.
 
 Select an ext4 block `storage.storageClass` with ReadWriteOncePod support, or supply

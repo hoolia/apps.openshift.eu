@@ -70,7 +70,7 @@ async function main() {
   const {
     CI_API_V4_URL, CI_PROJECT_ID, CODEX_AUTH_STORE_TOKEN, CODEX_AUTH_STORE_PROJECT_ID,
     CODEX_AUTH_STATE_DIR, CODEX_AUTH_LOCK_FD, CODEX_EXCHANGE_DIR, CODEX_AGENT_URL,
-    CODEX_GATEWAY_URL, CODEX_GATEWAY_KEY,
+    CODEX_GATEWAY_URL, CODEX_GATEWAY_KEY, CODEX_MODEL,
   } = process.env;
   const [target, ...extra] = process.argv.slice(2);
   const recovering = target === "--recover";
@@ -98,6 +98,10 @@ async function main() {
   if (gateway?.protocol !== "https:" || gateway.username || gateway.password || gateway.search ||
       gateway.hash || !/^[A-Za-z0-9_-]{16,256}$/.test(CODEX_GATEWAY_KEY ?? "")) {
     throw new AuthError("Codex ChatGPT runner requires an HTTPS model gateway and its key");
+  }
+  // the gateway admits only models its key names, so the CLI default is not used
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(CODEX_MODEL ?? "")) {
+    throw new AuthError("Codex ChatGPT runner requires the model name the gateway key allows");
   }
   const privateRoot = join(CODEX_AUTH_STATE_DIR, "private");
   await mkdir(privateRoot, { recursive: true, mode: 0o700 });
@@ -248,6 +252,7 @@ async function main() {
   await mkdir(home, { recursive: true, mode: 0o700 });
   await mkdir(join(directory, "review"), { mode: 0o700 });
   await writeFile(join(home, "config.toml"), [
+    `model = ${JSON.stringify(CODEX_MODEL)}`,
     'model_provider = "gateway"',
     'forced_login_method = "chatgpt"',
     'cli_auth_credentials_store = "file"',

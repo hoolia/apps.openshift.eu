@@ -95,6 +95,8 @@ spec:
           value: {{ .Values.authStore.projectId | quote }}
         - name: CODEX_GATEWAY_URL
           value: {{ .Values.gateway.url | quote }}
+        - name: CODEX_MODEL
+          value: {{ .Values.gateway.model | quote }}
         - name: CODEX_WORKER_TOKEN
           valueFrom:
             secretKeyRef:

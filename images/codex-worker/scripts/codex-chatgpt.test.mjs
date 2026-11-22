@@ -103,7 +103,7 @@ async function fixture(t, options = {}) {
       assert.match(config, /http_headers = \\{ "x-bf-vk" = "synthetic-gateway-0001" \\}/);
       assert.match(config, /forced_login_method = "chatgpt"/);
       assert.match(config, /cli_auth_credentials_store = "file"/);
-      assert.doesNotMatch(config, /^model\\s*=/m);
+      assert.match(config, /^model = "synthetic-model-1"$/m);
       for (const key of Object.keys(process.env)) {
         assert.doesNotMatch(key, /TOKEN|KEY|KUBECONFIG|CI_|BASH_ENV|NODE_OPTIONS|CODEX_AUTH|CODEX_EXCHANGE/);
       }
@@ -146,6 +146,7 @@ async function fixture(t, options = {}) {
       GATEWAY_KEY: "synthetic-gateway-key",
       CODEX_GATEWAY_URL: options.gatewayUrl ?? "https://gateway.invalid/chatgpt_passthrough/backend-api/codex",
       CODEX_GATEWAY_KEY: options.gatewayKey ?? "synthetic-gateway-0001",
+      CODEX_MODEL: options.model ?? "synthetic-model-1",
       OPENAI_API_KEY: "synthetic-billable-key",
   };
   let stdout = "";
@@ -248,6 +249,19 @@ for (const [name, gateway] of [
   });
 }
 
+for (const [name, model] of [
+  ["missing model", ""],
+  ["model name that would break the config", 'a"\nmodel_provider = "openai'],
+]) {
+  test(`rejects a ${name} before reading credentials or starting the model`, async (t) => {
+    const result = await fixture(t, { model });
+    assert.equal(result.code, 1);
+    assert.deepEqual(result.requests, []);
+    assert.doesNotMatch(result.stdout, /MODEL_STARTED/);
+    assert.match(result.stderr, /Codex ChatGPT runner requires the model name the gateway key allows/);
+  });
+}
+
 test("keeps an unchanged session without rewriting the store", async (t) => {
   const result = await fixture(t, { refresh: false });
   assert.equal(result.code, 0, result.stderr);
@@ -338,6 +352,7 @@ test("recovery gives up on an agent that stays busy", async (t) => {
       CI_API_V4_URL: "http://127.0.0.1:9/api/v4", CI_PROJECT_ID: "27",
       CODEX_AUTH_STORE_PROJECT_ID: "2121", CODEX_AUTH_STORE_TOKEN: "synthetic-store-token",
       CODEX_GATEWAY_URL: "https://gateway.invalid/codex", CODEX_GATEWAY_KEY: "synthetic-gateway-0001",
+      CODEX_MODEL: "synthetic-model-1",
     },
     stdio: ["ignore", "ignore", "pipe"], timeout: 8000,
   });

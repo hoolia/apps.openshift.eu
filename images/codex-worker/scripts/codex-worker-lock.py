@@ -30,7 +30,7 @@ def main() -> None:
                 "CODEX_AUTH_STORE_TOKEN", "CODEX_AUTH_STATE_DIR",
                 "CODEX_EXCHANGE_DIR", "CODEX_AGENT_URL",
                 "CODEX_AGENT_POLL_MS", "CODEX_AGENT_WAIT_MS",
-                "CODEX_GATEWAY_URL", "CODEX_GATEWAY_KEY",
+                "CODEX_GATEWAY_URL", "CODEX_GATEWAY_KEY", "CODEX_MODEL",
                 "CODEX_WORKER_HOST", "CODEX_WORKER_PORT", "CODEX_WORKER_TOKEN",
                 "CODEX_WORKER_TLS_CERT_FILE", "CODEX_WORKER_TLS_KEY_FILE",
             )
