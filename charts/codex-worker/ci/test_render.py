@@ -133,7 +133,7 @@ class RenderTests(unittest.TestCase):
                              ("CODEX_GATEWAY_KEY", "gateway-key")):
             self.assertEqual(env[name]["valueFrom"]["secretKeyRef"], {"name": secret, "key": "token"})
         self.assertEqual(pod["imagePullSecrets"], [{"name": "registry-access"}])
-        self.assertEqual(container["image"], "registry.example.invalid/review/worker:0.0.0-test")
+        self.assertEqual(container["image"], "image-registry.openshift-image-registry.svc:5000/test/codex-worker:0.0.0-test")
 
     def test_https_service_and_monitoring_survive_ca_data_replacement(self) -> None:
         docs = render(*MONITORING)
