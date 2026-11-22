@@ -6,6 +6,7 @@ on:
     - images/mcp-onlyoffice-live/**
     - images/nextcloud-mcp-server/**
     - images/coding-agent/**
+    - images/codex-worker/**
     - skills/**
     - mcp/**
     - .github/workflows/images.yaml
@@ -17,6 +18,7 @@ on:
     - images/mcp-onlyoffice-live/**
     - images/nextcloud-mcp-server/**
     - images/coding-agent/**
+    - images/codex-worker/**
     - skills/**
     - mcp/**
     - .github/workflows/images.yaml
@@ -255,3 +257,53 @@ jobs:
     - name: Digest
       if: steps.new.outputs.push == 'true'
       run: docker buildx imagetools inspect "$IMAGE:${{ steps.v.outputs.tag }}" --format '{{json .Manifest.Digest}}'
+  codex-worker:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: ghcr.io/${{ github.repository_owner }}/codex-worker
+      CONTEXT: images/codex-worker
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: "22"
+    - name: Test the worker
+      working-directory: ${{ env.CONTEXT }}
+      run: node --test --test-timeout=120000 scripts/codex-chatgpt.test.mjs scripts/codex-exec-agent.test.mjs scripts/codex-worker.test.mjs scripts/codex-worker-recovery.test.mjs scripts/codex-worker-tls.test.mjs
+    - name: Version
+      id: v
+      run: echo "version=$(tr -d '[:space:]' < "$CONTEXT/VERSION")" >> "$GITHUB_OUTPUT"
+    - uses: docker/setup-buildx-action@v3
+    - name: Log in to the registry
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    # a released version is never rebuilt: a change to the image raises its VERSION file
+    - name: Check that the version is new
+      id: new
+      if: github.event_name == 'push'
+      run: |
+        if docker manifest inspect "$IMAGE:${{ steps.v.outputs.version }}" >/dev/null 2>&1; then
+          echo "push=false" >> "$GITHUB_OUTPUT"; echo "$IMAGE:${{ steps.v.outputs.version }} exists"
+        else
+          echo "push=true" >> "$GITHUB_OUTPUT"
+        fi
+    # the Codex CLI checks and the test suites run inside the build and fail it
+    - name: Build, and push a new version from main
+      uses: docker/build-push-action@v6
+      with:
+        context: ${{ env.CONTEXT }}
+        file: ${{ env.CONTEXT }}/Containerfile
+        platforms: linux/amd64
+        push: ${{ steps.new.outputs.push == 'true' }}
+        tags: |
+          ${{ env.IMAGE }}:${{ steps.v.outputs.version }}
+        provenance: false
+    - name: Digest
+      if: steps.new.outputs.push == 'true'
+      run: docker buildx imagetools inspect "$IMAGE:${{ steps.v.outputs.version }}" --format '{{json .Manifest.Digest}}'

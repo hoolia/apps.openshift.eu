@@ -1,0 +1,29 @@
+# Codex review worker; build context is images/codex-worker
+ARG BASE=ghcr.io/hoolia/coding-agent:claude-2.1.310-1@sha256:b353c70ddbc9c7b767bef3ca8d6dfe0a8de93055d553c950b9bb06aaf434450e
+FROM ${BASE} AS tooling
+USER 0
+WORKDIR /build
+COPY scripts ./scripts
+# pinned Codex CLI, checked against its sha256 and exercised natively
+RUN env -i PATH="$PATH" HOME=/tmp sh scripts/prepare-codex.sh
+# worker, agent and client suites; a failure fails the build
+RUN env -i PATH="$PATH" HOME=/tmp node --test --test-timeout=120000 \
+      scripts/codex-chatgpt.test.mjs scripts/codex-exec-agent.test.mjs \
+      scripts/codex-worker.test.mjs scripts/codex-worker-recovery.test.mjs \
+      scripts/codex-worker-tls.test.mjs
+
+FROM ${BASE}
+USER 0
+WORKDIR /app
+COPY --from=tooling --chmod=0555 /build/codex-tooling/codex /usr/local/bin/codex
+COPY scripts/codex-chatgpt.mjs scripts/codex-exec-agent.mjs scripts/codex-run-lock.py scripts/codex-worker.mjs scripts/codex-worker-lock.py scripts/codex-worker-client.mjs scripts/codex-review.schema.json ./scripts/
+ENV NODE_ENV=production \
+    CODEX_WORKER_HOST=0.0.0.0 \
+    CODEX_WORKER_PORT=3443 \
+    CODEX_AUTH_STATE_DIR=/var/lib/codex/state \
+    CODEX_EXCHANGE_DIR=/var/lib/codex/exchange \
+    CODEX_AGENT_URL=http://127.0.0.1:3444
+USER 10001:0
+EXPOSE 3443
+# worker container; the codex container runs: node scripts/codex-exec-agent.mjs
+ENTRYPOINT ["python3", "scripts/codex-worker-lock.py", "node", "scripts/codex-worker.mjs"]

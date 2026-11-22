@@ -14,6 +14,10 @@ an operator must supply a real worker image and authentication configuration. Re
 without them fails. No placeholder image or generated authentication credential is used.
 The explicit `ci/test-values.yaml` fixture is for lint/render tests only.
 
+The worker image is built from `images/codex-worker` of this repository and published as
+`ghcr.io/<owner>/codex-worker:<VERSION>`; an operator may also build it into a registry of
+its own.
+
 Supply `image.repository`, `image.tag`, `gitlab.apiV4Url`, `gitlab.projectId`,
 `authStore.projectId`, `gateway.url` and the three existing credential Secret names. The
 worker and auth store use the same GitLab API host. Each Secret has key `token`; the

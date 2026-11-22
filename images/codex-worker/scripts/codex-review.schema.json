@@ -1,0 +1,9 @@
+{
+  "type": "object",
+  "properties": {
+    "verdict": { "type": "string", "enum": ["OK", "BLOCKING"] },
+    "review": { "type": "string", "minLength": 1 }
+  },
+  "required": ["verdict", "review"],
+  "additionalProperties": false
+}
