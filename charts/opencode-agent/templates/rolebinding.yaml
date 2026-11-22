@@ -1,8 +1,10 @@
+{{- if .Values.serviceAccount.clusterRole }}
 # The agent acts on its own namespace only, never cluster-wide
+# The role is in the name: an upgrade cannot change a roleRef
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: {{ include "opencode-agent.name" . }}-edit
+  name: {{ include "opencode-agent.name" . }}-{{ .Values.serviceAccount.clusterRole }}
   namespace: {{ include "opencode-agent.namespace" . }}
   labels:
     app: {{ include "opencode-agent.name" $ }}
@@ -12,8 +14,9 @@ metadata:
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: edit
+  name: {{ .Values.serviceAccount.clusterRole | quote }}
 subjects:
 - kind: ServiceAccount
   name: {{ include "opencode-agent.serviceAccountName" . }}
   namespace: {{ include "opencode-agent.namespace" . }}
+{{- end }}
