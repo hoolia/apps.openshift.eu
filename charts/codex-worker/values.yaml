@@ -1,0 +1,155 @@
+# Worker image, supplied by the operator.
+image:
+  # Repository without a tag; required.
+  repository: ""
+  # Version tag of the worker image; required, never latest.
+  tag: ""
+  # Container image pull policy.
+  pullPolicy: IfNotPresent
+  # Existing registry Secrets, each with a name field.
+  pullSecrets: []
+
+# GitLab host and hub project.
+gitlab:
+  # HTTPS GitLab API v4 URL; also used for the dedicated auth store.
+  apiV4Url: ""
+  # Hub project ID, as a string; required.
+  projectId: ""
+
+# Model gateway in front of the Codex backend; all model traffic goes through it.
+gateway:
+  # HTTPS URL of the gateway's Codex backend route, without a trailing slash; required.
+  url: ""
+  # Model name the gateway key allows, as the subscription plan names it; required.
+  model: ""
+
+# Dedicated authentication store on the same GitLab host.
+authStore:
+  # Dedicated store project ID, as a string; required.
+  projectId: ""
+
+# Separate credentials with fixed Secret key token.
+secrets:
+  # kubernetes requires existing Secrets; externalSecret can provision them.
+  type: kubernetes
+  # Existing request bearer Secret; takes precedence independently.
+  workerTokenSecret: ""
+  # Existing dedicated auth-store token Secret; takes precedence independently.
+  authStoreTokenSecret: ""
+  # Existing gateway key Secret; takes precedence independently.
+  gatewayKeySecret: ""
+  # ExternalSecret settings for credentials without existing Secret names.
+  externalSecret:
+    # Existing store name; required for each chart-managed credential.
+    storeName: ""
+    # SecretStore or ClusterSecretStore.
+    storeKind: SecretStore
+    # Credential refresh interval.
+    refreshInterval: 1h
+    # Explicit remote references; no credential is generated.
+    items:
+      # Request bearer remote reference.
+      workerToken:
+        # Exact remote item identifier, interpreted by the chosen store.
+        key: ""
+        # Remote property containing the token.
+        property: login.password
+      # Dedicated auth-store token remote reference.
+      authStoreToken:
+        # Exact remote item identifier, interpreted by the chosen store.
+        key: ""
+        # Remote property containing the token.
+        property: login.password
+      # Gateway key remote reference.
+      gatewayKey:
+        # Exact remote item identifier, interpreted by the chosen store.
+        key: ""
+        # Remote property containing the key.
+        property: login.password
+
+# Persistent parent directory for namespace-owned private state.
+storage:
+  # Reuse a claim whose parent directory is writable by the admitted UID/group.
+  existingClaim: ""
+  # Caller-selected ext4 block storage class; required for a new claim.
+  storageClass: ""
+  # Requested capacity for a new claim.
+  size: 1Gi
+  # ReadWriteOncePod is preferred; ReadWriteOnce is also supported.
+  accessMode: ReadWriteOncePod
+
+# HTTPS serving certificate and monitoring trust.
+tls:
+  # OpenShift service certificate integration.
+  openshift:
+    # Request a service-serving certificate in <release>-tls.
+    enabled: true
+    # Create a dedicated, empty ConfigMap for service CA injection.
+    injectServiceCa: true
+  # Existing TLS Secret with tls.crt and tls.key; requires openshift.enabled=false.
+  existingSecret: ""
+  # Existing monitoring CA ConfigMap when service CA injection is disabled.
+  caConfigMap:
+    # ConfigMap in the release namespace; required with portable monitoring.
+    name: ""
+    # Key holding the CA bundle.
+    key: service-ca.crt
+
+# Additive policy; other namespace policies may also admit traffic.
+networkPolicy:
+  # Render ingress and egress policy.
+  enabled: true
+  # Nonempty namespace label selector for runners; required with policy.
+  runnerNamespaceSelector: {}
+  # Nonempty monitoring namespace selector; required with policy and monitoring.
+  monitoringNamespaceSelector: {}
+  # DNS and HTTPS egress.
+  egress:
+    # Nonempty namespace label selector for DNS servers; required with policy.
+    dnsNamespaceSelector: {}
+    # DNS service/backend ports; select the ports used by the cluster.
+    dnsPorts:
+    - 53
+    # HTTPS destination CIDRs on TCP 443; this does not filter domain names.
+    httpsCidrs:
+    - 0.0.0.0/0
+    - ::/0
+
+# Tenant-local monitoring; requires preinstalled monitoring CRDs.
+monitoring:
+  # Render a ServiceMonitor for HTTPS /metrics on port 3443.
+  enabled: false
+  # Prometheus scrape interval.
+  interval: 30s
+  # Optional rules, scoped to this release namespace and Service.
+  rules:
+    # Render a PrometheusRule; requires monitoring.enabled.
+    enabled: false
+    # Runbook base URL; lowercase alert names are appended as anchors.
+    runbookUrl: ""
+    # Window for detecting failed reviews.
+    failureWindow: 15m
+    # How long the failure expression must hold.
+    failureFor: 5m
+    # Oldest accepted review age that indicates a stall.
+    stallAgeSeconds: 1800
+    # How long the pending/oldest-age condition must hold.
+    stallFor: 5m
+    # How long failed or absent scrapes must persist.
+    unavailableFor: 5m
+
+# Drain budget; stop submissions and drain before planned removal.
+terminationGracePeriodSeconds: 3600
+
+# Resources for the worker and its serialized review subprocess.
+resources:
+  # CPU and memory requests.
+  requests:
+    # Requested CPU.
+    cpu: 250m
+    # Requested memory.
+    memory: 512Mi
+  # Container resource limits.
+  limits:
+    # Maximum memory.
+    memory: 2Gi
