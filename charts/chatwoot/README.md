@@ -291,10 +291,14 @@ sequenceDiagram
 - Odoo checks the products, options, prices and limits and mails the quotation. The visitor
   gets `sentMessage` (`{order}`, `{email}`) or `refusedMessage` (`{error}`); the agent gets
   the outcome in the bridge note of the next message.
+- Odoo may answer with a lead instead of a quotation (`"lead": true`, the lead's reference
+  in `order`): people send the quotation later. The visitor then gets `leadMessage`
+  (`{email}`), or with it empty the `message` of Odoo's answer; the conversation stays
+  with the bot.
 - A failure of Odoo, or an answer that is no `{"ok": ...}` object or names no order, hands
   the conversation to a person with `agentBot.failureMessage`. A `HANDOFF` in the same
   answer hands off after the quotation.
-- `sentMessage` and `refusedMessage` are checked at start: an unknown `{placeholder}` stops
+- `sentMessage`, `refusedMessage` and `leadMessage` are checked at start: an unknown `{placeholder}` stops
   the bridge.
 
 ### Agent panel

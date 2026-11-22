@@ -498,6 +498,9 @@ agentBot:
       and pay it there to order; nothing is ordered before that.
     # to the visitor when Odoo refused; {error} only
     refusedMessage: "I could not make that quotation: {error}"
+    # to the visitor when Odoo made a lead instead of a quotation ("lead": true) and people
+    # send the quotation; {email} only. Empty: the "message" of Odoo's answer
+    leadMessage: "Thank you. We will send you a quotation at {email}."
 
 # A panel in the conversation sidebar (Chatwoot Dashboard App) where staff ask the agent to
 # summarise the conversation, suggest a reply or answer a question. Needs sso.enabled: the

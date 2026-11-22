@@ -33,7 +33,8 @@ reaches the visitor, none of it: the bridge passes the JSON object to Odoo (sale
 grncloud_chat_quote of module grncloud_chat_order) with the conversation and, for a
 logged-in visitor only, the verified email. Odoo checks products, options and limits, makes
 the quotation and mails it; the visitor gets QUOTE_SENT_MESSAGE with its number, or
-QUOTE_REFUSED_MESSAGE with Odoo's reason. The agent learns the outcome from a bridge note
+QUOTE_REFUSED_MESSAGE with Odoo's reason. When Odoo answers with a lead instead ("lead":
+true), the visitor gets QUOTE_LEAD_MESSAGE, or with it empty Odoo's own "message". The agent learns the outcome from a bridge note
 before the visitor's next message. A failure of Odoo hands the conversation to staff.
 
 With PANEL_PORT it serves the agent panel instead or as well, a Chatwoot Dashboard App in
@@ -101,6 +102,8 @@ TERMINAL = {"completed", "failed", "canceled", "rejected", "input-required", "au
 QUOTE_SENT = ("Quotation {order} is on its way to {email}. Review it in the customer portal, then "
               "sign and pay it there to order; nothing is ordered before that.")
 QUOTE_REFUSED = "I could not make that quotation: {error}"
+# Odoo answered with a lead instead of a quotation: people send the quotation later
+QUOTE_LEAD = "Thank you. We will send you a quotation at {email}."
 
 
 def read_file(path):
@@ -132,6 +135,8 @@ class Config:
         self.quote_marker = env.get("QUOTE_MARKER", "QUOTE").strip()
         self.quote_sent_message = env.get("QUOTE_SENT_MESSAGE", QUOTE_SENT)
         self.quote_refused_message = env.get("QUOTE_REFUSED_MESSAGE", QUOTE_REFUSED)
+        # empty: the "message" of Odoo's answer
+        self.quote_lead_message = env.get("QUOTE_LEAD_MESSAGE", QUOTE_LEAD)
         if self.quotations and not (self.odoo_url.startswith("https://") and self.odoo_key_file
                                     and self.quote_marker):
             raise ValueError("QUOTATIONS needs an https ODOO_URL, ODOO_API_KEY_FILE and a QUOTE_MARKER")
@@ -139,8 +144,10 @@ class Config:
         try:
             self.quote_sent_message.format(order="S0", email="a@b.c")
             self.quote_refused_message.format(error="x")
+            self.quote_lead_message.format(email="a@b.c")
         except (KeyError, IndexError, ValueError) as e:
-            raise ValueError(f"QUOTE_SENT_MESSAGE or QUOTE_REFUSED_MESSAGE: {e!r}") from None
+            raise ValueError("QUOTE_SENT_MESSAGE, QUOTE_REFUSED_MESSAGE or QUOTE_LEAD_MESSAGE: "
+                             f"{e!r}") from None
         self.a2a_timeout = int(env.get("A2A_TIMEOUT", "300"))
         self.auth = env.get("A2A_AUTH", "none")
         self.token_file = env.get("A2A_TOKEN_FILE", "")
@@ -740,6 +747,16 @@ class Bot:
                                    "not exist. Staff took over; do not send it again.")
                 self.hand_off(account, conv["id"], c.failure_message)
                 return False
+        if result.get("ok") and result.get("lead") is True:
+            # no quotation yet: Odoo made a lead, and people send the quotation
+            ref, to = str(result["order"]), str(result["email"])
+            LOG.info("conversation %s: lead %s for a quotation", conv["id"], ref)
+            self.notes[key] = (f"[Bridge] Your {m} made lead {ref}, not a quotation: the sales "
+                               f"team sends a quotation to {to}. Do not send the same {m} again.")
+            text = (c.quote_lead_message.format(email=to) if c.quote_lead_message
+                    else str(result.get("message") or "").strip() or QUOTE_LEAD.format(email=to))
+            self.say(account, conv["id"], text)
+            return True
         if result.get("ok"):
             order, to = str(result["order"]), str(result["email"])
             LOG.info("conversation %s: quotation %s sent", conv["id"], order)

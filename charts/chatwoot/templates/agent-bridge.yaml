@@ -107,6 +107,8 @@ spec:
           value: {{ .sentMessage | quote }}
         - name: QUOTE_REFUSED_MESSAGE
           value: {{ .refusedMessage | quote }}
+        - name: QUOTE_LEAD_MESSAGE
+          value: {{ .leadMessage | quote }}
         {{- end }}
         {{- end }}
         {{- end }}
