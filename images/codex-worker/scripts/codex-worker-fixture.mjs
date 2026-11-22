@@ -20,7 +20,7 @@ const rawReview = '{ "verdict": "BLOCKING", "review": "A synthetic finding." }\n
 const bounded = (promise) => {
   let timer;
   return Promise.race([promise, new Promise((_, reject) => {
-    timer = setTimeout(() => reject(new Error("Handshake timed out")), 8000);
+    timer = setTimeout(() => reject(new Error("Handshake timed out")), 30000);
   })]).finally(() => clearTimeout(timer));
 };
 

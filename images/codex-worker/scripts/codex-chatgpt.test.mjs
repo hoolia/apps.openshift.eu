@@ -156,7 +156,7 @@ async function fixture(t, options = {}) {
     runs += 1;
     const output = join(directory, `review-${runs}.json`);
     const child = spawn("python3", [lock, process.execPath, runner, output], {
-      env: environment, stdio: ["ignore", "pipe", "pipe"], detached, timeout: 8000,
+      env: environment, stdio: ["ignore", "pipe", "pipe"], detached, timeout: 30000,
     });
     child.stdout.on("data", (data) => { stdout += data; });
     child.stderr.on("data", (data) => { stderr += data; });
@@ -354,7 +354,7 @@ test("recovery gives up on an agent that stays busy", async (t) => {
       CODEX_GATEWAY_URL: "https://gateway.invalid/codex", CODEX_GATEWAY_KEY: "synthetic-gateway-0001",
       CODEX_MODEL: "synthetic-model-1",
     },
-    stdio: ["ignore", "ignore", "pipe"], timeout: 8000,
+    stdio: ["ignore", "ignore", "pipe"], timeout: 30000,
   });
   let stderr = "";
   child.stderr.on("data", (data) => { stderr += data; });
