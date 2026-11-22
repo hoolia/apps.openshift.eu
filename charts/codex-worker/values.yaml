@@ -16,6 +16,11 @@ gitlab:
   # Hub project ID, as a string; required.
   projectId: ""
 
+# Model gateway in front of the Codex backend; all model traffic goes through it.
+gateway:
+  # HTTPS URL of the gateway's Codex backend route, without a trailing slash; required.
+  url: ""
+
 # Dedicated authentication store on the same GitLab host.
 authStore:
   # Dedicated store project ID, as a string; required.
@@ -29,6 +34,8 @@ secrets:
   workerTokenSecret: ""
   # Existing dedicated auth-store token Secret; takes precedence independently.
   authStoreTokenSecret: ""
+  # Existing gateway key Secret; takes precedence independently.
+  gatewayKeySecret: ""
   # ExternalSecret settings for credentials without existing Secret names.
   externalSecret:
     # Existing store name; required for each chart-managed credential.
@@ -50,6 +57,12 @@ secrets:
         # Exact remote item identifier, interpreted by the chosen store.
         key: ""
         # Remote property containing the token.
+        property: login.password
+      # Gateway key remote reference.
+      gatewayKey:
+        # Exact remote item identifier, interpreted by the chosen store.
+        key: ""
+        # Remote property containing the key.
         property: login.password
 
 # Persistent parent directory for namespace-owned private state.

@@ -15,9 +15,14 @@ without them fails. No placeholder image or generated authentication credential 
 The explicit `ci/test-values.yaml` fixture is for lint/render tests only.
 
 Supply `image.repository`, `image.tag`, `gitlab.apiV4Url`, `gitlab.projectId`,
-`authStore.projectId`, and both existing credential Secret names. The worker and auth store
-use the same GitLab API host. Each Secret has key `token`; the auth-store token belongs to
-the dedicated store project. `image.pullSecrets` accepts existing registry Secret names
+`authStore.projectId`, `gateway.url` and the three existing credential Secret names. The
+worker and auth store use the same GitLab API host. Each Secret has key `token`; the
+auth-store token belongs to the dedicated store project.
+
+All model traffic goes through a model gateway. `gateway.url` is the HTTPS URL of the
+gateway route that forwards to the Codex backend. The CLI sends the gateway key in header
+`x-bf-vk` and the subscription token in `Authorization`; the gateway checks the key and
+forwards the token. The worker starts no review without both. `image.pullSecrets` accepts existing registry Secret names
 as a list of `{name: ...}` objects.
 
 Select an ext4 block `storage.storageClass` with ReadWriteOncePod support, or supply
@@ -49,9 +54,10 @@ cover `<release>.<namespace>.svc`. Callers must trust its issuer and send the ma
 server name; Node.js callers may load their trust bundle through `NODE_EXTRA_CA_CERTS`.
 
 For chart-managed ExternalSecrets, set `secrets.type=externalSecret`, the existing store
-name/kind and explicit `items.workerToken` and `items.authStoreToken` references. These
-render one ExternalSecret per credential, each targeting key `token`, with names
-`<release>-worker-token` and `<release>-auth-store-token`. An existing Secret name overrides
+name/kind and explicit `items.workerToken`, `items.authStoreToken` and `items.gatewayKey`
+references. These render one ExternalSecret per credential, each targeting key `token`,
+with names `<release>-worker-token`, `<release>-auth-store-token` and
+`<release>-gateway-key`. An existing Secret name overrides
 its own ExternalSecret independently. Remote item keys are passed unchanged to the store.
 No store or namespace access exception is created.
 
@@ -73,11 +79,11 @@ replica, Recreate strategy, no Kubernetes API token and no fixed UID. It drops a
 capabilities and uses a read-only root filesystem.
 
 The pod runs two containers from the same image. Container `worker` serves the requests
-and holds the request token, the TLS key, the auth-store token and the private state.
-Container `codex` runs the Codex CLI and holds none of them: it has no Secret, no token
-variable and no mount of the private state, and it listens on loopback only. The two
-share the pod network and one directory, `/var/lib/codex/exchange`, through which the
-worker hands the session to the CLI and takes it back.
+and holds the request token, the TLS key, the auth-store token, the gateway key and the
+private state. Container `codex` runs the Codex CLI: it has no Secret, no token variable
+and no mount of the private state, and it listens on loopback only. The two share the pod
+network and one directory, `/var/lib/codex/exchange`, through which the worker hands the
+session and the gateway key of one review to the CLI and takes the session back.
 
 The claim is mounted by `subPath`: `state` in `worker` only, `exchange` in both. An init
 container creates both directories with mode 0700 under the admitted UID. Each container

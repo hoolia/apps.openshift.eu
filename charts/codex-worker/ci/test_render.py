@@ -12,10 +12,11 @@ FIXTURE = CHART / "ci/test-values.yaml"
 ROOT = CHART.parents[1]
 MONITORING = ("--set", "monitoring.enabled=true,monitoring.rules.enabled=true",
               "--set", "monitoring.rules.runbookUrl=https://docs.example.invalid/worker/")
-EXTERNAL = ("--set", "secrets.type=externalSecret,secrets.workerTokenSecret=,secrets.authStoreTokenSecret=",
+EXTERNAL = ("--set", "secrets.type=externalSecret,secrets.workerTokenSecret=,secrets.authStoreTokenSecret=,secrets.gatewayKeySecret=",
             "--set", "secrets.externalSecret.storeName=tenant-store",
             "--set", "secrets.externalSecret.items.workerToken.key=Request bearer",
-            "--set", "secrets.externalSecret.items.authStoreToken.key=Auth store")
+            "--set", "secrets.externalSecret.items.authStoreToken.key=Auth store",
+            "--set", "secrets.externalSecret.items.gatewayKey.key=Gateway key")
 
 
 def render(*args: str) -> list[dict]:
@@ -123,10 +124,12 @@ class RenderTests(unittest.TestCase):
             "CODEX_WORKER_TLS_KEY_FILE": "/etc/codex-worker/tls/tls.key",
             "CI_API_V4_URL": "https://gitlab.example.invalid/api/v4",
             "CI_PROJECT_ID": "101", "CODEX_AUTH_STORE_PROJECT_ID": "102",
+            "CODEX_GATEWAY_URL": "https://gateway.example.invalid/chatgpt_passthrough/backend-api/codex",
             "HOME": "/tmp", "TMPDIR": "/tmp",
         }
         self.assertEqual({name: entry["value"] for name, entry in env.items() if "value" in entry}, expected)
-        for name, secret in (("CODEX_WORKER_TOKEN", "request-token"), ("CODEX_AUTH_STORE_TOKEN", "auth-store-token")):
+        for name, secret in (("CODEX_WORKER_TOKEN", "request-token"), ("CODEX_AUTH_STORE_TOKEN", "auth-store-token"),
+                             ("CODEX_GATEWAY_KEY", "gateway-key")):
             self.assertEqual(env[name]["valueFrom"]["secretKeyRef"], {"name": secret, "key": "token"})
         self.assertEqual(pod["imagePullSecrets"], [{"name": "registry-access"}])
         self.assertEqual(container["image"], "registry.example.invalid/review/worker:0.0.0-test")
@@ -191,9 +194,10 @@ class RenderTests(unittest.TestCase):
     def test_external_credentials_have_independent_names_and_precedence(self) -> None:
         docs = render(*EXTERNAL)
         external = [d for d in docs if d["kind"] == "ExternalSecret"]
-        self.assertEqual(len(external), 2)
+        self.assertEqual(len(external), 3)
         self.assertNotIn("Secret", [d["kind"] for d in docs])
-        for resource, suffix, remote in zip(external, ("worker-token", "auth-store-token"), ("Request bearer", "Auth store"), strict=True):
+        for resource, suffix, remote in zip(external, ("worker-token", "auth-store-token", "gateway-key"),
+                                            ("Request bearer", "Auth store", "Gateway key"), strict=True):
             spec = resource["spec"]
             self.assertEqual(resource["metadata"]["name"], "worker-" + suffix)
             self.assertEqual(spec["target"]["name"], "worker-" + suffix)
@@ -204,7 +208,7 @@ class RenderTests(unittest.TestCase):
         overridden = render(*EXTERNAL, "--set", "secrets.workerTokenSecret=caller-token",
                             "--set", "secrets.externalSecret.storeKind=ClusterSecretStore")
         remaining = [d for d in overridden if d["kind"] == "ExternalSecret"]
-        self.assertEqual([d["metadata"]["name"] for d in remaining], ["worker-auth-store-token"])
+        self.assertEqual([d["metadata"]["name"] for d in remaining], ["worker-auth-store-token", "worker-gateway-key"])
         self.assertEqual(remaining[0]["spec"]["secretStoreRef"]["kind"], "ClusterSecretStore")
         original = by_kind(docs, "Deployment")["spec"]["template"]["metadata"]["annotations"]
         changed = by_kind(render(*EXTERNAL, "--set", "secrets.externalSecret.items.workerToken.key=Rotated"), "Deployment")
@@ -237,6 +241,8 @@ class RenderTests(unittest.TestCase):
             "gitlab.apiV4Url=http://gitlab.example.invalid/api/v4", "gitlab.projectId=", "authStore.projectId=",
             "gitlab.apiV4Url=https://gitlab.example.invalid/api/v4/",
             "authStore.endpoint=https://store.example.invalid", "secrets.workerTokenSecret=", "secrets.authStoreTokenSecret=",
+            "secrets.gatewayKeySecret=", "gateway.url=", "gateway.url=http://gateway.example.invalid/codex",
+            "gateway.url=https://gateway.example.invalid/codex/", "gateway.url=https://user@gateway.example.invalid/codex",
             "storage.storageClass=", "storage.accessMode=ReadWriteMany", "tls.existingSecret=conflict",
             "tls.openshift.enabled=false", "monitoring.rules.enabled=true",
             "networkPolicy.runnerNamespaceSelector=null", "networkPolicy.egress.dnsNamespaceSelector=null",
@@ -252,6 +258,7 @@ class RenderTests(unittest.TestCase):
             ("--set-json", 'image.pullSecrets=[{"name":""}]'),
             (*EXTERNAL, "--set", "secrets.externalSecret.storeName="),
             (*EXTERNAL, "--set", "secrets.externalSecret.items.authStoreToken.key="),
+            (*EXTERNAL, "--set", "secrets.externalSecret.items.gatewayKey.key="),
             (*MONITORING, "--set", "monitoring.rules.runbookUrl="),
             (*MONITORING, "--set", "networkPolicy.monitoringNamespaceSelector=null"),
             (*MONITORING, "--set", "tls.openshift.enabled=false,tls.openshift.injectServiceCa=false,tls.existingSecret=custom"),

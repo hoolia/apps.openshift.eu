@@ -93,6 +93,8 @@ spec:
           value: {{ .Values.gitlab.projectId | quote }}
         - name: CODEX_AUTH_STORE_PROJECT_ID
           value: {{ .Values.authStore.projectId | quote }}
+        - name: CODEX_GATEWAY_URL
+          value: {{ .Values.gateway.url | quote }}
         - name: CODEX_WORKER_TOKEN
           valueFrom:
             secretKeyRef:
@@ -102,6 +104,11 @@ spec:
           valueFrom:
             secretKeyRef:
               name: {{ default (printf "%s-auth-store-token" .Release.Name) .Values.secrets.authStoreTokenSecret }}
+              key: token
+        - name: CODEX_GATEWAY_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ default (printf "%s-gateway-key" .Release.Name) .Values.secrets.gatewayKeySecret }}
               key: token
         ports:
         - name: https

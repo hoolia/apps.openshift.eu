@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
   "additionalProperties": false,
-  "required": ["image", "gitlab", "authStore", "secrets", "storage", "tls", "networkPolicy", "monitoring", "resources", "terminationGracePeriodSeconds"],
+  "required": ["image", "gitlab", "gateway", "authStore", "secrets", "storage", "tls", "networkPolicy", "monitoring", "resources", "terminationGracePeriodSeconds"],
   "properties": {
     "image": {
       "type": "object",
@@ -25,17 +25,22 @@
         "projectId": {"$ref": "#/definitions/projectId"}
       }
     },
+    "gateway": {
+      "type": "object", "additionalProperties": false, "required": ["url"],
+      "properties": {"url": {"type": "string", "pattern": "^https://[^\\s/?#@]+(/[^\\s?#]*[^\\s/?#])?$"}}
+    },
     "authStore": {
       "type": "object", "additionalProperties": false, "required": ["projectId"],
       "properties": {"projectId": {"$ref": "#/definitions/projectId"}}
     },
     "secrets": {
       "type": "object", "additionalProperties": false,
-      "required": ["type", "workerTokenSecret", "authStoreTokenSecret", "externalSecret"],
+      "required": ["type", "workerTokenSecret", "authStoreTokenSecret", "gatewayKeySecret", "externalSecret"],
       "properties": {
         "type": {"enum": ["kubernetes", "externalSecret"]},
         "workerTokenSecret": {"$ref": "#/definitions/optionalName"},
         "authStoreTokenSecret": {"$ref": "#/definitions/optionalName"},
+        "gatewayKeySecret": {"$ref": "#/definitions/optionalName"},
         "externalSecret": {
           "type": "object", "additionalProperties": false,
           "required": ["storeName", "storeKind", "refreshInterval", "items"],
@@ -44,10 +49,11 @@
             "storeKind": {"enum": ["SecretStore", "ClusterSecretStore"]},
             "refreshInterval": {"$ref": "#/definitions/duration"},
             "items": {
-              "type": "object", "additionalProperties": false, "required": ["workerToken", "authStoreToken"],
+              "type": "object", "additionalProperties": false, "required": ["workerToken", "authStoreToken", "gatewayKey"],
               "properties": {
                 "workerToken": {"$ref": "#/definitions/remoteRef"},
-                "authStoreToken": {"$ref": "#/definitions/remoteRef"}
+                "authStoreToken": {"$ref": "#/definitions/remoteRef"},
+                "gatewayKey": {"$ref": "#/definitions/remoteRef"}
               }
             }
           }

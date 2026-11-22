@@ -1,5 +1,5 @@
-{{- if and (eq .Values.secrets.type "kubernetes") (not (and .Values.secrets.workerTokenSecret .Values.secrets.authStoreTokenSecret)) }}
-{{- fail "secrets.workerTokenSecret and secrets.authStoreTokenSecret are required with secrets.type=kubernetes" }}
+{{- if and (eq .Values.secrets.type "kubernetes") (not (and .Values.secrets.workerTokenSecret .Values.secrets.authStoreTokenSecret .Values.secrets.gatewayKeySecret)) }}
+{{- fail "secrets.workerTokenSecret, secrets.authStoreTokenSecret and secrets.gatewayKeySecret are required with secrets.type=kubernetes" }}
 {{- end }}
 {{- if eq .Values.gitlab.projectId .Values.authStore.projectId }}
 {{- fail "authStore.projectId must be separate from gitlab.projectId" }}
