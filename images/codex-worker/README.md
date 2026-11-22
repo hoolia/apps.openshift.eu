@@ -32,14 +32,15 @@ the queue is dropped when its client has left.
 
 ## Build
 
-The Containerfile starts from the Claude image of `coding-agent` (build argument `BASE`),
-downloads the Codex CLI release pinned in `scripts/prepare-codex.sh`, checks its sha256 and
-runs it once. It then runs the test suites of the worker, the agent and the client; a
-failing test fails the build.
+The Containerfile starts from the same pinned `node:22-bookworm` as the Claude image of
+`coding-agent` and installs the same tools with `images/coding-agent/install-tools.sh`, so
+the build context is the repository root. It downloads the Codex CLI release pinned in
+`scripts/prepare-codex.sh`, checks its sha256 and runs it once. It then runs the test
+suites of the worker, the agent and the client; a failing test fails the build.
 
 ```bash
 podman build -t codex-worker:$(cat images/codex-worker/VERSION) \
-  -f images/codex-worker/Containerfile images/codex-worker
+  -f images/codex-worker/Containerfile .
 ```
 
 The workflow `.github/workflows/images.yaml` (job `codex-worker`) builds the image on a
