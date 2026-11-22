@@ -101,10 +101,11 @@ Without injection, supply `tls.caConfigMap.name` and its bundle key in the relea
 namespace. The ServiceMonitor verifies `<release>.<namespace>.svc`; TLS verification
 is never disabled.
 
-The metrics are `codex_worker_reviews_total{result="success"|"failure"}`,
-`codex_worker_pending_reviews` and `codex_worker_oldest_review_age_seconds`.
-`monitoring.rules.enabled` adds tenant-local failure, stall and unavailable alerts scoped
-to this namespace and Service. It requires monitoring and a `runbookUrl` base; lowercase
+The metrics are `codex_worker_reviews_total{result="success"|"failure"|"cancelled"}`,
+`codex_worker_session_mirror_failures_total`, `codex_worker_pending_reviews` and
+`codex_worker_oldest_review_age_seconds`. `monitoring.rules.enabled` adds tenant-local
+failure, stall, unavailable and unmirrored-session alerts scoped to this namespace and
+Service. It requires monitoring and a `runbookUrl` base; lowercase
 alert names become anchors. These alerts do not prove inference availability while idle.
 The operator owns the runbook, scrape discovery and tenant monitoring enablement.
 

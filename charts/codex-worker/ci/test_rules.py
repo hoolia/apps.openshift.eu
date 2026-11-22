@@ -25,6 +25,11 @@ ANNOTATIONS = {
         "description": "HTTPS metrics scrapes are failing or the scrape target is absent.",
         "runbook_url": RUNBOOK + "#codexworkerunavailable",
     },
+    "CodexWorkerSessionNotMirrored": {
+        "summary": "Codex worker session is not mirrored",
+        "description": "A review finished but its refreshed session was not written to the auth store.",
+        "runbook_url": RUNBOOK + "#codexworkersessionnotmirrored",
+    },
 }
 
 
@@ -48,6 +53,7 @@ def rule_tests(namespace: str, service: str) -> list[dict]:
         {"series": f'codex_worker_pending_reviews{{namespace="{namespace}",service="unrelated"}}', "values": "1+0x40"},
         {"series": f'codex_worker_oldest_review_age_seconds{{namespace="{namespace}",service="unrelated"}}', "values": "9999+0x40"},
         {"series": f'up{{namespace="unrelated",service="{service}"}}', "values": "0+0x40"},
+        {"series": f'codex_worker_session_mirror_failures_total{{namespace="unrelated",service="{service}"}}', "values": "0+1x40"},
     ]
     return [
         {
@@ -65,6 +71,12 @@ def rule_tests(namespace: str, service: str) -> list[dict]:
             "interval": "1m",
             "input_series": [healthy, series("codex_worker_reviews_total", "0+1x10 10+0x30", ',result="failure"')],
             "alert_rule_test": checks("4m") + checks("6m", "CodexWorkerReviewFailed") + checks("30m"),
+        },
+        {
+            "name": "an unmirrored session alerts after five minutes and recovers outside the window",
+            "interval": "1m",
+            "input_series": [healthy, series("codex_worker_session_mirror_failures_total", "0+1x10 10+0x30")],
+            "alert_rule_test": checks("4m") + checks("6m", "CodexWorkerSessionNotMirrored") + checks("30m"),
         },
         {
             "name": "pending old reviews stall and recover",
@@ -121,7 +133,7 @@ class RuleTests(unittest.TestCase):
                     passed = subprocess.run(["promtool", "test", "rules", str(tests_file)],
                                             capture_output=True, text=True, check=False)
                     self.assertEqual(passed.returncode, 0, passed.stdout + passed.stderr)
-                    print(f"GREEN {namespace}/{service}: six rule scenarios", flush=True)
+                    print(f"GREEN {namespace}/{service}: seven rule scenarios", flush=True)
                     mutations = (
                         (0, 'result="failure"', 'result="success"', "failure result selector"),
                         (1, "> 1800", "> 99999", "stall threshold"),
@@ -130,6 +142,8 @@ class RuleTests(unittest.TestCase):
                         (2, "\nor\n", "\nand\n", "absent target branch"),
                         (0, f'namespace="{namespace}"', 'namespace="unrelated"', "tenant namespace scope"),
                         (0, f'service="{service}"', 'service="unrelated"', "release service scope"),
+                        (3, "> 0", "> 99", "mirror failure threshold"),
+                        (3, f'namespace="{namespace}"', 'namespace="unrelated"', "mirror failure namespace scope"),
                     )
                     for index, old, new, name in mutations:
                         mutated = deepcopy(rule["spec"])

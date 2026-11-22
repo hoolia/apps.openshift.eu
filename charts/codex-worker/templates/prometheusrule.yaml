@@ -46,4 +46,13 @@ spec:
         summary: Codex worker metrics are unavailable
         description: HTTPS metrics scrapes are failing or the scrape target is absent.
         runbook_url: {{ printf "%s#codexworkerunavailable" .Values.monitoring.rules.runbookUrl | quote }}
+    - alert: CodexWorkerSessionNotMirrored
+      expr: sum by (namespace, service) (increase(codex_worker_session_mirror_failures_total{namespace="{{ .Release.Namespace }}",service="{{ .Release.Name }}"}[{{ .Values.monitoring.rules.failureWindow }}])) > 0
+      for: {{ .Values.monitoring.rules.failureFor }}
+      labels:
+        severity: warning
+      annotations:
+        summary: Codex worker session is not mirrored
+        description: A review finished but its refreshed session was not written to the auth store.
+        runbook_url: {{ printf "%s#codexworkersessionnotmirrored" .Values.monitoring.rules.runbookUrl | quote }}
 {{- end }}
