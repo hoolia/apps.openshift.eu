@@ -360,6 +360,10 @@ OUT=$(render "${IDENT[@]}" --set secrets.websiteIdentityKey=wk)
 check "identity: key to the job only" 'secret("chatwoot-website-identity", "website-identity-key") == "wk" and "chatwoot-website-identity" in refs(pod("chatwoot-prepare-1")) and not any("chatwoot-website-identity" in refs(pod(n)) for n in ("chatwoot-web", "chatwoot-worker", "chatwoot-agent-bridge", "chatwoot-odoo-bridge"))'
 check "identity: the bot asks its own agent" 'env("chatwoot-agent-bridge", "agent-bot")["BOT_A2A_URL"] == "https://a.example.com/www/" and env("chatwoot-agent-bridge", "agent-bot")["BOT_INBOXES"] == "Website"'
 check "identity: records with the bridge key" 'env("chatwoot-agent-bridge", "agent-bot")["IDENTITY_RECORDS"] == "1" and env("chatwoot-agent-bridge", "agent-bot")["ODOO_URL"] == "https://odoo.example.org" and secret("chatwoot-agent-odoo", "odoo-api-key") == "k" and "chatwoot-agent-odoo" in refs(pod("chatwoot-agent-bridge"))'
+OUT=$(render "${IDENT[@]}" --set agentBot.quotations.enabled=true)
+check "quotations: lead message to the bridge" 'env("chatwoot-agent-bridge", "agent-bot")["QUOTATIONS"] == "1" and env("chatwoot-agent-bridge", "agent-bot")["QUOTE_LEAD_MESSAGE"] == "Thank you. We will send you a quotation at {email}." and "portal" not in env("chatwoot-agent-bridge", "agent-bot")["QUOTE_LEAD_MESSAGE"]'
+OUT=$(render "${IDENT[@]}" --set agentBot.quotations.enabled=true --set agentBot.quotations.leadMessage=)
+check "quotations: empty lead message passes Odoo's" 'env("chatwoot-agent-bridge", "agent-bot")["QUOTE_LEAD_MESSAGE"] == ""'
 OUT=$(render "${IDENT[@]}" --set odoo.website.identity.records=false)
 check "identity: records off" '"IDENTITY_RECORDS" not in env("chatwoot-agent-bridge", "agent-bot") and not obj("Secret", "chatwoot-agent-odoo")'
 OUT=$(render "${WEBSITE[@]}")
@@ -421,5 +425,10 @@ check "mcp: routers reach the proxy" 'obj("NetworkPolicy", "chatwoot-mcp")["spec
 check "mcp: api egress to the named endpoint" 'obj("NetworkPolicy", "chatwoot-mcp")["spec"]["egress"][2]["to"] == [{"ipBlock": {"cidr": "192.0.2.1/32"}}]'
 OUT=$(render "${MCP[@]}" --set mcp.callerAccount.enabled=true --set "mcp.allowedHosts={gw.example.com}" --set secrets.type=externalSecret --set secrets.externalSecret.storeName=vault)
 check "mcp: token from the store" '[(x["secretKey"], x["remoteRef"]["key"], x["remoteRef"]["property"]) for x in obj("ExternalSecret", "chatwoot-mcp")["spec"]["data"]] == [("mcp-token", "chatwoot-mcp-token", "login.password")] and not obj("Secret", "chatwoot-mcp")'
+# every script in the ConfigMap: over the 262144 bytes that an object's annotations,
+# last-applied-configuration included, may hold
+OUT=$(render "${CP[@]}" "${ODOO[@]}" --set secrets.odooApiKey=k --set odoo.panel.enabled=true "${DRAFT[@]}" --set copilotPanel.enabled=true)
+check "scripts applied server-side" 'obj("ConfigMap", "chatwoot-scripts")["metadata"]["annotations"] == {"argocd.argoproj.io/sync-options": "ServerSideApply=true"}'
+check "every object fits a client-side apply or is applied server-side" 'len(json.dumps(obj("ConfigMap", "chatwoot-scripts"), separators=(",", ":"))) > 262144 and all(len(json.dumps(d, separators=(",", ":"))) < 200000 or "ServerSideApply=true" in d["metadata"].get("annotations", {}).get("argocd.argoproj.io/sync-options", "") for d in docs)'
 
 [ $fail = 0 ] && echo "PASS charts/chatwoot render" || exit 1

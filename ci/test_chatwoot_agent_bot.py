@@ -688,8 +688,58 @@ class QuoteTest(Base):
         bot.handle(other)
         self.assertNotIn("Your QUOTE", self.text())
 
+    LEAD = {"ok": True, "lead": True, "order": "L00012", "email": "ann@example.com",
+            "message": "Thank you. Our sales team will send you a quotation at ann@example.com."}
+
+    def test_lead_tells_the_visitor_without_quotation_wording(self):
+        self.quote_answer()
+        bot = self.bot(FakeQuoteOdoo(dict(self.LEAD)))
+        bot.handle(event())
+        answers = self.answers()
+        self.assertEqual(answers, ["Thank you. We will send you a quotation at ann@example.com."])
+        self.assertNotIn("portal", answers[0])
+        self.assertFalse(any(p.endswith("/toggle_status") for p in self.paths()))
+        self.state["agent"] = lambda b: message("You are welcome.")
+        bot.handle(event("Thanks"))
+        self.assertIn("[Bridge] Your QUOTE made lead L00012, not a quotation", self.text())
+
+    def test_lead_message_value_and_odoo_message(self):
+        self.quote_answer()
+        self.bot(FakeQuoteOdoo(dict(self.LEAD)), QUOTE_LEAD_MESSAGE="We mail {email} soon.").handle(event())
+        self.assertEqual(self.answers()[-1], "We mail ann@example.com soon.")
+        self.bot(FakeQuoteOdoo(dict(self.LEAD)), QUOTE_LEAD_MESSAGE="").handle(event())
+        self.assertEqual(self.answers()[-1], self.LEAD["message"])
+
+    def test_lead_without_a_usable_odoo_message(self):
+        self.quote_answer()
+        default = "Thank you. We will send you a quotation at ann@example.com."
+        for said in (None, "", "  ", {"a": 1}, True):
+            self.bot(FakeQuoteOdoo({**self.LEAD, "message": said}),
+                     QUOTE_LEAD_MESSAGE=" ").handle(event())
+            self.assertEqual(self.answers()[-1], default)
+        self.bot(FakeQuoteOdoo({**self.LEAD, "message": "x" * 900}),
+                 QUOTE_LEAD_MESSAGE="").handle(event())
+        self.assertEqual(self.answers()[-1], "x" * 500)
+
+    def test_lead_that_is_no_boolean_hands_off(self):
+        self.quote_answer()
+        self.bot(FakeQuoteOdoo({**self.LEAD, "lead": "true"})).handle(event())
+        self.assertEqual(self.answers(), ["Sorry."])
+
+    def test_lead_and_handoff_in_one_answer_does_both(self):
+        self.state["agent"] = lambda b: message("QUOTE " + json.dumps(QUOTE) + "\nHANDOFF")
+        self.bot(FakeQuoteOdoo(dict(self.LEAD))).handle(event())
+        self.assertEqual(self.answers(), ["Thank you. We will send you a quotation at ann@example.com.",
+                                          "A colleague takes over."])
+
+    def test_quotation_keeps_the_sent_message(self):
+        self.quote_answer()
+        self.bot(FakeQuoteOdoo({**self.LEAD, "lead": False, "order": "S00043"})).handle(event())
+        self.assertIn("Quotation S00043 is on its way", self.answers()[-1])
+
     def test_broken_message_templates_stop_the_start(self):
-        for env in ({"QUOTE_SENT_MESSAGE": "Quote {Order}"}, {"QUOTE_REFUSED_MESSAGE": "No: {"}):
+        for env in ({"QUOTE_SENT_MESSAGE": "Quote {Order}"}, {"QUOTE_REFUSED_MESSAGE": "No: {"},
+                    {"QUOTE_LEAD_MESSAGE": "Mail {order}"}):
             with self.assertRaises(ValueError):
                 self.bot(**env)
 
