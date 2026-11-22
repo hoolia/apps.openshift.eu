@@ -275,8 +275,8 @@ agentLabels: {}
 serviceAccount:
   # empty: <name>-agent, created by kagent; another name is created by the chart
   name: ""
-  # ClusterRole the agent holds in its own namespace only. view: read without Secrets,
-  # exec or writes. Empty: no binding
+  # ClusterRole the agent holds in its own namespace only. view: no Secrets, exec or pod
+  # creation, but what operators aggregate into it. Empty: no binding
   clusterRole: edit
   # labels on a ServiceAccount the chart creates, for example the one a platform uses
   # to register it as an OpenID Connect client
