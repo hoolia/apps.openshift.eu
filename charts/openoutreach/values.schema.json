@@ -1,0 +1,126 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["suspend", "mode", "image", "readOnly", "sendEnabled", "pacing", "secrets", "persistence", "testRun"],
+  "properties": {
+    "suspend": {"type": "boolean", "title": "Suspended (0 replicas)"},
+    "mode": {"enum": ["run", "bootstrap"], "title": "run: paced scouting; bootstrap: one-time human login over VNC"},
+    "readOnly": {"type": "boolean", "title": "Read-only: no connect or message"},
+    "sendEnabled": {"type": "boolean", "title": "Send human-approved messages (needs readOnly false)"},
+    "timezone": {"type": "string", "minLength": 1, "title": "Time zone of the working window"},
+    "locale": {"type": "string", "minLength": 2, "title": "Browser locale"},
+    "image": {
+      "type": "object",
+      "required": ["repository", "tag"],
+      "properties": {
+        "repository": {"type": "string", "minLength": 1},
+        "tag": {"type": "string", "minLength": 1},
+        "digest": {"type": "string", "pattern": "^(sha256:[a-f0-9]{64})?$"},
+        "pullPolicy": {"enum": ["Always", "IfNotPresent", "Never"]}
+      }
+    },
+    "pacing": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "workingDays": {"type": "string", "pattern": "^(mon|tue|wed|thu|fri)(,(mon|tue|wed|thu|fri))*$"},
+        "windowStart": {"type": "string", "pattern": "^(08:(3[0-9]|[45][0-9])|09:[0-5][0-9]|1[0-7]:[0-5][0-9])$"},
+        "windowEnd": {"type": "string", "pattern": "^(0[89]:[0-5][0-9]|1[0-7]:[0-5][0-9]|18:00)$"},
+        "maxPageViewsDay": {"type": "integer", "minimum": 0, "maximum": 50},
+        "maxConnectsDay": {"type": "integer", "minimum": 0, "maximum": 10},
+        "maxConnectsWeek": {"type": "integer", "minimum": 0, "maximum": 80},
+        "maxMessagesDay": {"type": "integer", "minimum": 0, "maximum": 15},
+        "delayMinS": {"type": "number", "minimum": 20, "maximum": 120},
+        "delayMaxS": {"type": "number", "minimum": 20, "maximum": 120},
+        "sessionMaxMin": {"type": "integer", "minimum": 1, "maximum": 45},
+        "restHours": {"type": "integer", "minimum": 24},
+        "pauseMinMin": {"type": "integer", "minimum": 30, "maximum": 120},
+        "pauseMaxMin": {"type": "integer", "minimum": 30, "maximum": 120}
+      }
+    },
+    "clickhouse": {
+      "type": "object",
+      "properties": {
+        "url": {"type": "string", "pattern": "^(https?://.+)?$"},
+        "table": {"type": "string", "minLength": 1}
+      }
+    },
+    "chatwoot": {
+      "type": "object",
+      "properties": {
+        "url": {"type": "string", "pattern": "^(https?://.+)?$"},
+        "accountId": {"type": "integer", "minimum": 1},
+        "leadAttribute": {"type": "string", "minLength": 1},
+        "excludedSenderIds": {"type": ["string", "integer"], "pattern": "^([0-9]+(,[0-9]+)*)?$"}
+      }
+    },
+    "odoo": {
+      "type": "object",
+      "properties": {
+        "url": {"type": "string", "pattern": "^(https?://.+)?$"},
+        "db": {"type": "string"}
+      }
+    },
+    "secrets": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {"enum": ["kubernetes", "externalSecret"]},
+        "existingSecret": {"type": "string"},
+        "clickhouseUser": {"type": "string"},
+        "clickhousePassword": {"type": "string"},
+        "slackWebhookUrl": {"type": "string"},
+        "chatwootApiToken": {"type": "string"},
+        "odooUser": {"type": "string"},
+        "odooPassword": {"type": "string"},
+        "externalSecret": {
+          "type": "object",
+          "properties": {
+            "storeKind": {"enum": ["SecretStore", "ClusterSecretStore"]},
+            "storeName": {"type": "string"},
+            "refreshInterval": {"type": "string"},
+            "items": {
+              "type": "object",
+              "propertyNames": {"enum": ["CLICKHOUSE_USER", "CLICKHOUSE_PASSWORD", "SLACK_WEBHOOK_URL", "CHATWOOT_API_TOKEN", "ODOO_USER", "ODOO_PASSWORD"]},
+              "additionalProperties": {
+                "oneOf": [
+                  {"type": "string", "minLength": 1},
+                  {"type": "object", "required": ["key"], "properties": {"key": {"type": "string", "minLength": 1}, "property": {"type": "string", "minLength": 1}}, "additionalProperties": false}
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "linkedinSession": {
+      "type": "object",
+      "properties": {
+        "existingSecret": {"type": "string"}
+      }
+    },
+    "testRun": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "maxPageViews", "sessionMaxMin"],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "maxPageViews": {"type": "integer", "minimum": 0, "maximum": 5},
+        "sessionMaxMin": {"type": "integer", "minimum": 1, "maximum": 10},
+        "playbook": {"type": "object"}
+      }
+    },
+    "playbook": {"type": "object"},
+    "persistence": {
+      "type": "object",
+      "required": ["size", "accessMode"],
+      "properties": {
+        "size": {"type": "string", "minLength": 1},
+        "storageClassName": {"type": "string"},
+        "accessMode": {"const": "ReadWriteOnce"}
+      }
+    },
+    "imagePullSecrets": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "shmSize": {"type": "string", "minLength": 1}
+  }
+}
