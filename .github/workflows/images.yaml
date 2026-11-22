@@ -297,7 +297,7 @@ jobs:
     - name: Build, and push a new version from main
       uses: docker/build-push-action@v6
       with:
-        context: ${{ env.CONTEXT }}
+        context: .
         file: ${{ env.CONTEXT }}/Containerfile
         platforms: linux/amd64
         push: ${{ steps.new.outputs.push == 'true' }}
