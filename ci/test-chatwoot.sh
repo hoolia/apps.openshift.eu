@@ -421,5 +421,9 @@ check "mcp: routers reach the proxy" 'obj("NetworkPolicy", "chatwoot-mcp")["spec
 check "mcp: api egress to the named endpoint" 'obj("NetworkPolicy", "chatwoot-mcp")["spec"]["egress"][2]["to"] == [{"ipBlock": {"cidr": "192.0.2.1/32"}}]'
 OUT=$(render "${MCP[@]}" --set mcp.callerAccount.enabled=true --set "mcp.allowedHosts={gw.example.com}" --set secrets.type=externalSecret --set secrets.externalSecret.storeName=vault)
 check "mcp: token from the store" '[(x["secretKey"], x["remoteRef"]["key"], x["remoteRef"]["property"]) for x in obj("ExternalSecret", "chatwoot-mcp")["spec"]["data"]] == [("mcp-token", "chatwoot-mcp-token", "login.password")] and not obj("Secret", "chatwoot-mcp")'
+# every script in the ConfigMap: well over the 262144 bytes of a last-applied annotation
+OUT=$(render "${SSO[@]}" "${ODOO[@]}" --set secrets.odooApiKey=k --set odoo.panel.enabled=true "${DRAFT[@]}")
+check "scripts applied server-side" 'obj("ConfigMap", "chatwoot-scripts")["metadata"]["annotations"] == {"argocd.argoproj.io/sync-options": "ServerSideApply=true"}'
+check "every object fits a client-side apply or is applied server-side" 'len(json.dumps(obj("ConfigMap", "chatwoot-scripts"))) > 200000 and all(len(json.dumps(d, separators=(",", ":"))) < 200000 or "ServerSideApply=true" in d["metadata"].get("annotations", {}).get("argocd.argoproj.io/sync-options", "") for d in docs)'
 
 [ $fail = 0 ] && echo "PASS charts/chatwoot render" || exit 1
