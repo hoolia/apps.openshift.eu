@@ -1,6 +1,6 @@
 # Synthetic render inputs only; this image is not a deployable worker.
 image:
-  repository: registry.example.invalid/review/worker
+  repository: image-registry.openshift-image-registry.svc:5000/test/codex-worker
   tag: 0.0.0-test
 gitlab:
   apiV4Url: https://gitlab.example.invalid/api/v4
