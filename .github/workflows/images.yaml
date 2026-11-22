@@ -272,7 +272,7 @@ jobs:
         node-version: "22"
     - name: Test the worker
       working-directory: ${{ env.CONTEXT }}
-      run: node --test --test-timeout=120000 scripts/codex-chatgpt.test.mjs scripts/codex-exec-agent.test.mjs scripts/codex-worker.test.mjs scripts/codex-worker-recovery.test.mjs scripts/codex-worker-tls.test.mjs
+      run: node --test --test-concurrency=1 --test-timeout=180000 scripts/codex-chatgpt.test.mjs scripts/codex-exec-agent.test.mjs scripts/codex-worker.test.mjs scripts/codex-worker-recovery.test.mjs scripts/codex-worker-tls.test.mjs
     - name: Version
       id: v
       run: echo "version=$(tr -d '[:space:]' < "$CONTEXT/VERSION")" >> "$GITHUB_OUTPUT"

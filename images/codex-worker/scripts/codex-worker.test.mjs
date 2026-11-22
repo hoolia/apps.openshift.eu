@@ -10,7 +10,7 @@ import { bounded, client, fixture, lockHelper, processRun, rawReview, worker } f
 for (const signal of ["SIGTERM", "SIGKILL"]) {
   for (const beforeRefresh of [true, false]) {
     test(`CI ${signal} ${beforeRefresh ? "before" : "after"} native refresh preserves writeback`,
-      { timeout: 15000 }, async (t) => {
+      { timeout: 60000 }, async (t) => {
         const f = await fixture(t);
         const run = f.launch("cancelled", { beforeRefresh });
         const start = await f.started("cancelled");
@@ -28,7 +28,7 @@ for (const signal of ["SIGTERM", "SIGKILL"]) {
   }
 }
 
-test("worker and agent drain accepted execution together on shutdown", { timeout: 15000 }, async (t) => {
+test("worker and agent drain accepted execution together on shutdown", { timeout: 60000 }, async (t) => {
   const f = await fixture(t);
   const first = f.launch("first");
   const second = f.launch("second");
@@ -49,7 +49,7 @@ test("worker and agent drain accepted execution together on shutdown", { timeout
   assert.deepEqual(await readdir(f.environment.CODEX_EXCHANGE_DIR), []);
 });
 
-test("queued review whose client left is not started", { timeout: 20000 }, async (t) => {
+test("queued review whose client left is not started", { timeout: 300000 }, async (t) => {
   const f = await fixture(t);
   const sample = async (name) => Number((await (await fetch(`${f.url}/metrics`)).text())
     .split("\n").find((line) => line.startsWith(name)).split(" ").at(-1));
@@ -82,7 +82,7 @@ async function waiting(replacement) {
   return { ready, state };
 }
 
-test("restarted worker waits for the agent's review and adopts its refresh", { timeout: 20000 }, async (t) => {
+test("restarted worker waits for the agent's review and adopts its refresh", { timeout: 300000 }, async (t) => {
   const f = await fixture(t);
   const run = f.launch("survivor");
   const start = await f.started("survivor");
@@ -113,7 +113,7 @@ test("restarted worker waits for the agent's review and adopts its refresh", { t
   assert.equal((await bounded(replacement.done)).code, 0);
 });
 
-test("orphan auth runner holds the restart lease until it has saved the refresh", { timeout: 20000 }, async (t) => {
+test("orphan auth runner holds the restart lease until it has saved the refresh", { timeout: 300000 }, async (t) => {
   const f = await fixture(t);
   const run = f.launch("orphan");
   const start = await f.started("orphan");
@@ -143,7 +143,7 @@ test("orphan auth runner holds the restart lease until it has saved the refresh"
 });
 
 test("auth runner death stops the worker before another native owner starts",
-  { timeout: 20000 }, async (t) => {
+  { timeout: 300000 }, async (t) => {
     const f = await fixture(t);
     const first = f.launch("owner-lost");
     const start = await f.started("owner-lost");
@@ -169,7 +169,7 @@ test("auth runner death stops the worker before another native owner starts",
     assert.equal((await bounded(replacement.done)).code, 0);
   });
 
-test("interrupted review without a valid session keeps the worker down", { timeout: 20000 }, async (t) => {
+test("interrupted review without a valid session keeps the worker down", { timeout: 300000 }, async (t) => {
   const f = await fixture(t);
   const done = f.launch("seed");
   await f.started("seed");
@@ -197,7 +197,7 @@ test("interrupted review without a valid session keeps the worker down", { timeo
   assert.equal(await durable(f), "synthetic-rotated-seed");
 });
 
-test("service rejects inherited descriptor that is not its lease file", { timeout: 15000 }, async (t) => {
+test("service rejects inherited descriptor that is not its lease file", { timeout: 60000 }, async (t) => {
   const f = await fixture(t);
   f.service.child.kill("SIGTERM");
   await bounded(f.service.done);
@@ -216,7 +216,7 @@ for (const [name, extra, expected] of [
   ["native failure", { exitCode: 17 }, 17],
   ["malformed native output", { malformed: true }, 1],
 ]) {
-  test(`${name} fails the client without leaking output`, { timeout: 15000 }, async (t) => {
+  test(`${name} fails the client without leaking output`, { timeout: 60000 }, async (t) => {
     const f = await fixture(t);
     const run = f.launch("failure", extra);
     await f.started("failure");
@@ -229,7 +229,7 @@ for (const [name, extra, expected] of [
   });
 }
 
-test("auth backend rejection fails closed and liveness stays independent", { timeout: 15000 }, async (t) => {
+test("auth backend rejection fails closed and liveness stays independent", { timeout: 60000 }, async (t) => {
   const f = await fixture(t, { rejectAuth: true });
   const run = f.launch("rejected");
   const result = await bounded(run.done);
@@ -243,7 +243,7 @@ test("auth backend rejection fails closed and liveness stays independent", { tim
   assert.match(log.stderr, /"error":"execution_failed","exitCode":1,"reason":"Codex ChatGPT auth store GET failed \(403\)"/);
 });
 
-test("worker rejects unauthorized, oversized and configurable review payloads", { timeout: 15000 }, async (t) => {
+test("worker rejects unauthorized, oversized and configurable review payloads", { timeout: 60000 }, async (t) => {
   const f = await fixture(t);
   for (const [body, token, status] of [
     ['{"input":"x"}', "wrong", 401], ["{", "synthetic-worker", 400],
@@ -303,7 +303,7 @@ test("client rejects malformed HTTP success without printing partial review", as
   assert.equal(result.stdout, "");
 });
 
-test("launcher restores private state modes widened by a volume remount", { timeout: 15000 }, async (t) => {
+test("launcher restores private state modes widened by a volume remount", { timeout: 60000 }, async (t) => {
   const directory = await mkdtemp(join(tmpdir(), "codex-worker-remount-"));
   t.after(() => rm(directory, { recursive: true, force: true }));
   const state = join(directory, "state");

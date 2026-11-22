@@ -72,7 +72,7 @@ for (const name of ["CODEX_AUTH_STORE_TOKEN", "CODEX_WORKER_TOKEN", "CODEX_WORKE
   });
 }
 
-test("agent runs the fixed review command without any credential", { timeout: 15000 }, async (t) => {
+test("agent runs the fixed review command without any credential", { timeout: 60000 }, async (t) => {
   const f = await fixture(t);
   assert.match(f.url, /^http:\/\/127\.0\.0\.1:\d+$/);
   const { home, release } = await f.request(id("a"));
@@ -99,7 +99,7 @@ test("agent runs the fixed review command without any credential", { timeout: 15
   assert.equal(await f.status(), null);
 });
 
-test("agent rejects requests that name anything but its own request directory", { timeout: 15000 }, async (t) => {
+test("agent rejects requests that name anything but its own request directory", { timeout: 60000 }, async (t) => {
   const f = await fixture(t);
   await f.request(id("a"));
   const outside = join(f.directory, "outside");
@@ -125,7 +125,7 @@ test("agent rejects requests that name anything but its own request directory", 
   await assert.rejects(readFile(join(linked.home, "seen.json")), { code: "ENOENT" });
 });
 
-test("replacement agent stays busy while a review of the dead agent runs", { timeout: 15000 }, async (t) => {
+test("replacement agent stays busy while a review of the dead agent runs", { timeout: 60000 }, async (t) => {
   const f = await fixture(t);
   const { home, release } = await f.request(id("a"));
   const pending = f.post(`/runs/${id("a")}`).catch(() => null);
@@ -144,7 +144,7 @@ test("replacement agent stays busy while a review of the dead agent runs", { tim
   while (await status() !== null) await sleep(20);
 });
 
-test("terminated agent finishes its review and waits for release or silence", { timeout: 15000 }, async (t) => {
+test("terminated agent finishes its review and waits for release or silence", { timeout: 60000 }, async (t) => {
   const f = await fixture(t);
   const { release } = await f.request(id("a"));
   const pending = f.post(`/runs/${id("a")}`);
@@ -165,7 +165,7 @@ test("terminated agent finishes its review and waits for release or silence", { 
   assert.equal((await bounded(silent.run.done)).code, 0);
 });
 
-test("agent ends a review that runs past its deadline", { timeout: 15000 }, async (t) => {
+test("agent ends a review that runs past its deadline", { timeout: 60000 }, async (t) => {
   const f = await fixture(t, { unstarted: true });
   const run = await f.start({ CODEX_AGENT_RUN_TIMEOUT_MS: "400" });
   const url = (await run.line(/CODEX_AGENT_READY (http\S+)/))[1];

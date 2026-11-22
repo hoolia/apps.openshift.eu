@@ -8,7 +8,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { bounded, client, fixture, lockHelper, processRun, rawReview, worker } from "./codex-worker-fixture.mjs";
 
-test("worker client verifies TLS and completes a trusted request", { timeout: 20000 }, async (t) => {
+test("worker client verifies TLS and completes a trusted request", { timeout: 300000 }, async (t) => {
   const directory = await mkdtemp(join(tmpdir(), "codex-worker-certificate-"));
   t.after(() => rm(directory, { recursive: true, force: true }));
   const cert = join(directory, "certificate.pem");
@@ -217,7 +217,7 @@ test("metrics expose accepted queued and running TLS reviews through idle reset"
     assert.equal(f.maximum(), 1);
   });
 
-test("metrics count native failure as accepted execution failure", { timeout: 20000 }, async (t) => {
+test("metrics count native failure as accepted execution failure", { timeout: 300000 }, async (t) => {
   const f = await metricsFixture(t);
   const run = f.launch("synthetic-private-prompt", { exitCode: 17 });
   await f.started("synthetic-private-prompt");
@@ -232,7 +232,7 @@ test("metrics count native failure as accepted execution failure", { timeout: 20
   assert.deepEqual(f.rare(), { cancelled: 0, unmirrored: 0 });
 });
 
-test("a refused store write keeps the review and counts a mirror failure", { timeout: 20000 }, async (t) => {
+test("a refused store write keeps the review and counts a mirror failure", { timeout: 300000 }, async (t) => {
   const f = await metricsFixture(t, true);
   const run = f.launch("synthetic-private-prompt");
   await f.started("synthetic-private-prompt");

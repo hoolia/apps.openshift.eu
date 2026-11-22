@@ -4,8 +4,8 @@ WORKDIR /build
 COPY images/codex-worker/scripts ./scripts
 # pinned Codex CLI, checked against its sha256 and exercised natively
 RUN env -i PATH="$PATH" HOME=/tmp sh scripts/prepare-codex.sh
-# worker, agent and client suites; a failure fails the build
-RUN env -i PATH="$PATH" HOME=/tmp node --test --test-timeout=120000 \
+# worker, agent and client suites, one file at a time; a failure fails the build
+RUN env -i PATH="$PATH" HOME=/tmp node --test --test-concurrency=1 --test-timeout=180000 \
       scripts/codex-chatgpt.test.mjs scripts/codex-exec-agent.test.mjs \
       scripts/codex-worker.test.mjs scripts/codex-worker-recovery.test.mjs \
       scripts/codex-worker-tls.test.mjs

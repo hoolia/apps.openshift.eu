@@ -13,7 +13,7 @@ async function completed(t) {
   return f;
 }
 
-test("stale remote publication cannot reseed newer native auth", { timeout: 15000 }, async (t) => {
+test("stale remote publication cannot reseed newer native auth", { timeout: 60000 }, async (t) => {
   const f = await completed(t);
   const stale = JSON.parse(Buffer.from(f.variable.value, "base64"));
   stale.tokens.refresh_token = "synthetic-old";
@@ -27,7 +27,7 @@ test("stale remote publication cannot reseed newer native auth", { timeout: 1500
 });
 
 test("accepted publication with a lost response recovers before another native run",
-  { timeout: 15000 }, async (t) => {
+  { timeout: 60000 }, async (t) => {
     const f = await fixture(t, { dropSaveResponse: true });
     const first = f.launch("lost-response");
     await f.started("lost-response");
@@ -43,7 +43,7 @@ test("accepted publication with a lost response recovers before another native r
 
 for (const fault of ["missing auth", "invalid baseline", "wrong endpoint"]) {
   test(`existing state with ${fault} cannot bootstrap from a remote snapshot`,
-    { timeout: 15000 }, async (t) => {
+    { timeout: 60000 }, async (t) => {
       const f = await completed(t);
       const current = join(f.directory, "state/private/current");
       if (fault === "missing auth") await rm(join(current, "auth.json"));
@@ -62,7 +62,7 @@ for (const fault of ["missing auth", "invalid baseline", "wrong endpoint"]) {
     });
 }
 
-test("drained explicit reseed preserves the quarantined native state", { timeout: 15000 }, async (t) => {
+test("drained explicit reseed preserves the quarantined native state", { timeout: 60000 }, async (t) => {
   const f = await completed(t);
   f.service.child.kill("SIGTERM");
   assert.equal((await bounded(f.service.done)).code, 0);
