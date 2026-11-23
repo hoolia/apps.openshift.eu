@@ -70,7 +70,7 @@ async function main() {
   const {
     CI_API_V4_URL, CI_PROJECT_ID, CODEX_AUTH_STORE_TOKEN, CODEX_AUTH_STORE_PROJECT_ID,
     CODEX_AUTH_STATE_DIR, CODEX_AUTH_LOCK_FD, CODEX_EXCHANGE_DIR, CODEX_AGENT_URL,
-    CODEX_GATEWAY_URL, CODEX_GATEWAY_KEY, CODEX_MODEL,
+    CODEX_GATEWAY_URL, CODEX_GATEWAY_KEY, CODEX_MODEL, CODEX_REASONING_EFFORT,
   } = process.env;
   const [target, ...extra] = process.argv.slice(2);
   const recovering = target === "--recover";
@@ -102,6 +102,10 @@ async function main() {
   // the gateway admits only models its key names, so the CLI default is not used
   if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(CODEX_MODEL ?? "")) {
     throw new AuthError("Codex ChatGPT runner requires the model name the gateway key allows");
+  }
+  // unset leaves the CLI default of the model
+  if (CODEX_REASONING_EFFORT && !/^(low|medium|high|xhigh|max)$/.test(CODEX_REASONING_EFFORT)) {
+    throw new AuthError("Codex ChatGPT runner requires a reasoning effort of low, medium, high, xhigh or max");
   }
   const privateRoot = join(CODEX_AUTH_STATE_DIR, "private");
   await mkdir(privateRoot, { recursive: true, mode: 0o700 });
@@ -253,6 +257,7 @@ async function main() {
   await mkdir(join(directory, "review"), { mode: 0o700 });
   await writeFile(join(home, "config.toml"), [
     `model = ${JSON.stringify(CODEX_MODEL)}`,
+    ...(CODEX_REASONING_EFFORT ? [`model_reasoning_effort = "${CODEX_REASONING_EFFORT}"`] : []),
     'model_provider = "gateway"',
     'forced_login_method = "chatgpt"',
     'cli_auth_credentials_store = "file"',

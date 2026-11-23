@@ -28,7 +28,9 @@ All model traffic goes through a model gateway. `gateway.url` is the HTTPS URL o
 gateway route that forwards to the Codex backend. The CLI sends the gateway key in header
 `x-bf-vk` and the subscription token in `Authorization`; the gateway checks the key and
 forwards the token. The gateway admits only the models its key names, so `gateway.model`
-names the model of each review; the CLI's own default is not used. The worker starts no
+names the model of each review; the CLI's own default is not used. `gateway.reasoningEffort`
+sets the reasoning effort of that model (`low`, `medium`, `high`, `xhigh` or `max`); empty
+leaves the CLI default of the model. The worker starts no
 review without the URL, the key and the model. `image.pullSecrets` accepts existing registry Secret names
 as a list of `{name: ...}` objects.
 
@@ -52,7 +54,7 @@ helm install codex-worker ./charts/codex-worker \
 ```
 
 Every value and its default is described in `values.yaml`. The image is named by a version tag; `latest` is refused.
-The chart and worker application version are 0.1.0; the image owns its Codex CLI version.
+The chart and worker application version are 0.2.0; the image owns its Codex CLI version.
 
 OpenShift TLS requests `<release>-tls` with `tls.crt` and `tls.key`. To use an existing
 certificate on another Kubernetes distribution, set `tls.openshift.enabled=false`,

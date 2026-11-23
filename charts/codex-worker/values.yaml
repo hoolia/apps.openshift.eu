@@ -22,6 +22,8 @@ gateway:
   url: ""
   # Model name the gateway key allows, as the subscription plan names it; required.
   model: ""
+  # low, medium, high, xhigh or max; empty leaves the CLI default of the model.
+  reasoningEffort: ""
 
 # Dedicated authentication store on the same GitLab host.
 authStore:

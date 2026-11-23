@@ -104,6 +104,7 @@ async function fixture(t, options = {}) {
       assert.match(config, /forced_login_method = "chatgpt"/);
       assert.match(config, /cli_auth_credentials_store = "file"/);
       assert.match(config, /^model = "synthetic-model-1"$/m);
+      assert.equal(/^model_reasoning_effort = "(.*)"$/m.exec(config)?.[1], ${JSON.stringify(options.effort)});
       for (const key of Object.keys(process.env)) {
         assert.doesNotMatch(key, /TOKEN|KEY|KUBECONFIG|CI_|BASH_ENV|NODE_OPTIONS|CODEX_AUTH|CODEX_EXCHANGE/);
       }
@@ -147,6 +148,7 @@ async function fixture(t, options = {}) {
       CODEX_GATEWAY_URL: options.gatewayUrl ?? "https://gateway.invalid/chatgpt_passthrough/backend-api/codex",
       CODEX_GATEWAY_KEY: options.gatewayKey ?? "synthetic-gateway-0001",
       CODEX_MODEL: options.model ?? "synthetic-model-1",
+      ...(options.effort === undefined ? {} : { CODEX_REASONING_EFFORT: options.effort }),
       OPENAI_API_KEY: "synthetic-billable-key",
   };
   let stdout = "";
@@ -193,6 +195,20 @@ test("loads current scoped auth and persists refresh without exposing store cred
   assert.deepEqual(result.requests, ["GET", "GET", "PUT"]);
   assert.equal(result.review, '{"verdict":"OK","review":"Synthetic."}');
   assert.deepEqual(result.leftovers, []);
+});
+
+test("writes the reasoning effort it is given into the CLI configuration", async (t) => {
+  const result = await fixture(t, { effort: "high" });
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, /MODEL_COMPLETED/);
+});
+
+test("rejects an unknown reasoning effort before reading credentials or starting the model", async (t) => {
+  const result = await fixture(t, { effort: 'high"\nmodel = "other' });
+  assert.equal(result.code, 1);
+  assert.deepEqual(result.requests, []);
+  assert.doesNotMatch(result.stdout, /MODEL_STARTED/);
+  assert.match(result.stderr, /requires a reasoning effort of low, medium, high, xhigh or max/);
 });
 
 test("sets the request directory aside when the model leaves no valid session", async (t) => {

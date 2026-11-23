@@ -97,6 +97,10 @@ spec:
           value: {{ .Values.gateway.url | quote }}
         - name: CODEX_MODEL
           value: {{ .Values.gateway.model | quote }}
+        {{- with .Values.gateway.reasoningEffort }}
+        - name: CODEX_REASONING_EFFORT
+          value: {{ . | quote }}
+        {{- end }}
         - name: CODEX_WORKER_TOKEN
           valueFrom:
             secretKeyRef:
