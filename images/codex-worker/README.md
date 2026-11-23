@@ -67,6 +67,7 @@ credentials' values.
 | `CODEX_AUTH_STORE_PROJECT_ID`, `CODEX_AUTH_STORE_TOKEN` | `worker` | the separate auth-store project and its access token |
 | `CODEX_GATEWAY_URL`, `CODEX_GATEWAY_KEY` | `worker` | HTTPS gateway route to the Codex backend and its key |
 | `CODEX_MODEL` | `worker` | model name the gateway key allows, as the subscription plan names it |
+| `CODEX_REASONING_EFFORT` | `worker` | optional: `low`, `medium`, `high`, `xhigh` or `max`; unset leaves the CLI default of the model |
 | `CODEX_AUTH_STATE_DIR` | `worker` | private state, mode 0700, on a volume only this container mounts |
 | `CODEX_EXCHANGE_DIR` | both | request directories, on a volume both containers mount |
 | `CODEX_AGENT_URL` | `worker` | the agent, `http://127.0.0.1:3444` |
