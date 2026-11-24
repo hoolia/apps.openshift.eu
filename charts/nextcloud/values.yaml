@@ -118,6 +118,10 @@ database:
   legacyRootSecret: false
   image: docker.io/mariadb:11.4.10
   replicas: 1
+  # concurrent connections of the nextcloud user; Apache serves 150 requests per pod
+  maxUserConnections: 150
+  # above maxUserConnections and the operator's own users
+  maxConnections: 200
   metrics:
     enabled: false
   storage:
@@ -407,7 +411,7 @@ mailu:
     front:
       # a chart upgrade reloads mail-prefix.conf; equals the chart version (templates/validate.yaml)
       podAnnotations:
-        chart-version: 0.20.0
+        chart-version: 0.20.1
       extraVolumes:
       - name: dovecot-override
         configMap:
@@ -611,7 +615,7 @@ nextcloud:
   # a chart upgrade restarts Nextcloud so its start-up setup runs again; equals the chart
   # version (templates/validate.yaml refuses a render where it does not)
   podAnnotations:
-    chart-version: 0.20.0
+    chart-version: 0.20.1
   nextcloud:
     host: nextcloud.example.org
     existingSecret:

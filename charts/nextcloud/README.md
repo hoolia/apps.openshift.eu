@@ -139,6 +139,11 @@ change, so such a release keeps the root password in `nextcloud-credentials` (ke
 `mariadb-root-password`) instead of `nextcloud-mariadb-root`. `helm upgrade` detects that
 itself; with Argo CD or `helm template` set `database.legacyRootSecret=true`.
 
+The database user `nextcloud` may hold `database.maxUserConnections` connections at once
+(default 150, as many requests as Apache serves in one pod). Every further request fails
+with HTTP 500 until a connection is free. `database.maxConnections` (default 200) limits the
+whole database and stays above it. With `hpa.enabled`, raise both for the number of pods.
+
 With `secrets.generator.enabled` the External Secrets Operator generates each empty
 password in these Secrets once (Password generator, `refreshPolicy: CreatedOnce`), so they
 stay the same under Argo CD as well. Labels and annotations for `nextcloud-admin` go in

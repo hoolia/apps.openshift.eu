@@ -1,0 +1,22 @@
+{{- if .Values.database.enabled }}
+# the operator gives the user of MariaDB spec.username at most 20 connections
+apiVersion: k8s.mariadb.com/v1alpha1
+kind: User
+metadata:
+  name: nextcloud-mariadb-user
+  labels:
+    app: nextcloud-mariadb
+    app.kubernetes.io/name: mariadb
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: nextcloud
+    {{- include "nextcloud.commonLabels" $ | nindent 4 }}
+spec:
+  mariaDbRef:
+    name: nextcloud-mariadb
+  name: nextcloud
+  host: "%"
+  passwordSecretKeyRef:
+    name: nextcloud-mariadb
+    key: password
+  maxUserConnections: {{ .Values.database.maxUserConnections }}
+{{- end }}
