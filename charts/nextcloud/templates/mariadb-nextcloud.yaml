@@ -45,4 +45,5 @@ spec:
   myCnf: |
     [mariadb]
     max_connect_errors = 1000000
+    max_connections = {{ .Values.database.maxConnections }}
 {{- end }}

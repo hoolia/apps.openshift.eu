@@ -118,6 +118,10 @@ database:
   legacyRootSecret: false
   image: docker.io/mariadb:11.4.10
   replicas: 1
+  # concurrent connections of the nextcloud user; Apache serves 150 requests per pod
+  maxUserConnections: 150
+  # above maxUserConnections and the operator's own users
+  maxConnections: 200
   metrics:
     enabled: false
   storage:
