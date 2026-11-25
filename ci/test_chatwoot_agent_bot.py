@@ -77,9 +77,11 @@ def message(text):
                        "parts": [{"kind": "text", "text": text}]}}
 
 
-def signed_context(cid, context_id, account=1):
-    """The attribute value the bot writes: the context and its HMAC for this conversation."""
-    mac = hmac.new(SECRET.encode(), f"a2a-context:{account}:{cid}:{context_id}".encode(), hashlib.sha256).hexdigest()
+def signed_context(cid, context_id, account=1, identity=""):
+    """The attribute value the bot writes: the context and its HMAC for this conversation and
+    this login ("" is logged out)."""
+    mac = hmac.new(SECRET.encode(), f"a2a-context:2:{account}:{cid}:{identity}:{context_id}".encode(),
+                   hashlib.sha256).hexdigest()
     return f"{context_id}.{mac}"
 
 
@@ -155,7 +157,7 @@ class BotTest(Base):
         msg = sent["params"]["message"]
         self.assertNotIn("contextId", msg)
         self.assertEqual(msg["parts"][0]["text"],
-                         "You answer a customer.\n\n" + agent_bot.NOT_LOGGED_IN + "\n\nWhere is my order?")
+                         "You answer a customer.\n\n" + agent_bot.NOT_LOGGED_IN + "\n\nvisitor message: Where is my order?")
         # the sender's typed address is not verified: it never reaches the agent
         self.assertEqual(msg["metadata"]["chatwoot"]["contact"], {"verified": False})
         self.assertNotIn("ann@example.com", json.dumps(sent))
@@ -170,7 +172,7 @@ class BotTest(Base):
         bot.handle(event("And the invoice?", attrs={"a2a_context_id": signed_context(7, "ctx-1")}))
         msg = self.state["a2a"][1][0]["params"]["message"]
         self.assertEqual(msg["contextId"], "ctx-1")
-        self.assertEqual(msg["parts"][0]["text"], agent_bot.NOT_LOGGED_IN + "\n\nAnd the invoice?")
+        self.assertEqual(msg["parts"][0]["text"], agent_bot.NOT_LOGGED_IN + "\n\nvisitor message: And the invoice?")
 
     def test_signed_context_survives_a_restart(self):
         self.bot().handle(event("And the invoice?", attrs={"a2a_context_id": signed_context(7, "ctx-old")}))
@@ -416,6 +418,10 @@ def verified(email="ann@example.com", ok=True):
     """An event of a conversation whose contact the website verified (or not)."""
     e = event()
     e["conversation"]["meta"] = {"hmac_verified": ok, "sender": {"identifier": email, "email": "typed@evil.example"}}
+    if isinstance(email, str):
+        # the contact inbox of the session the website verified for exactly this identifier
+        e["conversation"]["contact_inbox"] = {
+            "source_id": "id-" + hashlib.sha256(email.encode()).hexdigest()[:32] + "-session"}
     return e
 
 
@@ -518,7 +524,7 @@ class IdentityTest(Base):
             {"phone_number": "+44 113 496 0000", "additional_attributes": {"company_name": "Other Name Ltd"}})
         self.bot(FakeOdoo()).handle(e)
         text = self.text()
-        self.assertIn("- phone: +44 113 496 0000 (from their login profile)", text)
+        self.assertNotIn("+44 113 496 0000", text)
         # Odoo's company name stays; the login's is never shown over it
         self.assertIn("- company: Bob Ltd", text)
         self.assertNotIn("Other Name", text)
@@ -708,7 +714,7 @@ class QuoteTest(Base):
         bot = self.bot(FakeQuoteOdoo(answer={"ok": True}))
         bot.handle(event())
         self.assertEqual(self.answers(), ["Sorry."])
-        self.assertIn("may or may not exist", bot.notes[(1, 7)])
+        self.assertIn("may or may not exist", bot.notes[(1, 7, "")])
 
     def test_note_survives_a_failed_agent_call(self):
         self.quote_answer()
@@ -805,6 +811,9 @@ class DraftTest(Base):
                          "DRAFT_WEBHOOK_SECRET_FILE": str(self.dir / "draft-secret"),
                          "DRAFT_INBOXES": "Support", "DRAFT_HEADING": "AI draft"})
         # the account webhook carries the inbox name; conversations are open (staff hold them)
+        self.state["get"] = lambda path: (200, {"payload": self.state["messages"]}) if "/messages" in path else \
+            (200, {"id": 7, "meta": {"channel": "Channel::Email",
+                                     "sender": {"name": "Ann", "email": "ann@example.com"}}})
         self.drafts = agent_bot.Drafts(self.bot())
 
     def draft_event(self, mid=21, inbox="Support", **kw):
@@ -818,7 +827,8 @@ class DraftTest(Base):
                                          (18, 1, "Customer is on the gold plan", True),
                                          (21, 0, "My sync stopped."))
         self.drafts.handle(self.draft_event())
-        self.assertEqual(self.state["gets"], [("/api/v1/accounts/1/conversations/7/messages", DRAFT_TOKEN)])
+        self.assertEqual(self.state["gets"], [("/api/v1/accounts/1/conversations/7/messages", DRAFT_TOKEN),
+                                              ("/api/v1/accounts/1/conversations/7", DRAFT_TOKEN)])
         prompt = self.state["a2a"][0][0]["params"]["message"]["parts"][0]["text"]
         self.assertIn("customer: My sync stopped.", prompt)
         self.assertIn("\n\nCustomer: Ann <ann@example.com>\n\nConversation:\n", prompt)
@@ -913,6 +923,7 @@ class DraftTest(Base):
             self.assertEqual(post("/draft", SECRET), 401)  # the bot's secret signs no draft
             self.assertEqual(post("/draft", DRAFT_SECRET), 200)
             pool.shutdown(wait=True)
+            self.drafts.workers.pool.shutdown(wait=True)
             self.assertIs(self.state["chatwoot"][-1][1]["private"], True)
         finally:
             hook.shutdown()
@@ -953,7 +964,19 @@ class WebhookTest(Base):
     def test_signed_answered(self):
         self.assertEqual(self.post(json.dumps(event()).encode()), 200)
         self.pool.shutdown(wait=True)
+        self.bot_.agents.pool.shutdown(wait=True)
         self.assertEqual(self.state["chatwoot"][-1][1]["content"], "Tomorrow.")
+
+    def test_event_without_a_conversation_is_no_error(self):
+        """Account webhooks also send events that name no conversation: skipped, never logged as
+        a failure."""
+        from unittest import mock
+        with mock.patch.object(agent_bot.LOG, "exception") as failed:
+            self.bot_.dispatch({"event": "contact_updated", "id": 5, "account": {"id": 1}})
+            self.bot_.dispatch({"event": "message_created", "id": 6, "message_type": "incoming",
+                                "account": {"id": 1}, "conversation": None})
+        failed.assert_not_called()
+        self.assertEqual(self.state["a2a"], [])
 
 
 class PanelTest(Base):
@@ -1186,7 +1209,8 @@ class TriageBase(Base):
                          "TRIAGE_HEADING": "AI triage:", "SWEEP_SECONDS": "60", "SWEEP_MAX_AGE_HOURS": "24"})
         self.state.update({
             "messages": history((20, 1, "Hello"), (21, 0, "How often do you back up my Nextcloud?")),
-            "conversation": {"id": 7, "labels": ["vip"], "meta": {"sender": {"name": "Ann", "email": "ann@example.com"}}},
+            "conversation": {"id": 7, "labels": ["vip"], "meta": {"channel": "Channel::Email",
+                                                                    "sender": {"name": "Ann", "email": "ann@example.com"}}},
             "teams": [{"id": 4, "name": "engineering"}, {"id": 5, "name": "marketing"}],
             "inboxes": [{"id": 3, "name": "Support"}, {"id": 9, "name": "Other"}],
             "list": [], "get": self.route, "agent": self.agent})
