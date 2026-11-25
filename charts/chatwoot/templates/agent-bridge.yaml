@@ -112,6 +112,13 @@ spec:
         {{- end }}
         {{- end }}
         {{- end }}
+        {{- if include "wrapper.visitorIdentity" . }}
+        # the visitor as the Odoo user of the agent's MCP calls (header X-Chat-Visitor)
+        - name: VISITOR_KEY_FILE
+          value: /etc/chatwoot-agent-visitor/chat-visitor-key
+        - name: VISITOR_DATABASE
+          value: {{ required "agentBot.visitorIdentity.enabled needs odoo.database" .Values.odoo.database | quote }}
+        {{- end }}
         {{- if .Values.draftAgent.enabled }}
         {{- $d := .Values.draftAgent }}
         # AI drafts: the account webhook arrives on /draft, drafts go out as private notes
@@ -199,6 +206,11 @@ spec:
           mountPath: /etc/chatwoot-agent-odoo
           readOnly: true
         {{- end }}
+        {{- if include "wrapper.visitorIdentity" . }}
+        - name: visitor
+          mountPath: /etc/chatwoot-agent-visitor
+          readOnly: true
+        {{- end }}
         {{- if .Values.tenantFacts.enabled }}
         - name: kube
           mountPath: /var/run/secrets/kube
@@ -238,6 +250,12 @@ spec:
       - name: odoo
         secret:
           secretName: chatwoot-agent-odoo
+          defaultMode: 0440
+      {{- end }}
+      {{- if include "wrapper.visitorIdentity" . }}
+      - name: visitor
+        secret:
+          secretName: chatwoot-agent-visitor
           defaultMode: 0440
       {{- end }}
       {{- if .Values.tenantFacts.enabled }}

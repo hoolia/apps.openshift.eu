@@ -303,6 +303,31 @@ sequenceDiagram
 - `sentMessage`, `refusedMessage` and `leadMessage` are checked at start: an unknown
   `{placeholder}` stops the bridge.
 
+#### Visitor identity
+
+With `agentBot.visitorIdentity.enabled` the agent's Odoo calls run as the visitor of the
+chat. Each message to the agent carries header `X-Chat-Visitor`: an assertion of the
+verified email, or of nobody, for one conversation and database `odoo.database`, signed
+with key `chat-visitor-key` of Secret `chatwoot-agent-visitor`. It expires after
+`agent.timeoutSeconds` plus a minute, at most 15 minutes.
+
+```mermaid
+sequenceDiagram
+    participant B as Agent bridge
+    participant A as Agent
+    participant O as Odoo /mcp
+    B->>A: message/send + X-Chat-Visitor
+    A->>O: tools/call + X-Chat-Visitor (forwarded, not in the prompt)
+    O-->>A: result as the customer's portal user, or as the public user
+```
+
+- The agent forwards the header with kagent `allowedHeaders: [X-Chat-Visitor]` on its Odoo
+  tool server and holds no Odoo credential of its own.
+- Odoo needs the same key and a module that verifies it (`grncloud_chat_order` of
+  GRN.CLOUD does).
+- The assertion travels as a header only: no text of the visitor or the agent can change
+  whom Odoo sees.
+
 ### Agent panel
 
 With `copilotPanel.enabled` the Job registers a Dashboard App `copilotPanel.title` at

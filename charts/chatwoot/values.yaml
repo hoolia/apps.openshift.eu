@@ -502,6 +502,14 @@ agentBot:
     # send the quotation; {email} only. Empty: the "message" of Odoo's answer, and
     # without one this default
     leadMessage: "Thank you. We will send you a quotation at {email}."
+  # the visitor as the Odoo user of the agent's MCP calls: each message to the agent carries
+  # header X-Chat-Visitor, an assertion of the verified email (or of nobody) signed with
+  # key chat-visitor-key of Secret chatwoot-agent-visitor, for database odoo.database. The
+  # agent forwards the header to Odoo's /mcp (kagent allowedHeaders), and Odoo module
+  # grncloud_chat_order, holding the same key, runs the call as that customer's portal user
+  # or as the public user. Needs odoo.database
+  visitorIdentity:
+    enabled: false
 
 # A panel in the conversation sidebar (Chatwoot Dashboard App) where staff ask the agent to
 # summarise the conversation, suggest a reply or answer a question. Needs sso.enabled: the
@@ -661,6 +669,9 @@ secrets:
   # access token of the Chatwoot agent user the MCP server works as, with mcp.enabled;
   # required (an agent bot token cannot list conversations)
   mcpToken: ""
+  # key the bridge signs the chat visitor with, with agentBot.visitorIdentity.enabled; Odoo
+  # needs the same value. Empty: generated once and kept
+  chatVisitorKey: ""
   externalSecret:
     storeKind: ClusterSecretStore
     storeName: ""
@@ -685,3 +696,4 @@ secrets:
       issue-tracker-token: chatwoot-issue-tracker-token
       website-identity-key: chatwoot-website-identity-key
       mcp-token: chatwoot-mcp-token
+      chat-visitor-key: chatwoot-chat-visitor-key

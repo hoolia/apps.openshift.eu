@@ -62,6 +62,7 @@ class Fake(http.server.BaseHTTPRequestHandler):
         body = json.loads(raw) if raw else None
         if self.path == "/a2a":
             s["a2a"].append((body, self.headers.get("Authorization")))
+            s.setdefault("visitor", []).append(self.headers.get("X-Chat-Visitor"))
             reply = s["agent"](body)
             if isinstance(reply, int):
                 return self._json(reply, {})
@@ -308,6 +309,51 @@ DRAFT_SECRET = "draft-hook-" + "h" * 37
 def history(*items):
     """Chatwoot messages API payload: (id, type, content[, private])."""
     return [{"id": i, "message_type": t, "content": c, "private": bool(p and p[0])} for i, t, c, *p in items]
+
+
+def read_assertion(key, token):
+    import base64
+    prefix, payload, mac = token.split(".")
+    want = hmac.new(key, f"{prefix}.{payload}".encode(), hashlib.sha256).digest()
+    got = base64.urlsafe_b64decode(mac + "=" * (-len(mac) % 4))
+    assert prefix == "cv1" and hmac.compare_digest(want, got), token
+    return json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))
+
+
+class VisitorTest(Base):
+    def bot(self, **env):
+        (self.dir / "visitor-key").write_text("v" * 48)
+        return agent_bot.Bot(agent_bot.Config({**self.env, "VISITOR_KEY_FILE": str(self.dir / "visitor-key"),
+                                               "VISITOR_DATABASE": "shop", **env}))
+
+    def test_logged_in_visitor_is_asserted_by_email(self):
+        now = time.time()
+        self.bot().handle(verified("Ann@Example.com"))
+        claim = read_assertion(b"v" * 48, self.state["visitor"][-1])
+        self.assertEqual((claim["sub"], claim["conv"], claim["db"]), ("ann@example.com", "1:7", "shop"))
+        self.assertTrue(now < claim["exp"] <= now + 20 + 60 + 1)
+        # the assertion travels as a header only, never in the agent's text
+        self.assertNotIn(self.state["visitor"][-1], json.dumps(self.state["a2a"][-1][0]))
+
+    def test_anonymous_visitor_is_asserted_as_nobody(self):
+        self.bot().handle(event())
+        self.assertEqual(read_assertion(b"v" * 48, self.state["visitor"][-1])["sub"], "")
+
+    def test_typed_email_is_never_asserted(self):
+        self.bot().handle(verified(ok=False))
+        self.assertEqual(read_assertion(b"v" * 48, self.state["visitor"][-1])["sub"], "")
+
+    def test_without_key_no_header(self):
+        Base.bot(self).handle(event())
+        self.assertEqual(self.state["visitor"], [None])
+
+    def test_ttl_is_capped(self):
+        claim = read_assertion(b"k" * 32, agent_bot.visitor_assertion(b"k" * 32, "", 1, 2, "db", 99999, now=1000))
+        self.assertEqual(claim["exp"], 1000 + agent_bot.VISITOR_MAX_TTL)
+
+    def test_key_needs_a_database(self):
+        with self.assertRaises(ValueError):
+            agent_bot.Config({**self.env, "VISITOR_KEY_FILE": "/x"})
 
 
 class FakeOdoo:

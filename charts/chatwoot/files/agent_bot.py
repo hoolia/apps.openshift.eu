@@ -37,6 +37,14 @@ QUOTE_REFUSED_MESSAGE with Odoo's reason. When Odoo answers with a lead instead 
 true), the visitor gets QUOTE_LEAD_MESSAGE, or with it empty Odoo's own "message". The agent learns the outcome from a bridge note
 before the visitor's next message. A failure of Odoo hands the conversation to staff.
 
+With VISITOR_KEY_FILE each message/send of the bot path carries header X-Chat-Visitor: an
+assertion of who the visitor is, signed with the key Odoo shares (module grncloud_chat_order,
+models/chat_visitor.py). The agent forwards the header unchanged on its Odoo MCP calls, so
+Odoo runs them as that customer's portal user, or as the public user for a visitor who is not
+logged in. The assertion names the verified email or nobody, the conversation and the Odoo
+database, and expires after A2A_TIMEOUT plus a minute (at most 15 minutes). It never enters
+the agent's text, so nothing a visitor writes can change whom Odoo sees.
+
 With PANEL_PORT it serves the agent panel instead or as well, a Chatwoot Dashboard App in
 the conversation sidebar: staff ask the same agent to summarise the conversation, suggest a
 reply or answer a question. It listens on 127.0.0.1 next to oauth2-proxy, so only a request
@@ -149,6 +157,11 @@ class Config:
             raise ValueError("QUOTE_SENT_MESSAGE, QUOTE_REFUSED_MESSAGE or QUOTE_LEAD_MESSAGE: "
                              f"{e!r}") from None
         self.a2a_timeout = int(env.get("A2A_TIMEOUT", "300"))
+        # the visitor as the Odoo user of the agent's MCP calls; without the key off
+        self.visitor_key_file = env.get("VISITOR_KEY_FILE", "")
+        self.visitor_database = env.get("VISITOR_DATABASE", "") or self.odoo_database
+        if self.visitor_key_file and not self.visitor_database:
+            raise ValueError("VISITOR_KEY_FILE needs VISITOR_DATABASE or ODOO_DATABASE")
         self.auth = env.get("A2A_AUTH", "none")
         self.token_file = env.get("A2A_TOKEN_FILE", "")
         self.token_url = env.get("A2A_TOKEN_URL", "")
@@ -243,6 +256,22 @@ def quote_request(reply, marker):
 # a category is a label the bridge sets; LABEL is any label of Chatwoot (letters, digits, - and _)
 CATEGORY = re.compile(r"^[a-z0-9_-]{1,64}$")
 LABEL = re.compile(r"^[\w-]{1,255}$")
+
+
+VISITOR_HEADER = "X-Chat-Visitor"
+VISITOR_MAX_TTL = 900
+
+
+def visitor_assertion(key, email, account, conversation, database, ttl, now=None):
+    """The visitor of a conversation for Odoo: "cv1.<payload>.<HMAC-SHA256>", payload the
+    base64url JSON of the verified email (empty: not logged in), the conversation, the
+    database and the expiry."""
+    def b64(data):
+        return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
+    payload = b64(json.dumps({"sub": email or "", "conv": f"{account}:{conversation}", "db": database,
+                              "exp": int((now or time.time()) + min(ttl, VISITOR_MAX_TTL))}).encode())
+    mac = hmac.new(key, f"cv1.{payload}".encode(), hashlib.sha256).digest()
+    return f"cv1.{payload}.{b64(mac)}"
 
 
 def parse_categories(raw):
@@ -623,29 +652,39 @@ class Bot:
             LOG.warning("conversation %s: context not saved: %s", conv["id"], e)
 
     # --- A2A --------------------------------------------------------------------------
-    def rpc(self, method, params, url=None):
+    def rpc(self, method, params, url=None, headers=None):
         body = {"jsonrpc": "2.0", "id": str(uuid.uuid4()), "method": method, "params": params}
-        got = http_json(url or self.config.a2a_url, body, self.credentials.header(), timeout=self.config.a2a_timeout)
+        got = http_json(url or self.config.a2a_url, body, {**self.credentials.header(), **(headers or {})},
+                        timeout=self.config.a2a_timeout)
         if "error" in got:
             raise RuntimeError(f"{method}: {got['error'].get('message', got['error'])}")
         return got.get("result") or {}
 
-    def ask(self, text, context_id, metadata, url=None):
+    def ask(self, text, context_id, metadata, url=None, headers=None):
         message = {"kind": "message", "role": "user", "messageId": str(uuid.uuid4()),
                    "parts": [{"kind": "text", "text": text}], "metadata": metadata}
         if context_id:
             message["contextId"] = context_id
-        result = self.rpc("message/send", {"message": message, "configuration": {"blocking": True}}, url)
+        result = self.rpc("message/send", {"message": message, "configuration": {"blocking": True}}, url, headers)
         deadline = time.time() + self.config.a2a_timeout
         while result.get("kind") == "task" and (result.get("status") or {}).get("state") not in TERMINAL:
             if time.time() > deadline:
                 raise TimeoutError("no answer within %ss" % self.config.a2a_timeout)
             time.sleep(3)
-            result = self.rpc("tasks/get", {"id": result["id"]}, url)
+            result = self.rpc("tasks/get", {"id": result["id"]}, url, headers)
         state = (result.get("status") or {}).get("state")
         if state in ("failed", "canceled", "rejected", "auth-required"):
             raise RuntimeError("task " + state)
         return answer_text(result), result.get("contextId") or context_id
+
+    def visitor_headers(self, account, conv, email):
+        """Header X-Chat-Visitor for this conversation's turn, or none without the key."""
+        c = self.config
+        if not c.visitor_key_file:
+            return None
+        key = read_file(c.visitor_key_file).encode()
+        return {VISITOR_HEADER: visitor_assertion(key, email, account, conv["id"], c.visitor_database,
+                                                  c.a2a_timeout + 60)}
 
     def who(self, conv):
         """The bridge's note on who writes, sent before each customer message."""
@@ -707,7 +746,8 @@ class Bot:
                                  "inbox": (event.get("inbox") or {}).get("id"),
                                  "contact": {"email": email, "verified": True} if email else {"verified": False}}}
         try:
-            reply, context_id = self.ask(text, context_id, metadata, c.bot_a2a_url)
+            reply, context_id = self.ask(text, context_id, metadata, c.bot_a2a_url,
+                                         self.visitor_headers(account, conv, email))
         except Exception as e:  # any failure goes to staff
             LOG.warning("conversation %s: agent failed: %s", conv["id"], e)
             self.hand_off(account, conv["id"], c.failure_message)
