@@ -664,6 +664,14 @@
             "leadMessage": {"type": "string"}
           }
         },
+        "visitorIdentity": {
+          "type": "object",
+          "title": "The chat visitor as the Odoo user of the agent's MCP calls",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {"type": "boolean"}
+          }
+        },
         "agentUrl": {
           "type": "string",
           "description": "A2A address of the bot's own agent; empty: agent.url"
@@ -817,6 +825,10 @@
         "mcpToken": {
           "type": "string",
           "description": "Access token of the Chatwoot agent user the MCP server works as; required with mcp.enabled"
+        },
+        "chatVisitorKey": {
+          "type": "string",
+          "description": "Key the bridge signs the chat visitor with for Odoo, with agentBot.visitorIdentity.enabled; empty: generated once and kept"
         }
       }
     }
