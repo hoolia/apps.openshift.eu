@@ -23,8 +23,19 @@ module Rails
     def use(klass, *args)
       (self.used ||= []) << [klass, *args]
     end
+
+    def insert_before(_index, klass, *args)
+      (self.used ||= []).unshift([klass, *args])
+    end
   end
   Config = Struct.new(:prepared, :middleware) do
+    # the parameters the log filters; the initializer adds its own
+    def filter_parameters
+      @filter_parameters ||= []
+    end
+
+    attr_writer :filter_parameters
+
     # kept, so a test can run a block; Chatwoot's own classes are not loaded here
     def to_prepare(&block)
       self.prepared ||= []
@@ -150,10 +161,13 @@ class CustomerPageMiddlewareTest < Minitest::Test
     ENV.delete('CHART_CUSTOMER_PAGE')
     Rails.application.config.middleware.used = []
     load INITIALIZER
-    assert_empty Rails.application.config.middleware.used
+    # the query and SDK guards are always first; the customer page only when configured
+    guards = [[ChartSdkGuard::Middleware], [ChartQueryGuard::Middleware]]
+    assert_equal guards, Rails.application.config.middleware.used
+    Rails.application.config.middleware.used = []
     ENV['CHART_CUSTOMER_PAGE'] = File.expand_path('../charts/chatwoot/files/customer_page.html', __dir__)
     load INITIALIZER
-    assert_equal [[ChartCustomerPage]], Rails.application.config.middleware.used
+    assert_equal guards + [[ChartCustomerPage]], Rails.application.config.middleware.used
   ensure
     ENV.replace(env)
   end
