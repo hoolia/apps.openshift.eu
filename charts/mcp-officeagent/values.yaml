@@ -137,8 +137,9 @@ auth:
   # existing Secret with the keys cookie-secret and client-secret; empty: <name>-auth,
   # written by the chart from the two values below
   existingSecret: ""
-  # seed of the session cookie (16, 24 or 32 bytes); empty: generated once and kept. A
-  # GitOps tool that renders without cluster access must pass it
+  # seed of the session cookie; another length than 16, 24 or 32 bytes is hashed to 32.
+  # Empty: generated once and kept. A GitOps tool that renders without cluster access
+  # must pass it
   cookieSecret: ""
   # client secret the proxy requires but never uses (bearer tokens only); empty: generated
   # once and kept. A GitOps tool that renders without cluster access must pass it
