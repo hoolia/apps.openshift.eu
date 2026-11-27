@@ -46,6 +46,8 @@ got = {
     "recording": rec,
     "recshared": "command" in rc and "HPB_DOMAIN" not in env,
     "reclocal": rec and "command" not in rc and "HPB_DOMAIN" in env,
+    "recvolume": any(m["mountPath"] == "/recordings" for m in rc.get("volumeMounts", []))
+                 and not any(m["mountPath"] == "/tmp" for m in rc.get("volumeMounts", [])),
     "localsig": "/talk/signaling/" in setup["setup.sh"],
     "localturn": "spreed turn_servers turn-secret" in setup["setup.sh"],
     "sharedsig": "signaling-url" in setup["talk-shared.sh"],
@@ -63,13 +65,13 @@ EOF
 ON="--set talk.enabled=true"
 G="--set talk.shared.turnGeneration=g1"
 check_mode local-local \
-  "signaling=1 nats=1 sigroute=1 sigmonitor=1 sigalerts=1 turn=1 turnsvc=1 talksecret=1 recording=1 reclocal=1 recshared=0 localsig=1 localturn=1 sharedsig=0 sharedturn=0 mount=1" \
+  "signaling=1 nats=1 sigroute=1 sigmonitor=1 sigalerts=1 turn=1 turnsvc=1 talksecret=1 recording=1 reclocal=1 recshared=0 recvolume=1 localsig=1 localturn=1 sharedsig=0 sharedturn=0 mount=1" \
   $ON
 check_mode sharedturn-localsig \
   "signaling=1 nats=1 sigroute=1 sigmonitor=1 sigalerts=1 turn=0 turnsvc=0 talksecret=1 reclocal=1 localsig=1 localturn=0 sharedsig=0 sharedturn=1" \
   $ON --set talk.shared.turn=true $G
 check_mode shared-shared-recording \
-  "signaling=0 nats=0 sigroute=0 sigmonitor=0 sigalerts=0 turn=0 turnsvc=0 talksecret=1 recording=1 recshared=1 reclocal=0 localsig=0 localturn=0 sharedsig=1 sharedturn=1" \
+  "signaling=0 nats=0 sigroute=0 sigmonitor=0 sigalerts=0 turn=0 turnsvc=0 talksecret=1 recording=1 recshared=1 reclocal=0 recvolume=1 localsig=0 localturn=0 sharedsig=1 sharedturn=1" \
   $ON --set talk.shared.signaling=true --set talk.shared.turn=true $G
 check_mode shared-shared-norecording \
   "signaling=0 nats=0 sigroute=0 turn=0 talksecret=1 recording=0 localsig=0 localturn=0 sharedsig=1 sharedturn=1" \
@@ -104,8 +106,8 @@ import sys, yaml
 for d in yaml.safe_load_all(open(sys.argv[1])):
     if not d:
         continue
-    if sys.argv[2] == "recorder" and d["kind"] == "Deployment" and d["metadata"]["name"] == "nextcloud-talk-recording":
-        sys.stdout.write(d["spec"]["template"]["spec"]["containers"][0]["command"][2])
+    if sys.argv[2] in ("command", "args") and d["kind"] == "Deployment" and d["metadata"]["name"] == "nextcloud-talk-recording":
+        sys.stdout.write(d["spec"]["template"]["spec"]["containers"][0][sys.argv[2]][2])
     if sys.argv[2] == "setup" and d["kind"] == "ConfigMap" and d["metadata"]["name"] == "nextcloud-setup":
         sys.stdout.write(d["data"][sys.argv[3]])
 EOF
@@ -202,26 +204,43 @@ run nothing nothing 0
 reject nothing "config:app:set"
 marker nothing 0
 
-# the recorder's start: HPB_DOMAIN and HPB_PATH from signaling-url, then the image's start
-extract script recorder > "$T/rec.sh"
-cat > "$T/start.sh" <<'EOF'
+# the recorder's start as Kubernetes runs it: command (shared signaling), then the image's
+# start.sh, which writes recording.conf and runs the args
+for s in script nothing; do extract "$s" args > "$T/$s-args.sh"; done
+extract script command > "$T/rec.sh"
+cat > "$T/start.sh" <<EOF
 #!/bin/sh
-echo "HPB $HPB_DOMAIN $HPB_PATH ARGS $*"
+echo "HPB \$HPB_DOMAIN \$HPB_PATH"
+mkdir -p "$T/conf"; printf '[backend]\ndirectory = /tmp\n\n[backend-1]\n' > "$T/conf/recording.conf"
+exec "\$@"
 EOF
-chmod +x "$T/start.sh"
+cat > "$T/bin/python" <<EOF
+#!/bin/sh
+echo "PYTHON \$* \$(grep directory "$T/conf/recording.conf")"
+EOF
+chmod +x "$T/start.sh" "$T/bin/python"
 sed -i.bak -e "s#/run/talk-platform#$T/rec#g" -e "s#exec /start.sh#exec $T/start.sh#" "$T/rec.sh"
+sed -i.bak "s#/conf/recording.conf#$T/conf/recording.conf#g" "$T/script-args.sh" "$T/nothing-args.sh"
 mkdir -p "$T/rec"
 recorder() { rm -f "$T/rec/signaling-url"; [ -n "$2" ] && printf '%s' "$2" > "$T/rec/signaling-url"
-  OUT=$(sh "$T/rec.sh" 2>&1); local rc=$?
+  OUT=$(PATH="$T/bin:$PATH" sh -c "$(cat "$T/rec.sh")" recording /bin/sh -c "$(cat "$T/script-args.sh")" 2>&1); local rc=$?
   [ "$rc" = "$3" ] || { echo "FAIL recorder $1: exit $rc, want $3: $OUT"; fail=1; }; }
 recorder good "$URL" 0
-expect "recorder good" "^HPB sig.example.test /backends/0f6c7c1e-1111-4222-8333-444455556666 ARGS python -m nextcloud.talk.recording --config /conf/recording.conf$"
+expect "recorder good" "^HPB sig.example.test /backends/0f6c7c1e-1111-4222-8333-444455556666$"
+expect "recorder good" "^PYTHON -m nextcloud.talk.recording --config $T/conf/recording.conf directory = /recordings$"
 recorder slash "$URL/" 0
-expect "recorder slash" "^HPB sig.example.test /backends/0f6c7c1e-1111-4222-8333-444455556666 ARGS"
+expect "recorder slash" "^HPB sig.example.test /backends/0f6c7c1e-1111-4222-8333-444455556666$"
 recorder missing "" 1
 recorder no-path "https://sig.example.test" 1
 recorder two-lines "$URL
 [signaling-2]" 1
 recorder http "http://sig.example.test/backends/x" 1
+# local signaling: the image's start.sh runs the args directly
+OUT=$(PATH="$T/bin:$PATH" "$T/start.sh" /bin/sh -c "$(cat "$T/nothing-args.sh")" 2>&1) || { echo "FAIL recorder local: $OUT"; fail=1; }
+expect "recorder local" "directory = /recordings$"
+# an image whose recording.conf lacks the line must stop the recorder, not record into /tmp
+printf '[backend]\ndirectory = /var/rec\n' > "$T/conf/recording.conf"
+OUT=$(PATH="$T/bin:$PATH" sh -c "$(cat "$T/nothing-args.sh")" 2>&1) && { echo "FAIL recorder changed image: started: $OUT"; fail=1; }
+expect "recorder changed image" "has no directory = /tmp"
 
 [ "$fail" = 0 ] && echo "PASS talk" || exit 1
