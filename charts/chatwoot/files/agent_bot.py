@@ -12,9 +12,9 @@ the rest of that answer. The bot never sees a conversation that is open.
 
 The A2A contextId of a conversation is kept in memory and in the conversation's custom
 attribute CONTEXT_ATTRIBUTE, signed: "<contextId>.<HMAC-SHA256 of the bot's secret over account,
-conversation and contextId>". A visitor can write that attribute through the widget API, so
-the bot continues only a context whose signature names this conversation; any other value
-starts a new context.
+conversation, verified identity and contextId>". The bot continues only a context whose
+signature names this conversation and who writes in it now (logged out is an identity of its
+own); any other value starts a new context.
 
 BOT_A2A_URL names the bot's own agent; without it the bot asks A2A_URL like the other
 paths. Every message the bot passes on starts with a note of the bridge on who writes. A
@@ -162,6 +162,9 @@ class Config:
         self.visitor_database = env.get("VISITOR_DATABASE", "") or self.odoo_database
         if self.visitor_key_file and not self.visitor_database:
             raise ValueError("VISITOR_KEY_FILE needs VISITOR_DATABASE or ODOO_DATABASE")
+        # agent calls at once: bot answers, and drafts with triage, each in a pool of its own
+        self.agent_workers = int(env.get("AGENT_WORKERS", "8"))
+        self.draft_workers = int(env.get("DRAFT_WORKERS", "4"))
         self.auth = env.get("A2A_AUTH", "none")
         self.token_file = env.get("A2A_TOKEN_FILE", "")
         self.token_url = env.get("A2A_TOKEN_URL", "")
@@ -376,6 +379,14 @@ class Credentials:
 EMAIL = re.compile(r"^[^@\s<>]{1,64}@[A-Za-z0-9.-]{1,253}\.[A-Za-z]{2,63}$")
 
 
+def bound(conversation, identifier):
+    """True when this session was verified for exactly this identifier (contact guard): the
+    source id of the contact inbox names it, and a contact merge can't change a source id."""
+    inbox = (conversation or {}).get("contact_inbox") or {}
+    name = "id-" + hashlib.sha256(identifier.encode()).hexdigest()[:32] + "-"
+    return str(inbox.get("source_id") or "").startswith(name)
+
+
 def verified_email(conversation):
     """The customer's email when Chatwoot verified the contact of this conversation, else None.
 
@@ -387,6 +398,8 @@ def verified_email(conversation):
         return None
     identifier = (meta.get("sender") or {}).get("identifier")
     if not isinstance(identifier, str) or not EMAIL.match(identifier.strip()):
+        return None
+    if not bound(conversation, identifier):
         return None
     return identifier.strip().lower()
 
@@ -545,16 +558,6 @@ class CustomerRecords:
         return text + "\n" + "\n".join(lines)
 
 
-def login_profile(conversation):
-    """Phone and company of a verified contact as the website's login passed them (setUser):
-    the customer's own words, as plain text. They fill only what Odoo lacks."""
-    sender = ((conversation or {}).get("meta") or {}).get("sender") or {}
-    extra = sender.get("additional_attributes")
-    extra = extra if isinstance(extra, dict) else {}
-    out = {"phone": plain(sender.get("phone_number"), " ", 40), "company": plain(extra.get("company_name"), " ", 100)}
-    return {k: v for k, v in out.items() if v}
-
-
 class Quotations:
     """A QUOTE answer of the bot's agent as an Odoo quotation, through sale.order
     grncloud_chat_quote with the bridge's API key. Odoo decides: products, options, prices,
@@ -597,6 +600,9 @@ class Bot:
         self.locks = {}
         self.locks_lock = threading.Lock()
         self.seen = []
+        # (account, conversation) -> when it was handed off on request
+        self.handed = {}
+        self.agents = Queues(ThreadPoolExecutor(max_workers=getattr(config, "agent_workers", 8)))
 
     # --- Chatwoot ---------------------------------------------------------------------
     def chatwoot(self, path, body):
@@ -615,36 +621,36 @@ class Bot:
             self.chatwoot(f"/api/v1/accounts/{account}/conversations/{conversation}/toggle_status",
                           {"status": "open"})
 
-    def _context_mac(self, account, cid, context_id):
+    def _context_mac(self, account, cid, identity, context_id):
         secret = read_file(self.config.webhook_secret_file)
-        return hmac.new(secret.encode(), f"a2a-context:{account}:{cid}:{context_id}".encode(),
+        return hmac.new(secret.encode(), f"a2a-context:2:{account}:{cid}:{identity}:{context_id}".encode(),
                         hashlib.sha256).hexdigest()
 
-    def context_of(self, account, conv):
+    def context_of(self, account, conv, identity):
         """The A2A context of this conversation: the bot's own, never one the visitor set.
 
         The widget API lets a visitor write any custom attribute; only a value the bot signed
         for this account and conversation counts."""
-        key = (account, conv["id"])
+        key = (account, conv["id"], identity)
         if key in self.contexts:
             return self.contexts[key]
         stored = (conv.get("custom_attributes") or {}).get(self.config.context_attribute)
         if not isinstance(stored, str):
             return None
         context_id, _, mac = stored.rpartition(".")
-        if not context_id or not hmac.compare_digest(mac.encode(), self._context_mac(account, conv["id"], context_id).encode()):
+        if not context_id or not hmac.compare_digest(mac.encode(), self._context_mac(account, conv["id"], identity, context_id).encode()):
             LOG.warning("conversation %s: %s is not the bot's; a new context starts", conv["id"],
                         self.config.context_attribute)
             return None
         return context_id
 
-    def remember(self, account, conv, context_id):
-        key = (account, conv["id"])
+    def remember(self, account, conv, context_id, identity):
+        key = (account, conv["id"], identity)
         if not context_id or self.contexts.get(key) == context_id:
             return
         self.contexts[key] = context_id
         attributes = dict(conv.get("custom_attributes") or {})
-        attributes[self.config.context_attribute] = f"{context_id}.{self._context_mac(account, conv['id'], context_id)}"
+        attributes[self.config.context_attribute] = f"{context_id}.{self._context_mac(account, conv['id'], identity, context_id)}"
         try:
             self.chatwoot(f"/api/v1/accounts/{account}/conversations/{conv['id']}/custom_attributes",
                           {"custom_attributes": attributes})
@@ -693,7 +699,7 @@ class Bot:
             return NOT_LOGGED_IN
         note = (f"[Bridge] The visitor is logged in as {email} (verified by the website login). "
                 "Use only the records below, and only for this customer.")
-        return note + "\n" + (self.records.text(email, login_profile(conv)) if self.records
+        return note + "\n" + (self.records.text(email) if self.records
                                else "No records are shared on this chat.")
 
     # --- events -----------------------------------------------------------------------
@@ -711,36 +717,117 @@ class Bot:
             return self.locks.setdefault(key, threading.Lock())
 
     def handle(self, event):
+        """One webhook event, start to end, in this thread."""
+        job = self.sort(event)
+        if job:
+            job()
+
+    def dispatch(self, event):
+        """One webhook event from the HTTP pool, which never waits for the agent: the agent
+        stage waits in the bot's own pool."""
+        try:
+            job = self.sort(event)
+            conv = event.get("conversation") or {}
+            if job and not self.agents.put(((event.get("account") or {}).get("id"), conv["id"]), job):
+                LOG.warning("conversation %s: %s messages wait already, the oldest is not answered",
+                            conv["id"], self.agents.limit)
+        except Exception:  # the HTTP pool would keep it to itself
+            LOG.exception("webhook event %s not handled", event.get("id"))
+
+    def sort(self, event):
+        """Takes a message once. A request for a person is handed off here, at once, ahead of
+        any agent call, of this conversation too. Returns the agent stage of any other message."""
         if not self.wanted(event):
-            return
+            return None
         message_id = event.get("id")
-        if message_id in self.seen:
-            return
-        self.seen = (self.seen + [message_id])[-1000:]
+        with self.locks_lock:
+            if message_id in self.seen:
+                return None
+            self.seen = (self.seen + [message_id])[-1000:]
         account = (event.get("account") or {}).get("id")
         conv = event["conversation"]
-        with self.conversation_lock((account, conv["id"])):
-            self.answer(account, conv, event)
+        received = time.monotonic()
+        if normalize(message_text(event)) in self.config.keywords:
+            with self.locks_lock:
+                self.handed[(account, conv["id"])] = received
+                if len(self.handed) > 1000:
+                    for key in sorted(self.handed, key=self.handed.get)[:-1000]:
+                        del self.handed[key]
+            LOG.info("conversation %s: handoff on request", conv["id"])
+            try:
+                self.hand_off(account, conv["id"], self.config.handoff_message)
+            except Exception:
+                # not handed off: the bot keeps answering, the earlier messages too
+                with self.locks_lock:
+                    if self.handed.get((account, conv["id"])) == received:
+                        del self.handed[(account, conv["id"])]
+                raise
+            return None
+        return lambda: self.answer_in_order(account, conv, event, received)
 
-    def answer(self, account, conv, event):
+    def status(self, account, conv):
+        """The conversation's status as Chatwoot shows it to the bot, read at most twice; None
+        when it cannot be read (no answer, an error status or no status in the answer)."""
+        for attempt in (1, 2):
+            try:
+                got = self.chatwoot(f"/api/v1/accounts/{account}/conversations/{conv['id']}", None)
+                if isinstance(got, dict) and isinstance(got.get("status"), str):
+                    return got["status"]
+                raise ValueError("the answer names no status")
+            except Exception as e:
+                LOG.warning("conversation %s: status not read (try %d): %s", conv["id"], attempt, e)
+                if attempt == 1:
+                    time.sleep(0.5)
+        return None
+
+    def taken(self, account, conv, received):
+        """True when the conversation is no longer the bot's: handed off on request after this
+        message came, or shown by Chatwoot as other than pending. An unknown status is not
+        taken: the reply goes out as before the check, since a read failure says nothing about
+        staff and dropping on it would silence the bot for as long as the read fails."""
+        if self.handed_off(account, conv, received):
+            return True
+        status = self.status(account, conv)
+        if status is None:
+            LOG.warning("conversation %s: status unknown, the reply is sent", conv["id"])
+            return False
+        return status != "pending"
+
+    def handed_off(self, account, conv, received):
+        """True when the conversation was handed off on request after this message came."""
+        return self.handed.get((account, conv["id"]), -1.0) >= received
+
+    def answer_in_order(self, account, conv, event, received):
+        try:
+            with self.conversation_lock((account, conv["id"])):
+                if self.handed_off(account, conv, received):
+                    LOG.info("conversation %s: handed off, message %s not answered", conv["id"], event.get("id"))
+                    return
+                self.answer(account, conv, event, received)
+        except Exception:  # the pool would keep it to itself
+            LOG.exception("conversation %s: not answered", conv["id"])
+
+    def answer(self, account, conv, event, received=None):
         c = self.config
-        content = (event.get("content") or "").strip()
-        names = [a.get("data_url", "").rsplit("/", 1)[-1] for a in event.get("attachments") or []]
-        if names:
-            content = (content + "\n" if content else "") + "[attachments: " + ", ".join(names) + "]"
+        content = message_text(event)
         if not content:
             return
         if normalize(content) in c.keywords:
             LOG.info("conversation %s: handoff on request", conv["id"])
             self.hand_off(account, conv["id"], c.handoff_message)
             return
-        context_id = self.context_of(account, conv)
+        # a mailed reply proves no login and not even the visitor: it is answered as logged out,
+        # and it neither reads nor leaves context or notes of the chat
+        mailed = event.get("content_type") == "incoming_email"
+        sender = {} if mailed else conv
+        email = verified_email(sender)
+        identity = email or ""
+        context_id = None if mailed else self.context_of(account, conv, identity)
         # kept until the agent got it: a failed call must not lose a quotation's outcome
-        note = self.notes.get((account, conv["id"]))
-        text = self.who(conv) + ("\n" + note if note else "") + "\n\n" + content
+        note = None if mailed else self.notes.get((account, conv["id"], identity))
+        text = self.who(sender) + ("\n" + note if note else "") + "\n\n" + visitor_text(content)
         if c.instructions and not context_id:
             text = c.instructions + "\n\n" + text
-        email = verified_email(conv)
         # a contact the website did not verify is nobody: no name, no address reach the agent
         metadata = {"chatwoot": {"account": account, "conversation": conv["id"],
                                  "inbox": (event.get("inbox") or {}).get("id"),
@@ -750,15 +837,25 @@ class Bot:
                                          self.visitor_headers(account, conv, email))
         except Exception as e:  # any failure goes to staff
             LOG.warning("conversation %s: agent failed: %s", conv["id"], e)
+            if received is not None and self.taken(account, conv, received):
+                return  # staff have it already: by request, with the handoff message, or by hand
             self.hand_off(account, conv["id"], c.failure_message)
             return
         if note:
-            self.notes.pop((account, conv["id"]), None)
-        self.remember(account, conv, context_id)
+            self.notes.pop((account, conv["id"], identity), None)
+        if not mailed:
+            self.remember(account, conv, context_id, identity)
+        if received is not None and self.taken(account, conv, received):
+            # staff have it now: the visitor gets neither this reply nor what it asked for, and
+            # the agent learns it at its next turn
+            LOG.info("conversation %s: no longer the bot's, its reply is dropped", conv["id"])
+            if not mailed:
+                self.notes[(account, conv["id"], identity)] = DROPPED
+            return
         request = quote_request(reply, c.quote_marker) if self.quotations else None
         if request is not None:
             # the whole answer stays with the bridge; a HANDOFF in it still hands off
-            if self.quote(account, conv, request, email) and hands_off(reply, c.marker):
+            if self.quote(account, conv, request, email, noted=not mailed) and hands_off(reply, c.marker):
                 self.hand_off(account, conv["id"], c.handoff_message)
             return
         if not reply or hands_off(reply, c.marker):
@@ -769,11 +866,12 @@ class Bot:
         LOG.info("conversation %s: answered", conv["id"])
 
 
-    def quote(self, account, conv, request, email):
+    def quote(self, account, conv, request, email, noted=True):
         """A quotation request of the agent: the quotation in Odoo, the outcome to the visitor
         and, at the next message, to the agent. The answer itself never reaches the visitor.
         False when the conversation went to staff."""
-        c, key, m = self.config, (account, conv["id"]), self.config.quote_marker
+        c, key, m = self.config, (account, conv["id"], email or ""), self.config.quote_marker
+        notes = self.notes if noted else {}
         if request is False:
             result = {"ok": False, "error": "the request was not one JSON object"}
         else:
@@ -786,7 +884,7 @@ class Bot:
                     raise RuntimeError("grncloud_chat_quote answered a lead that is no boolean")
             except Exception as e:  # Odoo down, slow or the module missing: staff take over
                 LOG.warning("conversation %s: quotation failed: %s", conv["id"], e)
-                self.notes[key] = (f"[Bridge] Your {m} failed in the system; a quotation may or may "
+                notes[key] = (f"[Bridge] Your {m} failed in the system; a quotation may or may "
                                    "not exist. Staff took over; do not send it again.")
                 self.hand_off(account, conv["id"], c.failure_message)
                 return False
@@ -794,7 +892,7 @@ class Bot:
             # no quotation yet: Odoo made a lead, and people send the quotation
             ref, to = str(result["order"]), str(result["email"])
             LOG.info("conversation %s: lead %s for a quotation", conv["id"], ref)
-            self.notes[key] = (f"[Bridge] Your {m} made lead {ref}, not a quotation: the sales "
+            notes[key] = (f"[Bridge] Your {m} made lead {ref}, not a quotation: the sales "
                                f"team sends a quotation to {to}. Do not send the same {m} again.")
             said = result.get("message")
             said = said.strip()[:500] if isinstance(said, str) else ""
@@ -805,13 +903,13 @@ class Bot:
         if result.get("ok"):
             order, to = str(result["order"]), str(result["email"])
             LOG.info("conversation %s: quotation %s sent", conv["id"], order)
-            self.notes[key] = (f"[Bridge] Your {m} made quotation {order}; it is mailed to {to}. "
+            notes[key] = (f"[Bridge] Your {m} made quotation {order}; it is mailed to {to}. "
                                f"Do not send the same {m} again.")
             self.say(account, conv["id"], c.quote_sent_message.format(order=order, email=to))
             return True
         error = str(result.get("error") or "unknown reason")[:500]
         LOG.info("conversation %s: quotation refused: %s", conv["id"], error)
-        self.notes[key] = (f"[Bridge] Your {m} was refused: {error}. Nothing was made. Fix what "
+        notes[key] = (f"[Bridge] Your {m} was refused: {error}. Nothing was made. Fix what "
                            f"was refused with the visitor before you send {m} again.")
         self.say(account, conv["id"], c.quote_refused_message.format(error=error))
         return True
@@ -830,8 +928,80 @@ PANEL_PROMPTS = {
 MAX_TRANSCRIPT = 20000
 
 
-def transcript(conversation):
-    """The chat of a conversation as plain lines, newest last, at most MAX_TRANSCRIPT characters."""
+QUEUE_PER_CONVERSATION = 10
+DROPPED = ("[Bridge] Your last reply was not delivered: staff took over the conversation. "
+           "No quotation was made.")
+
+
+class Queues:
+    """One FIFO queue per conversation on a shared pool: at most one worker per conversation,
+    which takes one message and then goes to the back of the pool's queue, so one busy
+    conversation never holds more than one worker and never runs ahead of the others."""
+
+    def __init__(self, pool, limit=QUEUE_PER_CONVERSATION):
+        self.pool, self.limit = pool, limit
+        self.lock = threading.Lock()
+        self.waiting = {}  # key -> list of jobs; a key is present while a worker owns it
+
+    def put(self, key, job):
+        """Queues the job; False when the conversation already had its limit of waiting
+        messages and the oldest of them was dropped for it: the newest is always kept."""
+        with self.lock:
+            jobs = self.waiting.get(key)
+            if jobs is None:
+                self.waiting[key] = [job]
+                try:
+                    self.pool.submit(self.run, key)
+                except Exception:
+                    # no worker owns the key: without this the conversation waits for ever
+                    del self.waiting[key]
+                    raise
+                return True
+            jobs.append(job)
+            if len(jobs) > self.limit:
+                del jobs[0]
+                return False
+            return True
+
+    def run(self, key):
+        with self.lock:
+            job = self.waiting[key].pop(0)
+        try:
+            job()
+        except Exception:  # the pool would keep it to itself
+            LOG.exception("conversation %s: not done", key[1])
+        finally:
+            with self.lock:
+                if self.waiting[key]:
+                    try:
+                        self.pool.submit(self.run, key)
+                    except Exception:  # its waiting messages are lost; the next one starts afresh
+                        LOG.exception("conversation %s: %d waiting messages dropped", key[1],
+                                      len(self.waiting[key]))
+                        del self.waiting[key]
+                else:
+                    del self.waiting[key]
+
+
+def message_text(event):
+    """A customer message as the bot reads it: the text, then the names of its attachments."""
+    content = (event.get("content") or "").strip()
+    names = [a.get("data_url", "").rsplit("/", 1)[-1] for a in event.get("attachments") or []]
+    if names:
+        content = (content + "\n" if content else "") + "[attachments: " + ", ".join(names) + "]"
+    return content
+
+
+def visitor_text(content):
+    """A visitor's message for the agent: labelled, its further lines indented, so it starts no
+    line of the bridge's own."""
+    return "visitor message: " + "\n  ".join(content.splitlines())
+
+
+def transcript(conversation, website=False):
+    """The chat of a conversation as plain lines, newest last, at most MAX_TRANSCRIPT characters.
+    In a website chat every message is labelled and its further lines are indented, so no
+    message starts a line of its own."""
     lines = []
     for m in conversation.get("messages") or []:
         content = (m.get("content") or "").strip()
@@ -840,8 +1010,13 @@ def transcript(conversation):
         who = "customer" if m.get("message_type") in (0, "incoming") else "staff"
         if m.get("private"):
             who = "private note"
+        if website:
+            who = "visitor message" if who == "customer" else who
+            content = "\n  ".join(content.splitlines())
         lines.append(f"{who}: {content}")
     text = "\n".join(lines)
+    if website and len(text) > MAX_TRANSCRIPT:
+        return "  ..." + text[-MAX_TRANSCRIPT:]
     return text[-MAX_TRANSCRIPT:]
 
 
@@ -911,6 +1086,32 @@ def clean_contact(sender):
     return {k: v for k, v in contact.items() if v}
 
 
+def website_visitor(conversation, newest):
+    """(website chat?, the verified email or None). The pre-chat form takes any name and address,
+    so there only the login says who wrote, and a mailed reply is no login. A conversation that
+    names no channel counts as a website chat."""
+    meta = conversation.get("meta") or {}
+    channel = meta.get("channel") or conversation.get("channel")
+    if channel and channel != "Channel::WebWidget":
+        return False, None
+    if (newest or {}).get("content_type") == "incoming_email":
+        return True, None
+    proof = dict(conversation)
+    if not proof.get("contact_inbox"):
+        # the agent API names the session only inside the conversation's newest message
+        last = (conversation.get("messages") or [{}])[-1]
+        proof["contact_inbox"] = (last.get("conversation") or {}).get("contact_inbox") or {}
+    return True, verified_email(proof)
+
+
+def website_lines(email):
+    """The Customer line and the login status of a website chat: only a login names a customer."""
+    if email:
+        return f"Customer: {email}\nLogin: the visitor is logged in as {email}."
+    return ("Login: the visitor is not logged in. Any name, address or account in the conversation "
+            "is unverified.")
+
+
 def contact_line(contact):
     """'Customer: name <email>' of a cleaned contact, or empty."""
     name, email = contact.get("name", ""), contact.get("email", "")
@@ -947,6 +1148,8 @@ class Drafts:
         # conversation -> (failures, not before): the sweep waits longer after each failure
         self.retry = {}
         self.triage = Triage(self, facts) if c.triage_enabled else None
+        self.facts = facts
+        self.workers = Queues(ThreadPoolExecutor(max_workers=getattr(c, "draft_workers", 4)))
 
     def wanted(self, event):
         """Incoming customer messages of the listed inboxes."""
@@ -969,12 +1172,35 @@ class Drafts:
             return self.locks.setdefault(key, threading.Lock())
 
     def handle(self, event):
+        """One webhook event, start to end, in this thread."""
+        if self.take(event):
+            self.draft_in_order(event)
+
+    def dispatch(self, event):
+        """One webhook event from the HTTP pool: the draft waits for the agent in the drafts'
+        own pool, never in the HTTP pool or the bot's."""
+        try:
+            if self.take(event):
+                key = ((event.get("account") or {}).get("id"), event["conversation"]["id"])
+                if not self.workers.put(key, lambda: self.draft_in_order(event)):
+                    LOG.warning("conversation %s: %s drafts wait already, the oldest is dropped", key[1],
+                                self.workers.limit)
+        except Exception:  # the HTTP pool would keep it to itself
+            LOG.exception("draft event %s not handled", event.get("id"))
+
+    def take(self, event):
+        """True for a wanted message, once."""
         if not self.wanted(event):
-            return
+            return False
         message_id = event.get("id")
-        if message_id in self.seen:
-            return
-        self.seen = (self.seen + [message_id])[-1000:]
+        with self.locks_lock:
+            if message_id in self.seen:
+                return False
+            self.seen = (self.seen + [message_id])[-1000:]
+        return True
+
+    def draft_in_order(self, event):
+        message_id = event.get("id")
         account = (event.get("account") or {}).get("id")
         conv = event["conversation"]["id"]
         with self.lock((account, conv)):
@@ -1039,18 +1265,26 @@ class Drafts:
             return True
         wanted = not self.drafted(messages, newest)
         done = True
-        if self.triage:
-            conversation = self.notes.get(base)
-            if self.triage.needed(conversation):
-                contact = clean_contact(sender or (conversation.get("meta") or {}).get("sender"))
-                done = self.triage.run(account, conv, conversation, messages, contact)
-                # the draft reads the triage note, with the tenant facts
-                messages = None
+        conversation = self.notes.get(base)
+        website, email = website_visitor(conversation, next(m for m in messages if m.get("id") == newest))
+        sort = bool(self.triage and self.triage.needed(conversation))
+        if not (wanted or sort):
+            return done
+        # a website chat gets the facts of its verified address directly, never from a note
+        facts = None
+        if website:
+            facts = self.facts.collect(email, verified=True) if self.facts and email else ""
+        if sort:
+            contact = {"email": email} if website and email else {} if website else \
+                clean_contact(sender or (conversation.get("meta") or {}).get("sender"))
+            done = self.triage.run(account, conv, conversation, messages, contact, website, facts)
+            # the draft reads the triage note, with the tenant facts (website: the facts above)
+            messages = None
         if not wanted:
             return done
-        return self.draft(account, conv, newest, sender, messages) and done
+        return self.draft(account, conv, newest, sender, messages, website, email, facts) and done
 
-    def draft(self, account, conv, message_id, sender=None, messages=None):
+    def draft(self, account, conv, message_id, sender=None, messages=None, website=False, verified=None, facts=None):
         """Writes the draft; False when the agent failed."""
         path = f"/api/v1/accounts/{int(account)}/conversations/{int(conv)}/messages"
         if messages is None:
@@ -1061,12 +1295,18 @@ class Drafts:
             return True
         heading = self.config.draft_heading
         earlier = [m for m in messages if not (m.get("private") and (m.get("content") or "").startswith(heading))]
-        # the sender lets the agent look the customer up (Chatwoot's contact, from the mail sender)
-        contact = clean_contact(sender)
-        customer = contact_line(contact)
+        if website:
+            # a note may come from a time the visitor was logged out or someone else
+            earlier = [m for m in earlier if not m.get("private")]
+            contact = {"email": verified} if verified else {}
+            customer = website_lines(verified) + ("\n\n" + facts if facts else "")
+        else:
+            # the sender lets the agent look the customer up (Chatwoot's contact, from the mail sender)
+            contact = clean_contact(sender)
+            customer = contact_line(contact)
         text = (self.config.draft_instructions or DRAFT_PROMPT) + \
             ("\n\n" + customer if customer else "") + "\n\nConversation:\n" + \
-            (transcript({"messages": earlier}) or "(no messages)")
+            (transcript({"messages": earlier}, website) or "(no messages)")
         metadata = {"chatwoot": {"draft": True, "account": account, "conversation": conv,
                                  "contact": contact}}
         try:
@@ -1126,16 +1366,18 @@ class Triage:
     def needed(self, conversation):
         return self.config.triage_label not in (conversation.get("labels") or [])
 
-    def ask(self, account, conv, messages, contact, facts):
+    def ask(self, account, conv, messages, contact, facts, website=False):
         """(category or None, summary, failure) of the agent's answer."""
         c = self.config
         own = (c.draft_heading, c.triage_heading)
         earlier = [m for m in messages if not (m.get("private") and (m.get("content") or "").startswith(own))]
+        if website:
+            earlier = [m for m in earlier if not m.get("private")]
         kinds = "\n".join("- " + k["name"] + (": " + k["description"] if k["description"] else "") for k in c.categories)
-        customer = contact_line(contact)
+        customer = website_lines(contact.get("email")) if website else contact_line(contact)
         text = (c.triage_instructions or TRIAGE_PROMPT) + "\n\nCategories:\n" + kinds + \
             ("\n\n" + customer if customer else "") + ("\n\n" + facts if facts else "") + \
-            "\n\nConversation:\n" + (transcript({"messages": earlier}) or "(no messages)")
+            "\n\nConversation:\n" + (transcript({"messages": earlier}, website) or "(no messages)")
         metadata = {"chatwoot": {"triage": True, "account": account, "conversation": conv, "contact": contact}}
         try:
             answer, _ = self.bot.ask(text, None, metadata)
@@ -1166,10 +1408,12 @@ class Triage:
             return f"team {team} not set (HTTP {e.code})"
         return f"to team {team}"
 
-    def run(self, account, conv, conversation, messages, contact):
+    def run(self, account, conv, conversation, messages, contact, website=False, facts=None):
+        """facts: those of a website chat, collected by the caller; None collects them here."""
         c = self.config
-        facts = self.facts.collect(contact.get("email")) if self.facts else ""
-        category, summary, failure = self.ask(account, conv, messages, contact, facts)
+        if facts is None:
+            facts = self.facts.collect(contact.get("email")) if self.facts else ""
+        category, summary, failure = self.ask(account, conv, messages, contact, facts, website)
         category = category or c.triage_fallback
         kind = next(k for k in c.categories if k["name"] == category)
         route = self.route(account, conv, conversation, kind["team"])
@@ -1264,12 +1508,13 @@ class TenantFacts:
                 found[tenant].append(meta.get("name") or "")
         return {t: sorted(n) for t, n in found.items()}
 
-    def collect(self, email):
+    def collect(self, email, verified=False):
         """The facts as text for the triage note and the draft, or empty without an email."""
         email = (email or "").strip().lower()
         if "@" not in email:
             return ""
-        head = f"Tenant facts for {email} (read from the cluster by the bridge; the sender's address is not verified):"
+        how = "the visitor is logged in with this address" if verified else "the sender's address is not verified"
+        head = f"Tenant facts for {email} (read from the cluster by the bridge; {how}):"
         try:
             tenants = self.tenants(email)
         except Exception as e:  # facts help the triage, they never stop it
@@ -1631,8 +1876,9 @@ def make_handler(bot, pool, staff=None, drafts=None):
                 event = json.loads(body)
             except ValueError:
                 return self.reply(400)
-            # Chatwoot waits a few seconds only: answer at once, work afterwards
-            pool.submit(drafts.handle if self.path == "/draft" else bot.handle, event)
+            # Chatwoot waits a few seconds only: answer at once, work afterwards. dispatch() only
+            # sorts and hands off: no agent call waits in this pool
+            pool.submit(drafts.dispatch if self.path == "/draft" else bot.dispatch, event)
             self.reply(200)
 
     return Handler

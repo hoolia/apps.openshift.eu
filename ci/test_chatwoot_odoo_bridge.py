@@ -689,8 +689,7 @@ class BridgeTest(unittest.TestCase):
         conv = next(iter(self.conversations().values()))
         self.assertEqual(self.state["chatwoot"]["contacts"][conv["contact_id"]]["email"], "bob@example.org")
         self.bridge.handle_webhook(self.staff_reply(conv["id"]))
-        (call,) = [kw for model, method, kw in self.state["odoo_calls"] if method == "find_or_create"]
-        self.assertEqual(call["email"], '"Bob" <bob@example.org>')
+        self.assertEqual(self.made_partners(), [{"name": "Bob", "email": "bob@example.org"}])
         self.assertEqual(len(self.posts()), 1)
 
     def test_alert_counters_exist_before_the_first_failure(self):
@@ -710,8 +709,12 @@ class BridgeTest(unittest.TestCase):
         self.state["odoo"]["crm.lead"][9]["contact_name"] = 'Bob \\'
         self.event("lead.created", model="crm.lead", rid=9)
         self.bridge.handle_webhook(self.staff_reply(next(iter(self.conversations()))))
-        (call,) = [kw for model, method, kw in self.state["odoo_calls"] if method == "find_or_create"]
-        self.assertEqual(call["email"], '"Bob" <bob@example.org>')
+        self.assertEqual(self.made_partners(), [{"name": "Bob", "email": "bob@example.org"}])
+        self.assertFalse([m for _, m, _ in self.state["odoo_calls"] if m == "find_or_create"])
+
+    def made_partners(self):
+        return [vals for model, method, kw in self.state["odoo_calls"]
+                if model == "res.partner" and method == "create" for vals in kw["vals_list"]]
 
     def test_chatwoot_404_is_retried_not_dropped(self):
         self.state["chatwoot_404"] = True
@@ -770,8 +773,12 @@ class BridgeTest(unittest.TestCase):
         msg = {"id": mid, "content": content, "message_type": 0, "private": False, "source_id": None,
                "sender": {"id": contact, "type": "contact"}, **extra}
         self.chat(cid).append(msg)
+        identifier = self.state["chatwoot"]["contacts"][contact].get("identifier")
+        source = ("id-" + hashlib.sha256(identifier.encode()).hexdigest()[:32] + "-session"
+                  if isinstance(identifier, str) else "anonymous-session")
         return {"event": "message_created", "id": mid, "message_type": "incoming", "private": False,
-                "content": content, "conversation": {"id": cid}, "sender": {"id": contact, "type": "contact"}}
+                "content": content, "conversation": {"id": cid, "contact_inbox": {"source_id": source}},
+                "sender": {"id": contact, "type": "contact"}}
 
     def hook(self, payload):
         """A webhook as the account webhook delivers it on the website path."""

@@ -56,6 +56,7 @@ import signal
 import sys
 import threading
 import time
+import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -306,6 +307,14 @@ def bare_email(value):
     return address if re.fullmatch(r"[^@\s]+@[^@\s]+", address) else None
 
 
+def bound(conversation, identifier):
+    """True when this session was verified for exactly this identifier (contact guard): the
+    source id of the contact inbox names it, and a contact merge can't change a source id."""
+    inbox = (conversation or {}).get("contact_inbox") or {}
+    name = "id-" + hashlib.sha256(identifier.encode()).hexdigest()[:32] + "-"
+    return str(inbox.get("source_id") or "").startswith(name)
+
+
 def verified_email(conv):
     """The visitor's email when Chatwoot verified the contact of this conversation, else None.
 
@@ -317,6 +326,8 @@ def verified_email(conv):
         return None
     identifier = (meta.get("sender") or {}).get("identifier")
     if not isinstance(identifier, str) or not EMAIL.match(identifier.strip()):
+        return None
+    if not bound(conv, identifier):
         return None
     return identifier.strip().lower()
 
@@ -761,9 +772,17 @@ class Bridge:
         email = bare_email(record.get(spec["email"]))
         if not email:
             return None
-        name = (record.get(spec["name"]) or "").replace('"', "").replace("\\", "").strip()
-        found = self.odoo.call("res.partner", "find_or_create", email=f'"{name}" <{email}>' if name else email)
-        return found[0] if isinstance(found, list) else found
+        return self._partner(self.person_name(record.get(spec["name"])), email)
+
+    def _partner(self, name, email):
+        """The res.partner of an address: the first whose email is that address, else a new one.
+        Not find_or_create: its =ilike takes _ and % of the address as wildcards."""
+        rows = self.odoo.call("res.partner", "search_read", domain=[["email", "=ilike", like_escape(email)]],
+                              fields=["id"], limit=1)
+        if rows:
+            return rows[0]["id"]
+        made = self.odoo.call("res.partner", "create", vals_list=[{"name": name or email, "email": email}])
+        return made[0] if isinstance(made, list) else made
 
     def reply(self, payload):
         if payload.get("message_type") != "outgoing" or payload.get("private"):
@@ -895,6 +914,9 @@ class Bridge:
         conv = self.chatwoot.conversation(cid)
         if not self._website_conv(conv):
             return "ignored"
+        # only the signed webhook names the session's source id
+        hooked = payload.get("conversation") if event == "message_created" else payload
+        conv["contact_inbox"] = (hooked or {}).get("contact_inbox")
         if event == "message_created":
             return self.chat_message(conv, payload)
         if event == "conversation_status_changed":
@@ -940,7 +962,7 @@ class Bridge:
         """(model, id) of the chat's new ticket, or why there is none: "ignored" or "limited"."""
         cid = conv["id"]
         with self.lock(f"website:{cid}"):
-            conv = self.chatwoot.conversation(cid) or conv
+            conv = {**(self.chatwoot.conversation(cid) or conv), "contact_inbox": conv.get("contact_inbox")}
             url = self.conversation_url(cid)
             target = self._chat_linked(cid)
             if target:
@@ -1011,13 +1033,22 @@ class Bridge:
         self.chatwoot.create_message(cid, f"{LIMIT_NOTE}: {why}. Create one in Odoo when it is needed.",
                                      "outgoing", private=True)
 
+    @staticmethod
+    def person_name(value):
+        """A typed name as one plain line: no control or format character, no <, >, @, quote,
+        backslash or colon, so it can name no address and start no line."""
+        text = "".join(" " if unicodedata.category(ch)[0] in "CZ" else ch for ch in str(value or ""))
+        for ch in '<>@"\\:':
+            text = text.replace(ch, " ")
+        return " ".join(text.split())[:100]
+
     def _chat_create(self, conv, sender, email, url, verified):
-        name = (sender.get("name") or "").replace('"', "").replace("\\", "").strip()
+        name = self.person_name(sender.get("name"))
         page = (conv.get("additional_attributes") or {}).get("referer") or ""
+        page = "".join(str(page).split())  # the visitor's: one word, it can fake no line
         about = "Website chat" + (f" from {page}"[:300] if page else "")
         if verified:
-            found = self.odoo.call("res.partner", "find_or_create", email=f'"{name}" <{email}>' if name else email)
-            partner = found[0] if isinstance(found, list) else found
+            partner = self._partner(name, email)
         else:
             # never the partner of the typed address: anyone can type a customer's
             partner = self._visitor_partner()
@@ -1040,6 +1071,8 @@ class Bridge:
     @staticmethod
     def claim_text(name, email):
         """The identity an unverified visitor typed, as text for staff."""
+        # one plain line: _chat_limit reads the CLAIMED line only
+        name = Bridge.person_name(name)
         return (f"Claimed name, unverified: {name or '-'}\n{CLAIMED}{email}\n"
                 "Confirm who this is before you set the customer.")
 
@@ -1122,7 +1155,7 @@ class Bridge:
         cid = conv["id"]
         url = self.conversation_url(cid)
         with self.lock(f"website:{cid}"):
-            conv = self.chatwoot.conversation(cid) or conv
+            conv = {**(self.chatwoot.conversation(cid) or conv), "contact_inbox": conv.get("contact_inbox")}
             target = self._bridged(conv)
             if target and not self._record_of(conv, target, []):
                 target = self._chat_linked(cid)
