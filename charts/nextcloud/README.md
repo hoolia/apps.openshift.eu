@@ -96,6 +96,9 @@ password:
 | `ai.models.completion` | empty | Default model for text. Also `image`, `speechToText`, `textToSpeech`. Empty: the choice of the app. |
 | `ai.providers.*` | text kinds on | Kinds of task the endpoint serves: `chat`, `text`, `translation`, `imageAnalysis`, `imageGeneration`, `speechToText`, `textToSpeech`. |
 | `talk.enabled` | `false` | Nextcloud Talk with a signaling server, NATS, a TURN server and call recording. |
+| `talk.shared.signaling` | `false` | Use the signaling server of the platform instead of an own signaling server and NATS. |
+| `talk.shared.turn` | `false` | Use the TURN servers of the platform instead of an own TURN server. |
+| `talk.shared.turnGeneration` | empty | The `turn-generation` the platform publishes; required with `talk.shared.turn`. |
 | `talk.turn.host` | empty | Public DNS name of the TURN server. Empty: `turn-<hostname of Nextcloud>`. |
 | `talk.turn.public` | `false` | Request a public address for the TURN server: LoadBalancer Service, DNS record request and NetworkPolicy. |
 | `talk.turn.externalIP` | empty | Public address of the TURN server. Empty with `talk.turn.public`: read from the DNS name when the pod starts. |
@@ -418,6 +421,16 @@ untouched. Install the skipped release first. A new install starts at the latest
      `talk.turn.relayPorts.min` to `max`. Ask the platform team to allow them when a
      firewall sits in front of the pool.
   5. The signaling hostname needs a DNS record like the other hostnames.
+- With `talk.shared.signaling` or `talk.shared.turn` the platform provides the servers.
+  It writes ConfigMap `nextcloud-talk-platform` (`signaling-url`, `turn-servers`,
+  `turn-generation`) and Secret `nextcloud-talk-shared-turn` (`turn-secret`) into the
+  project; the chart creates neither. Nextcloud registers them at every start, and the
+  recording server connects to `signaling-url`. While a value is missing or invalid,
+  Talk keeps its last servers, the log of the `nextcloud` container says
+  `setup: shared Talk:` with the reason, and the cron container tries again every minute.
+  A new key is registered when `talk.shared.turnGeneration` changes to the platform's new
+  generation. The Secret `nextcloud-talk` stays: the platform's signaling server uses
+  its keys.
 - AI needs an OpenAI-compatible API that your project can reach, and its key. The
   chart runs no model. Switch off the kinds under `ai.providers` that the API does
   not serve.

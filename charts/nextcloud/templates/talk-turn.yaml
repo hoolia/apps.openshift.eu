@@ -1,4 +1,4 @@
-{{- if and .Values.talk.enabled .Values.talk.turn.enabled }}
+{{- if and .Values.talk.enabled .Values.talk.turn.enabled (not .Values.talk.shared.turn) }}
 {{- $turn := .Values.talk.turn }}
 {{- $host := include "wrapper.turnHost" . }}
 {{- $type := ternary "LoadBalancer" $turn.service.type $turn.public }}

@@ -157,6 +157,25 @@
           "title": "Nextcloud Talk",
           "description": "Calls across networks need a public address for the TURN server"
         },
+        "shared": {
+          "type": "object",
+          "properties": {
+            "signaling": {
+              "type": "boolean",
+              "title": "Signaling server of the platform"
+            },
+            "turn": {
+              "type": "boolean",
+              "title": "TURN servers of the platform"
+            },
+            "turnGeneration": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9._-]*$",
+              "title": "TURN key generation of the platform"
+            }
+          },
+          "description": "Set by the platform that provides these servers; on without them Talk keeps its last servers"
+        },
         "signaling": {
           "type": "object",
           "properties": {

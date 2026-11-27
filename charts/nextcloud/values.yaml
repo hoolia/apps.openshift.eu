@@ -212,6 +212,15 @@ taskprocessing:
 talk:
   enabled: false
   initImage: docker.io/busybox:1.36
+  # servers of the platform, read at every start from ConfigMap nextcloud-talk-platform
+  # (signaling-url, turn-servers, turn-generation) and Secret nextcloud-talk-shared-turn
+  shared:
+    # true: the platform's signaling server; no own signaling server and NATS
+    signaling: false
+    # true: the platform's TURN servers; no own TURN server
+    turn: false
+    # turn-generation the platform publishes; a change registers the TURN key again
+    turnGeneration: ""
   # served on https://<host>/talk/signaling/, the recording server on /talk/recording
   signaling:
     image: ghcr.io/strukturag/nextcloud-spreed-signaling:master
@@ -411,7 +420,7 @@ mailu:
     front:
       # a chart upgrade reloads mail-prefix.conf; equals the chart version (templates/validate.yaml)
       podAnnotations:
-        chart-version: 0.20.2
+        chart-version: 0.21.0
       extraVolumes:
       - name: dovecot-override
         configMap:
@@ -615,7 +624,7 @@ nextcloud:
   # a chart upgrade restarts Nextcloud so its start-up setup runs again; equals the chart
   # version (templates/validate.yaml refuses a render where it does not)
   podAnnotations:
-    chart-version: 0.20.2
+    chart-version: 0.21.0
   nextcloud:
     host: nextcloud.example.org
     existingSecret:
@@ -690,6 +699,23 @@ nextcloud:
             items:
             - key: api-token
               path: mailu-api-token
+        # the platform's Talk servers for talk.shared
+        - configMap:
+            name: nextcloud-talk-platform
+            optional: true
+            items:
+            - key: signaling-url
+              path: talk-platform/signaling-url
+            - key: turn-servers
+              path: talk-platform/turn-servers
+            - key: turn-generation
+              path: talk-platform/turn-generation
+        - secret:
+            name: nextcloud-talk-shared-turn
+            optional: true
+            items:
+            - key: turn-secret
+              path: talk-platform/turn-secret
     extraVolumeMounts:
     - name: setup
       mountPath: /docker-entrypoint-hooks.d/before-starting/00-chart.sh

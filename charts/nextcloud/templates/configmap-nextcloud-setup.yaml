@@ -139,8 +139,10 @@ data:
     {{- end }}
     {{- if .Values.talk.enabled }}
     app spreed
+    {{- if not .Values.talk.shared.signaling }}
     set_app_secret spreed signaling_servers signaling-secret "{\"servers\":[{\"server\":\"https://{{ $host }}/talk/signaling/\",\"verify\":true}],\"secret\":\"@SECRET@\"}"
-    {{- if .Values.talk.turn.enabled }}
+    {{- end }}
+    {{- if and .Values.talk.turn.enabled (not .Values.talk.shared.turn) }}
     {{- $turn := printf "%s:%v" (include "wrapper.turnHost" .) .Values.talk.turn.port }}
     # Talk declares the STUN and TURN lists as arrays; a plain string is refused
     run 30 "setting spreed stun_servers" php occ config:app:set spreed stun_servers --type=array -n --value="[\"{{ $turn }}\"]"
@@ -150,6 +152,7 @@ data:
     set_app_secret spreed recording_servers recording-secret "{\"servers\":[{\"server\":\"https://{{ $host }}/talk/recording\",\"verify\":true}],\"secret\":\"@SECRET@\"}"
     {{- end }}
     {{- end }}
+    timeout -k 5 120 sh /opt/nextcloud-chart/talk-shared.sh || log "shared Talk not set, retried every minute"
     {{- if .Values.ai.enabled }}
     {{- $ai := .Values.ai }}
     app assistant
@@ -196,6 +199,52 @@ data:
     run 30 "oidc provider id" sh /opt/nextcloud-chart/provider-id.sh {{ $o.identifier | quote }}
     {{- end }}
     exit 0
+  # the platform's Talk servers (talk.shared): run by setup.sh, and every minute by the cron
+  # sidecar while the last run failed; a missing or invalid value keeps the old setting
+  talk-shared.sh: |
+    #!/bin/sh
+    cd /var/www/html
+    failed=config/.chart-talk-failed
+    {{- $sh := .Values.talk.shared }}
+    {{- if and .Values.talk.enabled (or $sh.signaling $sh.turn) }}
+    p=/run/secrets/setup/talk-platform
+    err=""
+    fail() { echo "setup: shared Talk: $*"; err="$err$*; "; }
+    # valid <pattern> <value>: one line that matches as a whole
+    valid() { [ "$(printf '%s\n' "$2" | wc -l)" -eq 1 ] && printf '%s\n' "$2" | grep -Eqx "$1"; }
+    occ_secret() { timeout -k 5 30 php /opt/nextcloud-chart/occ-secret.php "$@" >/dev/null 2>&1; }
+    {{- if $sh.signaling }}
+    url=$(cat "$p/signaling-url" 2>/dev/null)
+    if ! valid 'https://[A-Za-z0-9.-]+(:[0-9]+)?(/[A-Za-z0-9._~-]+)*/?' "$url"; then
+      fail "no valid signaling-url in ConfigMap nextcloud-talk-platform"
+    elif ! occ_secret /run/secrets/setup/signaling-secret config:app:set spreed signaling_servers \
+        --value="{\"servers\":[{\"server\":\"$url\",\"verify\":true}],\"secret\":\"@SECRET@\"}"; then
+      fail "signaling server $url not set"
+    fi
+    {{- end }}
+    {{- if $sh.turn }}
+    gen=$(cat "$p/turn-generation" 2>/dev/null)
+    servers=$(cat "$p/turn-servers" 2>/dev/null)
+    if [ "$gen" != '{{ $sh.turnGeneration }}' ]; then
+      fail "turn-generation is '$gen', talk.shared.turnGeneration is '{{ $sh.turnGeneration }}'"
+    elif ! valid '[A-Za-z0-9.-]+:[0-9]+(,[A-Za-z0-9.-]+:[0-9]+)*' "$servers"; then
+      fail "no valid turn-servers in ConfigMap nextcloud-talk-platform"
+    elif [ ! -s "$p/turn-secret" ]; then
+      fail "no turn-secret in Secret nextcloud-talk-shared-turn"
+    else
+      # Talk declares both lists as arrays; every server takes STUN and TURN
+      stun=$(printf '%s' "$servers" | sed 's/[^,][^,]*/"&"/g')
+      turn=$(printf '%s' "$servers" | sed 's/[^,][^,]*/{"schemes":"turn","server":"&","secret":"@SECRET@","protocols":"udp,tcp"}/g')
+      timeout -k 5 30 php occ config:app:set spreed stun_servers --type=array -n --value="[$stun]" >/dev/null 2>&1 \
+        || fail "STUN servers not set"
+      occ_secret "$p/turn-secret" config:app:set spreed turn_servers --type=array -n --value="[$turn]" \
+        || fail "TURN servers not set"
+    fi
+    {{- end }}
+    if [ -n "$err" ]; then printf '%s\n' "$err" > "$failed"; exit 1; fi
+    echo "setup: shared Talk servers set"
+    {{- end }}
+    rm -f "$failed"
   # occ-secret.php <secret file> <occ arguments>: occ in this php process, with @SECRET@ in
   # the arguments replaced by the content of the file, so no command line holds the secret
   occ-secret.php: |
@@ -287,12 +336,15 @@ data:
     until curl -fs -m 5 http://localhost/status.php | grep -q '"installed":true'; do sleep 10; done
     # every minute: a changed setup.sh (new values) runs again without a restart, and with
     # sso.enabled the provider follows the platform's Secret
-    (last=$(sha256sum < /opt/nextcloud-chart/setup.sh)
+    (sum() { cat /opt/nextcloud-chart/setup.sh /opt/nextcloud-chart/talk-shared.sh | sha256sum; }
+     last=$(sum)
      while :; do
        sleep 60
-       now=$(sha256sum < /opt/nextcloud-chart/setup.sh)
+       now=$(sum)
        if [ "$now" != "$last" ]; then
          su -s /bin/sh www-data -c 'sh /opt/nextcloud-chart/setup.sh' && last=$now
+       elif [ -e /var/www/html/config/.chart-talk-failed ]; then
+         su -s /bin/sh www-data -c 'sh /opt/nextcloud-chart/talk-shared.sh'
        fi
        # present while sso.enabled: switching it on later needs no restart
        [ -f /opt/nextcloud-chart/sso.sh ] && su -s /bin/sh www-data -c 'sh /opt/nextcloud-chart/sso.sh'

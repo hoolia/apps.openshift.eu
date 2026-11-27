@@ -64,6 +64,8 @@ jobs:
       run: ci/test-kagent.sh
     - name: Test nextcloud silent login
       run: ci/test-nextcloud-silent-login.sh
+    - name: Test nextcloud Talk modes
+      run: ci/test-nextcloud-talk.sh
     - name: Install promtool
       run: |
         curl -sSLf -o /tmp/prometheus.tgz https://github.com/prometheus/prometheus/releases/download/v3.5.0/prometheus-3.5.0.linux-amd64.tar.gz

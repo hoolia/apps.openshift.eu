@@ -171,7 +171,7 @@ data:
 {{- if .Values.notifyPush.enabled }}
 {{- $monitors = append $monitors (dict "name" "nextcloud-notify-push" "partOf" "nextcloud" "interval" $m.interval) }}
 {{- end }}
-{{- if .Values.talk.enabled }}
+{{- if and .Values.talk.enabled (not .Values.talk.shared.signaling) }}
 {{- $monitors = append $monitors (dict "name" "nextcloud-nats" "partOf" "nextcloud-talk" "interval" $m.interval) }}
 {{- $monitors = append $monitors (dict "name" "nextcloud-signaling" "partOf" "nextcloud-talk" "interval" $m.interval "port" "http") }}
 {{- end }}
