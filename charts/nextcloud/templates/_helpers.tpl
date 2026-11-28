@@ -21,6 +21,18 @@ cluster, else a new random one.
 {{- if $found -}}{{- $found.data | toJson -}}{{- else -}}{}{{- end -}}
 {{- end -}}
 
+{{/* The own signaling server and NATS run: Talk on, and not replaced by the platform's. */}}
+{{- define "wrapper.ownSignaling" -}}
+{{- $sh := .Values.talk.shared -}}
+{{- if and .Values.talk.enabled (or (not $sh.signaling) $sh.keepOwnServers) -}}true{{- end -}}
+{{- end -}}
+
+{{/* The own TURN server runs: TURN on, and not replaced by the platform's. */}}
+{{- define "wrapper.ownTurn" -}}
+{{- $sh := .Values.talk.shared -}}
+{{- if and .Values.talk.enabled .Values.talk.turn.enabled (or (not $sh.turn) $sh.keepOwnServers) -}}true{{- end -}}
+{{- end -}}
+
 {{- define "wrapper.turnHost" -}}
 {{- .Values.talk.turn.host | default (printf "turn-%s" (include "wrapper.host" .)) -}}
 {{- end -}}

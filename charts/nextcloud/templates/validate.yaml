@@ -19,3 +19,15 @@
 {{- fail (printf "mailu.upstream.front.podAnnotations.chart-version is %q, set it to the chart version %q" $f .Chart.Version) -}}
 {{- end -}}
 {{- end -}}
+{{- $sh := .Values.talk.shared -}}
+{{- range $k := list "signaling" "turn" "keepOwnServers" -}}
+{{- if not (kindIs "bool" (index $sh $k)) -}}
+{{- fail (printf "talk.shared.%s must be true or false" $k) -}}
+{{- end -}}
+{{- end -}}
+{{- if and (or $sh.signaling $sh.turn) (not .Values.talk.enabled) -}}
+{{- fail "talk.shared needs talk.enabled" -}}
+{{- end -}}
+{{- if and $sh.turn (not (regexMatch "^[A-Za-z0-9._-]+$" (toString $sh.turnGeneration))) -}}
+{{- fail "talk.shared.turn needs talk.shared.turnGeneration, the turn-generation of the platform (letters, digits, . _ -)" -}}
+{{- end -}}

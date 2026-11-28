@@ -1,5 +1,6 @@
 {{- if and .Values.talk.enabled .Values.talk.recording.enabled }}
 {{- $rec := .Values.talk.recording }}
+{{- $shared := .Values.talk.shared.signaling }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -55,13 +56,38 @@ spec:
       - name: recording
         image: {{ $rec.image }}
         imagePullPolicy: IfNotPresent
+        {{- if $shared }}
+        # the platform's signaling server: HPB_DOMAIN and HPB_PATH from its URL
+        command:
+        - /bin/sh
+        - -c
+        - |
+          u=$(cat /run/talk-platform/signaling-url 2>/dev/null)
+          r=${u#https://}
+          case $u in https://?*/?*) ;; *) r=" ";; esac
+          case $r in *[!A-Za-z0-9.:/_~-]*) echo "no valid signaling-url in ConfigMap nextcloud-talk-platform"; exit 1;; esac
+          p=/${r#*/}
+          export HPB_DOMAIN=${r%%/*} HPB_PATH=${p%/}
+          exec /start.sh "$@"
+        - recording
+        {{- end }}
+        # start.sh empties /tmp: recordings, also those kept after a failed upload, stay on the volume
+        args:
+        - /bin/sh
+        - -c
+        - |
+          sed -i 's#^directory = /tmp$#directory = /recordings#' /conf/recording.conf
+          grep -qx 'directory = /recordings' /conf/recording.conf || { echo "recording.conf has no directory = /tmp"; exit 1; }
+          exec python -m nextcloud.talk.recording --config /conf/recording.conf
         env:
         - name: NC_DOMAIN
           value: {{ include "wrapper.host" . | quote }}
+        {{- if not $shared }}
         - name: HPB_DOMAIN
           value: {{ include "wrapper.host" . | quote }}
         - name: HPB_PATH
           value: /talk/signaling
+        {{- end }}
         - name: HPB_PROTOCOL
           value: https
         - name: TZ
@@ -103,11 +129,25 @@ spec:
           {{- include "wrapper.restricted" . | nindent 10 }}
         volumeMounts:
         - name: recordings
-          mountPath: /tmp
+          mountPath: /recordings
+        {{- if $shared }}
+        - name: talk-platform
+          mountPath: /run/talk-platform
+          readOnly: true
+        {{- end }}
       volumes:
       - name: recordings
         persistentVolumeClaim:
           claimName: nextcloud-talk-recording
+      {{- if $shared }}
+      - name: talk-platform
+        configMap:
+          name: nextcloud-talk-platform
+          optional: true
+          items:
+          - key: signaling-url
+            path: signaling-url
+      {{- end }}
 ---
 apiVersion: v1
 kind: Service

@@ -1,4 +1,4 @@
-{{- if .Values.talk.enabled }}
+{{- if include "wrapper.ownSignaling" . }}
 {{- $t := .Values.talk }}
 apiVersion: apps/v1
 kind: Deployment
