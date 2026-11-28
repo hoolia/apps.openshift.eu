@@ -221,6 +221,8 @@ talk:
     turn: false
     # turn-generation the platform publishes; a change registers the TURN key again
     turnGeneration: ""
+    # true: the own servers keep running, unused, while an existing instance moves over
+    keepOwnServers: false
   # served on https://<host>/talk/signaling/, the recording server on /talk/recording
   signaling:
     image: ghcr.io/strukturag/nextcloud-spreed-signaling:master

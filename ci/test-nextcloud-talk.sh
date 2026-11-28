@@ -82,6 +82,9 @@ check_mode noturn-sharedsig \
 check_mode noturn-localsig \
   "signaling=1 nats=1 turn=0 turnsvc=0 localsig=1 localturn=0 sharedsig=0 sharedturn=0" \
   $ON --set talk.turn.enabled=false
+check_mode keep-own-servers \
+  "signaling=1 nats=1 sigroute=1 sigmonitor=1 sigalerts=1 turn=1 turnsvc=1 talksecret=1 recshared=1 recvolume=1 localsig=0 localturn=0 sharedsig=1 sharedturn=1" \
+  $ON --set talk.shared.signaling=true --set talk.shared.turn=true $G --set talk.shared.keepOwnServers=true
 check_mode talk-off \
   "signaling=0 nats=0 sigroute=0 sigmonitor=0 sigalerts=0 turn=0 talksecret=0 recording=0 localsig=0 localturn=0 sharedsig=0 sharedturn=0 mount=1"
 
@@ -95,6 +98,7 @@ refuse turn-no-generation "talk.shared.turnGeneration" $ON --set talk.shared.tur
 refuse generation-chars "turnGeneration" $ON --set talk.shared.turn=true --set 'talk.shared.turnGeneration=g 1'
 refuse shared-talk-off "talk.shared needs talk.enabled" --set talk.shared.signaling=true
 refuse string-switch "signaling" $ON --set-string talk.shared.signaling=true
+refuse string-keep "keepOwnServers" $ON --set talk.shared.signaling=true --set-string talk.shared.keepOwnServers=true
 
 # talk-shared.sh of a render against a stand-in php that logs its arguments
 render script $ON --set talk.shared.signaling=true --set talk.shared.turn=true $G || { echo "FAIL script: render"; exit 1; }

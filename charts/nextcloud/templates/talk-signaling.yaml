@@ -1,4 +1,4 @@
-{{- if and .Values.talk.enabled (not .Values.talk.shared.signaling) }}
+{{- if include "wrapper.ownSignaling" . }}
 {{- $t := .Values.talk }}
 apiVersion: apps/v1
 kind: Deployment

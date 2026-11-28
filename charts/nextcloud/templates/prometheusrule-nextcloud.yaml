@@ -131,7 +131,7 @@ spec:
         summary: The Redis of Nextcloud uses over 90% of its memory
         description: 'Redis uses {{ `{{ $value | humanizePercentage }}` }} of maxmemory.'
   {{- end }}
-  {{- if and .Values.talk.enabled (not .Values.talk.shared.signaling) }}
+  {{- if include "wrapper.ownSignaling" . }}
   - name: nextcloud-talk
     rules:
     - alert: NATSDown

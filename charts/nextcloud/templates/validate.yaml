@@ -20,7 +20,7 @@
 {{- end -}}
 {{- end -}}
 {{- $sh := .Values.talk.shared -}}
-{{- range $k := list "signaling" "turn" -}}
+{{- range $k := list "signaling" "turn" "keepOwnServers" -}}
 {{- if not (kindIs "bool" (index $sh $k)) -}}
 {{- fail (printf "talk.shared.%s must be true or false" $k) -}}
 {{- end -}}

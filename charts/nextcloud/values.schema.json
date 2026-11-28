@@ -172,6 +172,10 @@
               "type": "string",
               "pattern": "^[A-Za-z0-9._-]*$",
               "title": "TURN key generation of the platform"
+            },
+            "keepOwnServers": {
+              "type": "boolean",
+              "title": "Keep the own Talk servers during the move"
             }
           },
           "description": "Set by the platform that provides these servers; on without them Talk keeps its last servers"

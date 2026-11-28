@@ -99,6 +99,7 @@ password:
 | `talk.shared.signaling` | `false` | Use the signaling server of the platform instead of an own signaling server and NATS. |
 | `talk.shared.turn` | `false` | Use the TURN servers of the platform instead of an own TURN server. |
 | `talk.shared.turnGeneration` | empty | The `turn-generation` the platform publishes; required with `talk.shared.turn`. |
+| `talk.shared.keepOwnServers` | `false` | Keep the own signaling server, NATS and TURN server (and its address) running, unused, while an existing instance moves to the platform's servers. |
 | `talk.turn.host` | empty | Public DNS name of the TURN server. Empty: `turn-<hostname of Nextcloud>`. |
 | `talk.turn.public` | `false` | Request a public address for the TURN server: LoadBalancer Service, DNS record request and NetworkPolicy. |
 | `talk.turn.externalIP` | empty | Public address of the TURN server. Empty with `talk.turn.public`: read from the DNS name when the pod starts. |
@@ -430,7 +431,9 @@ untouched. Install the skipped release first. A new install starts at the latest
   `setup: shared Talk:` with the reason, and the cron container tries again every minute.
   A new key is registered when `talk.shared.turnGeneration` changes to the platform's new
   generation. The Secret `nextcloud-talk` stays: the platform's signaling server uses
-  its keys.
+  its keys. To move an existing instance, set `talk.shared.keepOwnServers=true` with the
+  switches: its own servers, Route and TURN address stay while Talk uses the platform's,
+  so switching back is instant. Remove it once calls and recordings work.
 - AI needs an OpenAI-compatible API that your project can reach, and its key. The
   chart runs no model. Switch off the kinds under `ai.providers` that the API does
   not serve.
