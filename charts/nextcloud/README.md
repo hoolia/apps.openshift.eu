@@ -423,9 +423,9 @@ untouched. Install the skipped release first. A new install starts at the latest
      firewall sits in front of the pool.
   5. The signaling hostname needs a DNS record like the other hostnames.
 - With `talk.shared.signaling` or `talk.shared.turn` the platform provides the servers.
-  It writes ConfigMap `nextcloud-talk-platform` (`signaling-url`, `turn-servers`,
-  `turn-generation`) and Secret `nextcloud-talk-shared-turn` (`turn-secret`) into the
-  project; the chart creates neither. Nextcloud registers them at every start, and the
+  It writes ConfigMap `nextcloud-talk-platform` (`signaling-url`) and Secret
+  `nextcloud-talk-shared-turn` (`turn-secret`, `turn-servers`, `turn-generation`) into
+  the project; the chart creates neither. Nextcloud registers them at every start, and the
   recording server connects to `signaling-url`. While a value is missing or invalid,
   Talk keeps its last servers, the log of the `nextcloud` container says
   `setup: shared Talk:` with the reason, and the cron container tries again every minute.

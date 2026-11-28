@@ -228,7 +228,7 @@ data:
     if [ "$gen" != '{{ $sh.turnGeneration }}' ]; then
       fail "turn-generation is '$gen', talk.shared.turnGeneration is '{{ $sh.turnGeneration }}'"
     elif ! valid '[A-Za-z0-9.-]+:[0-9]+(,[A-Za-z0-9.-]+:[0-9]+)*' "$servers"; then
-      fail "no valid turn-servers in ConfigMap nextcloud-talk-platform"
+      fail "no valid turn-servers in Secret nextcloud-talk-shared-turn"
     elif [ ! -s "$p/turn-secret" ]; then
       fail "no turn-secret in Secret nextcloud-talk-shared-turn"
     else
